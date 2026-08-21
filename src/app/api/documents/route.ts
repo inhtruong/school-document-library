@@ -45,6 +45,7 @@ export async function GET(request: NextRequest) {
         orderBy: { createdAt: "desc" },
         take,
         skip,
+        omit: { fileKey: true },
       }),
       prisma.document.count({ where }),
     ]);
@@ -70,7 +71,7 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    const document = await prisma.document.create({ data: parsed.data });
+    const document = await prisma.document.create({ data: parsed.data, omit: { fileKey: true } });
     return apiSuccess(document, { status: 201 });
   } catch (error) {
     console.error("POST /api/documents failed", error);

@@ -5,6 +5,13 @@ export type DocumentRecord = {
   subject: string;
   documentType: string;
   academicYear: string;
+  fileName: string | null;
+  fileSize: number | null;
+  mimeType: string | null;
+  fileCategory: "PDF" | "WORD" | "EXCEL" | "IMAGE" | "VIDEO" | null;
+  uploadedById: string | null;
+  /** Only populated by the document-detail endpoint, which includes the relation. */
+  uploadedBy?: { id: string; name: string } | null;
   createdAt: string;
   updatedAt: string;
 };

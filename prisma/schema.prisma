@@ -14,18 +14,37 @@ model Document {
   subject      String
   documentType String
   academicYear String
+
+  // File metadata — nullable so existing (fileless) documents keep working.
+  fileKey      String?
+  fileName     String?
+  fileSize     Int?
+  mimeType     String?
+  fileCategory FileCategory?
+  uploadedById String?
+  uploadedBy   User?    @relation(fields: [uploadedById], references: [id], onDelete: SetNull)
+
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
   @@index([subject])
   @@index([documentType])
   @@index([academicYear])
+  @@index([uploadedById])
 }
 
 enum Role {
   STUDENT
   TEACHER
   ADMIN
+}
+
+enum FileCategory {
+  PDF
+  WORD
+  EXCEL
+  IMAGE
+  VIDEO
 }
 
 model User {
@@ -36,6 +55,8 @@ model User {
   role         Role     @default(STUDENT)
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
+
+  uploadedDocuments Document[]
 
   @@index([role])
 }

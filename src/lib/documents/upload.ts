@@ -1,0 +1,100 @@
+import "server-only";
+import type { Document } from "@prisma/client";
+import { prisma } from "@/lib/prisma";
+import { MAX_UPLOAD_SIZE_BYTES, MAX_UPLOAD_SIZE_MB } from "@/lib/documents/upload-config";
+import {
+  buildFileKey,
+  deleteLocalFile,
+  matchesFileSignature,
+  resolveFileFormat,
+  writeLocalFile,
+} from "@/lib/storage/local-storage";
+import { createDocumentSchema } from "@/lib/validation/document";
+
+export type UploadedDocument = Document & { uploadedBy: { id: string; name: string } | null };
+
+export type UploadDocumentResult =
+  | { success: true; document: UploadedDocument }
+  | { success: false; error: string; status: 400 | 500 };
+
+function getFormString(formData: FormData, key: string): string {
+  const value = formData.get(key);
+  return typeof value === "string" ? value : "";
+}
+
+/**
+ * Core upload flow: validate metadata, validate the file, store it locally, then
+ * create the Document row. `uploaderId` must come from the caller's authenticated
+ * session — this function never reads an uploader/owner id out of `formData`.
+ */
+export async function uploadDocument(input: {
+  uploaderId: string;
+  formData: FormData;
+}): Promise<UploadDocumentResult> {
+  const parsedMetadata = createDocumentSchema.safeParse({
+    title: getFormString(input.formData, "title"),
+    description: getFormString(input.formData, "description") || undefined,
+    subject: getFormString(input.formData, "subject"),
+    documentType: getFormString(input.formData, "documentType"),
+    academicYear: getFormString(input.formData, "academicYear"),
+  });
+
+  if (!parsedMetadata.success) {
+    return {
+      success: false,
+      error: parsedMetadata.error.issues[0]?.message ?? "Invalid document data",
+      status: 400,
+    };
+  }
+
+  const file = input.formData.get("file");
+  if (!(file instanceof File) || file.size === 0) {
+    return { success: false, error: "A file is required", status: 400 };
+  }
+
+  if (file.size > MAX_UPLOAD_SIZE_BYTES) {
+    return { success: false, error: `File exceeds the ${MAX_UPLOAD_SIZE_MB} MB limit`, status: 400 };
+  }
+
+  const format = resolveFileFormat(file.name, file.type);
+  if (!format.valid) {
+    return { success: false, error: format.error, status: 400 };
+  }
+
+  const buffer = Buffer.from(await file.arrayBuffer());
+  if (!matchesFileSignature(buffer, format.extension)) {
+    return { success: false, error: "File content does not match its declared type", status: 400 };
+  }
+
+  const fileKey = buildFileKey(format.category, format.extension);
+
+  const writeResult = await writeLocalFile(fileKey, buffer);
+  if (!writeResult.success) {
+    console.error("Local file write failed:", writeResult.error);
+    return { success: false, error: "Failed to save the file. Please try again.", status: 500 };
+  }
+
+  try {
+    const document = await prisma.document.create({
+      data: {
+        ...parsedMetadata.data,
+        fileKey,
+        fileName: file.name.trim().slice(0, 200) || `document${format.extension}`,
+        fileSize: file.size,
+        mimeType: file.type,
+        fileCategory: format.category,
+        uploadedById: input.uploaderId,
+      },
+      include: { uploadedBy: { select: { id: true, name: true } } },
+    });
+
+    return { success: true, document };
+  } catch (error) {
+    console.error(
+      "Document creation failed after a successful file write; cleaning up orphan file",
+      error
+    );
+    await deleteLocalFile(fileKey);
+    return { success: false, error: "Failed to save the document. Please try again.", status: 500 };
+  }
+}

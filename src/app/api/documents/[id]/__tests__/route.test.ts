@@ -25,6 +25,12 @@ const mockDocument = {
   subject: "Database",
   documentType: "Exam",
   academicYear: "2024-2025",
+  fileKey: null,
+  fileName: null,
+  fileSize: null,
+  mimeType: null,
+  fileCategory: null,
+  uploadedById: null,
   createdAt,
   updatedAt,
 };

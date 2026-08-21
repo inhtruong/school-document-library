@@ -16,6 +16,19 @@ function formatDate(value: string): string | null {
   return date.toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" });
 }
 
+function formatFileSize(bytes: number): string {
+  if (bytes < 1024 * 1024) return `${Math.max(1, Math.round(bytes / 1024))} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+const CATEGORY_LABELS: Record<string, string> = {
+  PDF: "PDF",
+  WORD: "Word document",
+  EXCEL: "Excel spreadsheet",
+  IMAGE: "Image",
+  VIDEO: "Video",
+};
+
 export default async function DocumentDetailPage({ params }: DocumentDetailPageProps) {
   const { id } = await params;
   const doc = await fetchDocumentById(id);
@@ -54,6 +67,28 @@ export default async function DocumentDetailPage({ params }: DocumentDetailPageP
 
       {doc.description ? (
         <p className="mt-6 text-sm leading-relaxed text-ink/80 sm:text-base">{doc.description}</p>
+      ) : null}
+
+      {doc.fileName ? (
+        <dl className="mt-6 grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-sm text-muted">
+          <dt>File</dt>
+          <dd className="text-ink">
+            {doc.fileName}
+            {doc.fileSize ? ` (${formatFileSize(doc.fileSize)})` : ""}
+          </dd>
+          {doc.fileCategory ? (
+            <>
+              <dt>Type</dt>
+              <dd className="text-ink">{CATEGORY_LABELS[doc.fileCategory] ?? doc.fileCategory}</dd>
+            </>
+          ) : null}
+          {doc.uploadedBy ? (
+            <>
+              <dt>Uploaded by</dt>
+              <dd className="text-ink">{doc.uploadedBy.name}</dd>
+            </>
+          ) : null}
+        </dl>
       ) : null}
 
       <Card className="mt-8 flex flex-col items-center justify-center gap-2 border-dashed bg-surface px-6 py-16 text-center">

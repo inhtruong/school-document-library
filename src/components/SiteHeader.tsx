@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { auth, signOut } from "@/auth";
 import { Badge } from "@/components/ui/badge";
+import { hasRole } from "@/lib/auth/authorize";
 
 export default async function SiteHeader() {
   const session = await auth();
@@ -32,6 +33,15 @@ export default async function SiteHeader() {
 
           {session?.user ? (
             <>
+              {hasRole(session, ["TEACHER", "ADMIN"]) ? (
+                <Link
+                  href="/upload"
+                  className="rounded-full border border-line px-3 py-1.5 text-sm text-muted transition-colors hover:border-ink/25 hover:text-ink"
+                >
+                  Upload Document
+                </Link>
+              ) : null}
+
               <Link
                 href="/profile"
                 className="flex items-center gap-2 text-sm text-ink transition-colors hover:text-accent"

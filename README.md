@@ -3,7 +3,8 @@
 Homepage → search → search results → document detail, backed by a real
 PostgreSQL database through a Prisma-powered REST API. Authentication
 (email/password via Auth.js) with STUDENT/TEACHER/ADMIN roles is implemented.
-No file upload, PDF preview, real download, or AI yet.
+Teachers and admins can upload documents (PDF, Word, Excel, images, video) to
+local file storage. No file preview, real download, or AI yet.
 
 ## Stack
 
@@ -11,6 +12,8 @@ No file upload, PDF preview, real download, or AI yet.
 - Next.js Route Handlers for the API
 - PostgreSQL + Prisma ORM
 - Auth.js (Credentials provider, JWT sessions)
+- Local filesystem storage (`storage_local/`) for uploaded files — no external
+  storage service required
 
 ## Run it
 
@@ -27,6 +30,10 @@ No file upload, PDF preview, real download, or AI yet.
    ```bash
    node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"
    ```
+
+   No other setup is needed for uploads — files are stored on the local
+   filesystem under `storage_local/`, created automatically on first upload.
+   See [Uploads](#uploads) below.
 
 3. Install dependencies, run the migration, and seed sample data:
 
@@ -62,8 +69,9 @@ npm test               run the Vitest suite
 ## What's here
 
 ```
+storage_local/        uploaded files, auto-created (gitignored) — see Uploads below
 prisma/
-  schema.prisma      Document, User models + Role enum (STUDENT/TEACHER/ADMIN)
+  schema.prisma      Document, User models + Role/FileCategory enums
   seed.ts             sample documents + dev accounts (student/teacher/admin)
 src/
   auth.ts              Auth.js config: Credentials provider, JWT callbacks
@@ -75,10 +83,12 @@ src/
     login/page.tsx      email/password login (server action)
     register/page.tsx   registration — always creates STUDENT
     profile/page.tsx     requires auth; shows name/email/role
+    upload/page.tsx       TEACHER/ADMIN only; file upload form (server action)
     error.tsx           friendly fallback if the API/DB is unreachable
     api/
       documents/route.ts        GET (list + ?search=), POST
       documents/[id]/route.ts   GET, PUT, DELETE
+      documents/upload/route.ts  POST — TEACHER/ADMIN only, multipart file upload
       subjects/route.ts         GET distinct subjects with counts
       auth/[...nextauth]/route.ts  Auth.js handlers (session, sign-in/out)
       auth/register/route.ts       POST — always creates STUDENT
@@ -87,7 +97,7 @@ src/
     SearchBar.tsx       client component, pushes /search?q=...
     DocumentCard.tsx    title, subject, type, academic year, description
     SubjectCard.tsx     subject + live document count
-    SiteHeader.tsx      logo, nav, session-aware login/profile/logout
+    SiteHeader.tsx      logo, nav, session-aware login/profile/logout/upload
   lib/
     prisma.ts           Prisma client singleton
     api-client.ts        server-side fetch helpers used by the pages
@@ -101,6 +111,11 @@ src/
       session.ts          jwt/session callback logic
       register.ts          registerStudent() — role always STUDENT
       authorize.ts         requireAuth(), requireRole(), hasRole()
+    documents/
+      upload.ts            uploadDocument() — validate, store, create Document
+      upload-config.ts       MAX_UPLOAD_SIZE_MB / MAX_UPLOAD_SIZE_BYTES (central config)
+    storage/
+      local-storage.ts       format/category rules, safe keys, fs read/write/delete
 ```
 
 ## API
@@ -115,6 +130,7 @@ src/
 | GET    | `/api/subjects`       | Distinct subjects with document counts |
 | POST   | `/api/auth/register`  | Register a new account. Always creates role `STUDENT` |
 | *      | `/api/auth/[...nextauth]` | Auth.js sign-in/sign-out/session endpoints |
+| POST   | `/api/documents/upload` | Upload a file + metadata. TEACHER/ADMIN only, multipart form data |
 
 All responses use `{ success, data, error }` (plus `meta` for list pagination).
 Search matches `title`, `description`, and `subject` (case-insensitive).
@@ -139,3 +155,51 @@ Search matches `title`, `description`, and `subject` (case-insensitive).
   | admin@example.com | admin123 | ADMIN |
 
 - Requires an `AUTH_SECRET` env var — see `.env.example` for how to generate one.
+
+## Uploads
+
+- Only `TEACHER` and `ADMIN` may upload, enforced server-side (`hasRole`/`requireRole`)
+  in both `/upload` and `POST /api/documents/upload` — hiding the header link for
+  other roles is UX only, not the security boundary.
+- **Local filesystem storage — no external service or credentials required.**
+  Uploaded files are written under `storage_local/` at the project root,
+  created automatically on first upload:
+
+  ```
+  storage_local/
+    pdf/       .pdf
+    word/      .doc, .docx
+    excel/     .xls, .xlsx
+    images/    .jpg, .jpeg, .png, .webp
+    videos/    .mp4, .webm
+  ```
+
+- The allowlist above (extension → category → accepted MIME type) lives in
+  `src/lib/storage/local-storage.ts` and is the only place that decides what's
+  supported. Every upload is validated server-side: extension is on the
+  allowlist, the declared `Content-Type` matches that extension, size is
+  within the configured limit, and — for formats with a practical signature —
+  the file's actual first bytes match (PDF, PNG, JPEG, WEBP, DOCX/XLSX,
+  DOC/XLS, MP4, WEBM). A spoofed content type or renamed extension alone
+  isn't trusted.
+- Default max upload size is **10 MB**, defined once in
+  `src/lib/documents/upload-config.ts` (`MAX_UPLOAD_SIZE_MB` /
+  `MAX_UPLOAD_SIZE_BYTES`) — every validation path reads from there, so
+  changing the limit means editing one file.
+- Each file is stored under a server-generated key, never the original
+  filename: `{category}/{uuid}.{ext}` (e.g. `pdf/550e8400-....pdf`). Only the
+  relative key is stored in the database (`fileKey`) — never an absolute
+  filesystem path or a permanent public URL. `uploadedById` always comes from
+  the authenticated session — it's never accepted from the client.
+- If the local file write fails, no `Document` row is created. If the
+  `Document` row fails to save *after* a successful write, the app attempts
+  to delete the now-orphaned file. Written files use an exclusive write flag
+  (never silently overwrite), and storage paths are resolved with a
+  containment check that rejects anything (e.g. `../..`) that would escape
+  `storage_local/`.
+- **Known MVP limitation:** files live on the app server's local disk. This
+  is fine for a single-instance/local setup, but does **not** survive
+  redeploys on most serverless/ephemeral-filesystem hosts and won't be shared
+  across multiple app instances — swapping in a real storage backend later
+  only requires changing `src/lib/storage/local-storage.ts`, since nothing
+  else in the app talks to the filesystem directly.

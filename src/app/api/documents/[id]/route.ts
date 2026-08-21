@@ -9,7 +9,11 @@ export async function GET(_request: NextRequest, { params }: RouteContext) {
   const { id } = await params;
 
   try {
-    const document = await prisma.document.findUnique({ where: { id } });
+    const document = await prisma.document.findUnique({
+      where: { id },
+      omit: { fileKey: true },
+      include: { uploadedBy: { select: { id: true, name: true } } },
+    });
     if (!document) return apiError("Document not found", 404);
     return apiSuccess(document);
   } catch (error) {
@@ -37,7 +41,11 @@ export async function PUT(request: NextRequest, { params }: RouteContext) {
     const existing = await prisma.document.findUnique({ where: { id } });
     if (!existing) return apiError("Document not found", 404);
 
-    const document = await prisma.document.update({ where: { id }, data: parsed.data });
+    const document = await prisma.document.update({
+      where: { id },
+      data: parsed.data,
+      omit: { fileKey: true },
+    });
     return apiSuccess(document);
   } catch (error) {
     console.error(`PUT /api/documents/${id} failed`, error);

@@ -1,13 +1,14 @@
 # Tính năng hiện tại — Stacks (School Document Library)
 
-Tài liệu này mô tả các tính năng đã hoàn thiện tính đến thời điểm hiện tại. Đây là bản MVP tập trung vào quản lý và tìm kiếm tài liệu — **chưa có** đăng nhập, upload file, xem PDF, tải file thật, hay tìm kiếm AI.
+Tài liệu này mô tả các tính năng đã hoàn thiện tính đến thời điểm hiện tại. Đây là bản MVP tập trung vào quản lý/tìm kiếm tài liệu và nền tảng xác thực — **chưa có** upload file, xem PDF, tải file thật, trang quản trị, hay tìm kiếm AI.
 
 ## Stack công nghệ
 
 - **Frontend:** Next.js (App Router) + React + Tailwind CSS + shadcn/ui-style components
 - **Backend:** Next.js Route Handlers (REST API)
 - **Database:** PostgreSQL + Prisma ORM
-- **Test:** Vitest (24 test, cover validation + API routes + api-client)
+- **Auth:** Auth.js (Credentials provider, JWT session)
+- **Test:** Vitest (58 test, cover validation + API routes + api-client + auth/authorization)
 
 ## Luồng người dùng chính
 
@@ -73,6 +74,7 @@ updatedAt     DateTime
 
 - Có seed script (`prisma/seed.ts`) tạo sẵn 12 tài liệu mẫu trải đều 4 môn: Database, Data Structures, Web Development, Computer Networks
 - `npm run db:migrate` / `npm run db:seed` / `npm run db:studio` để quản lý DB
+- Model `User` (id, name, email unique, passwordHash, role, createdAt, updatedAt) + Prisma enum `Role` (STUDENT/TEACHER/ADMIN, mặc định STUDENT) — xem chi tiết ở mục [8. Xác thực & Phân quyền](#8-xác-thực--phân-quyền--authjs-mới)
 
 ## 6. UI / Design system
 
@@ -87,13 +89,25 @@ updatedAt     DateTime
 - Trang not-found riêng cho tài liệu không tồn tại (`src/app/documents/[id]/not-found.tsx`)
 - Validate dữ liệu đầu vào ở API trước khi chạm DB
 
+## 8. Xác thực & Phân quyền — Auth.js *(mới)*
+
+- **Đăng ký** — `/register`: name, email, password. Luôn tạo tài khoản với `role = STUDENT`, **không** nhận role từ client (kể cả khi client cố gửi `role: "ADMIN"` trong request, server bỏ qua và luôn gán STUDENT). Password được hash bằng bcrypt trước khi lưu. Trùng email bị từ chối (409). Đăng ký thành công sẽ tự động đăng nhập và chuyển về trang chủ.
+- **Đăng nhập** — `/login`: email/password qua Auth.js Credentials provider, đối chiếu với bảng `User` trong Postgres. Sai thông tin đăng nhập hiển thị thông báo lỗi thân thiện ("Incorrect email or password.").
+- **Đăng xuất** — nút Logout trên header, xoá session và chuyển về `/`.
+- **Session** — dùng JWT, tồn tại giữa các lần load lại trang. Session expose `user.id`, `user.name`, `user.email`, `user.role` — role đọc được ở server-side cho các bước authorization sau này.
+- **3 role:** `STUDENT`, `TEACHER`, `ADMIN` (lưu trong DB qua Prisma enum `Role`). `ADMIN` mới chỉ là nền tảng cho các bước sau — **chưa có** giao diện/API quản trị nào ở bước này. Guest = người chưa đăng nhập, không lưu trong DB.
+- **Trang Profile** — `/profile`: hiển thị name, email, role. Bắt buộc đăng nhập — guest truy cập sẽ bị redirect sang `/login`.
+- **Header** — guest thấy Login/Register; người đã đăng nhập thấy tên/email, badge role, link Profile, nút Logout.
+- **Authorization helpers phía server** (`src/lib/auth/authorize.ts`): `requireAuth()` và `requireRole("TEACHER")` / `requireRole(["TEACHER", "ADMIN"])`. Kiểm tra quyền luôn thực hiện ở server, không dựa vào việc ẩn UI để bảo mật.
+- **Tài khoản seed sẵn để dev/test** (`npm run db:seed`): `student@example.com` / `student123` (STUDENT), `teacher@example.com` / `teacher123` (TEACHER), `admin@example.com` / `admin123` (ADMIN) — mật khẩu đơn giản, chỉ dùng local, luôn được hash trước khi lưu.
+
 ---
 
 ## Chưa làm (ngoài phạm vi hiện tại)
 
-- Đăng nhập / phân quyền (Auth, Roles)
-- Giáo viên upload tài liệu, lưu trữ file thật
+- Trang quản trị (Admin dashboard), quản lý người dùng (User management)
+- Giáo viên upload tài liệu, duyệt giáo viên (teacher approval), lưu trữ file thật
 - Xem PDF thật, tải file thật
+- Đăng nhập Google/OAuth, xác minh email, quên mật khẩu, 2FA
 - Tìm kiếm AI / semantic search / embeddings
 - Yêu thích (favorites), bình luận (comments)
-- Trang quản trị (Admin)

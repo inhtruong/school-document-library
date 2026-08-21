@@ -1,6 +1,17 @@
 import { PrismaClient } from "@prisma/client";
+import { hashPassword } from "../src/lib/auth/password";
 
 const prisma = new PrismaClient();
+
+/**
+ * Development-only accounts. Passwords are intentionally simple and documented here
+ * for local testing — never reuse these for a real account, and never commit real secrets.
+ */
+const devUsers = [
+  { name: "Sam Student", email: "student@example.com", password: "student123", role: "STUDENT" as const },
+  { name: "Tara Teacher", email: "teacher@example.com", password: "teacher123", role: "TEACHER" as const },
+  { name: "Alex Admin", email: "admin@example.com", password: "admin123", role: "ADMIN" as const },
+];
 
 const documents = [
   {
@@ -93,6 +104,18 @@ async function main() {
   await prisma.document.deleteMany();
   await prisma.document.createMany({ data: documents });
   console.log(`Seeded ${documents.length} documents.`);
+
+  await prisma.user.deleteMany();
+  for (const user of devUsers) {
+    const passwordHash = await hashPassword(user.password);
+    await prisma.user.create({
+      data: { name: user.name, email: user.email, passwordHash, role: user.role },
+    });
+  }
+  console.log(`Seeded ${devUsers.length} development accounts:`);
+  for (const user of devUsers) {
+    console.log(`  ${user.email} / ${user.password} (${user.role})`);
+  }
 }
 
 main()

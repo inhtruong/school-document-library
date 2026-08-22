@@ -25,11 +25,14 @@ local file storage. No file preview, real download, or AI yet.
 
    or point `DATABASE_URL` in `.env` at any Postgres instance you already have running.
 
-2. Set an `AUTH_SECRET` in `.env` (see `.env.example`):
+2. Create your `.env` from the example, then set an `AUTH_SECRET`:
 
    ```bash
+   cp .env.example .env
    node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"
    ```
+
+   Paste the generated value into `AUTH_SECRET` in `.env`.
 
    No other setup is needed for uploads — files are stored on the local
    filesystem under `storage_local/`, created automatically on first upload.

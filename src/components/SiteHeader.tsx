@@ -2,6 +2,7 @@ import Link from "next/link";
 import { auth, signOut } from "@/auth";
 import { Badge } from "@/components/ui/badge";
 import { hasRole } from "@/lib/auth/authorize";
+import { TOAST_KEYS } from "@/lib/toast-messages";
 
 export default async function SiteHeader() {
   const session = await auth();
@@ -55,7 +56,7 @@ export default async function SiteHeader() {
               <form
                 action={async () => {
                   "use server";
-                  await signOut({ redirectTo: "/" });
+                  await signOut({ redirectTo: `/?toast=${TOAST_KEYS.loggedOut}` });
                 }}
               >
                 <button

@@ -4,6 +4,7 @@ import { AuthError } from "next-auth";
 import { signIn } from "@/auth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { TOAST_KEYS } from "@/lib/toast-messages";
 
 type LoginPageProps = {
   searchParams: Promise<{ error?: string }>;
@@ -23,11 +24,15 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
       await signIn("credentials", {
         email: String(formData.get("email") ?? ""),
         password: String(formData.get("password") ?? ""),
-        redirectTo: "/",
+        redirectTo: `/?toast=${TOAST_KEYS.loggedIn}`,
       });
     } catch (err) {
       if (err instanceof AuthError) {
-        redirect(`/login?error=${err.type}`);
+        const message = ERROR_MESSAGES[err.type] ?? "Something went wrong. Please try again.";
+        // Auth failure is an action outcome (not a field-format validation
+        // issue like a malformed email), so it gets a toast too, matching
+        // the register-duplicate-email pattern — alongside the inline box.
+        redirect(`/login?error=${encodeURIComponent(message)}&notify=1`);
       }
       throw err;
     }
@@ -39,7 +44,7 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
 
       {error ? (
         <p className="mt-4 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
-          {ERROR_MESSAGES[error] ?? "Something went wrong. Please try again."}
+          {error}
         </p>
       ) : null}
 

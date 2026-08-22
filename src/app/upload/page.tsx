@@ -4,6 +4,7 @@ import { Input } from "@/components/ui/input";
 import { requireRole } from "@/lib/auth/authorize";
 import { MAX_UPLOAD_SIZE_MB } from "@/lib/documents/upload-config";
 import { uploadDocument } from "@/lib/documents/upload";
+import { TOAST_KEYS } from "@/lib/toast-messages";
 
 const ACCEPTED_FILE_EXTENSIONS =
   ".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png,.webp,.mp4,.webm";
@@ -23,10 +24,11 @@ export default async function UploadPage({ searchParams }: UploadPageProps) {
     const result = await uploadDocument({ uploaderId: session.user.id, formData });
 
     if (!result.success) {
-      redirect(`/upload?error=${encodeURIComponent(result.error)}`);
+      const notify = result.status !== 400 ? "&notify=1" : "";
+      redirect(`/upload?error=${encodeURIComponent(result.error)}${notify}`);
     }
 
-    redirect(`/documents/${result.document.id}`);
+    redirect(`/documents/${result.document.id}?toast=${TOAST_KEYS.uploadSuccess}`);
   }
 
   return (

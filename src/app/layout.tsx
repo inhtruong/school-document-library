@@ -1,6 +1,9 @@
 import type { Metadata } from "next";
+import { Suspense } from "react";
 import { Inter, JetBrains_Mono, Space_Grotesk } from "next/font/google";
 import SiteHeader from "@/components/SiteHeader";
+import ToastListener from "@/components/ToastListener";
+import { Toaster } from "@/components/ui/sonner";
 import "./globals.css";
 
 const display = Space_Grotesk({
@@ -34,6 +37,9 @@ export default function RootLayout({
   return (
     <html lang="en" className={`${display.variable} ${body.variable} ${mono.variable}`}>
       <body className="flex min-h-screen flex-col">
+        <Suspense fallback={null}>
+          <ToastListener />
+        </Suspense>
         <SiteHeader />
         <main className="flex-1">{children}</main>
         <footer className="border-t border-line">
@@ -44,6 +50,7 @@ export default function RootLayout({
             </p>
           </div>
         </footer>
+        <Toaster />
       </body>
     </html>
   );

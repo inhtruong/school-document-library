@@ -5,6 +5,7 @@ import { signIn } from "@/auth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { registerStudent } from "@/lib/auth/register";
+import { TOAST_KEYS } from "@/lib/toast-messages";
 
 type RegisterPageProps = {
   searchParams: Promise<{ error?: string }>;
@@ -26,14 +27,22 @@ export default async function RegisterPage({ searchParams }: RegisterPageProps) 
     });
 
     if (!result.success) {
-      redirect(`/register?error=${encodeURIComponent(result.error)}`);
+      const notify = result.status !== 400 ? "&notify=1" : "";
+      redirect(`/register?error=${encodeURIComponent(result.error)}${notify}`);
     }
 
     try {
-      await signIn("credentials", { email, password, redirectTo: "/" });
+      await signIn("credentials", {
+        email,
+        password,
+        redirectTo: `/?toast=${TOAST_KEYS.accountCreated}`,
+      });
     } catch (err) {
       if (err instanceof AuthError) {
-        redirect("/login");
+        const message = encodeURIComponent(
+          "Account created, but automatic sign-in failed. Please log in."
+        );
+        redirect(`/login?error=${message}&notify=1`);
       }
       throw err;
     }

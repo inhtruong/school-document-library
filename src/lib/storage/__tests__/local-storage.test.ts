@@ -5,10 +5,12 @@ import path from "node:path";
 import { afterAll, beforeAll, describe, expect, test } from "vitest";
 import {
   buildFileKey,
+  createLocalFileReadStream,
   deleteLocalFile,
   matchesFileSignature,
   resolveFileFormat,
   resolveStoragePath,
+  statLocalFile,
   writeLocalFile,
 } from "@/lib/storage/local-storage";
 
@@ -153,6 +155,63 @@ describe("writeLocalFile / deleteLocalFile (real filesystem)", () => {
 
   test("does not throw when deleting a file that does not exist", async () => {
     await expect(deleteLocalFile(`pdf/${randomUUID()}.pdf`)).resolves.toBeUndefined();
+  });
+});
+
+describe("statLocalFile", () => {
+  test("reports exists:true with the correct size for a written file", async () => {
+    const key = buildFileKey("PDF", ".pdf");
+    await writeLocalFile(key, Buffer.from("hello preview world"));
+
+    const info = await statLocalFile(key);
+
+    expect(info.exists).toBe(true);
+    if (!info.exists) return;
+    expect(info.size).toBe(Buffer.byteLength("hello preview world"));
+    expect(info.absolutePath).toBe(resolveStoragePath(key));
+  });
+
+  test("reports exists:false for a key that was never written", async () => {
+    const info = await statLocalFile(`pdf/${randomUUID()}.pdf`);
+    expect(info).toEqual({ exists: false });
+  });
+
+  test("reports exists:false instead of throwing for a path-traversal key", async () => {
+    const info = await statLocalFile("../../../etc/passwd");
+    expect(info).toEqual({ exists: false });
+  });
+
+  test("reports exists:false instead of throwing for an absolute-path key", async () => {
+    const info = await statLocalFile("/etc/passwd");
+    expect(info).toEqual({ exists: false });
+  });
+});
+
+describe("createLocalFileReadStream", () => {
+  test("reads the full file when no range is given", async () => {
+    const key = buildFileKey("PDF", ".pdf");
+    await writeLocalFile(key, Buffer.from("0123456789"));
+    const info = await statLocalFile(key);
+    if (!info.exists) throw new Error("expected file to exist");
+
+    const chunks: Buffer[] = [];
+    for await (const chunk of createLocalFileReadStream(info.absolutePath)) {
+      chunks.push(chunk as Buffer);
+    }
+    expect(Buffer.concat(chunks).toString()).toBe("0123456789");
+  });
+
+  test("reads only the requested byte range", async () => {
+    const key = buildFileKey("PDF", ".pdf");
+    await writeLocalFile(key, Buffer.from("0123456789"));
+    const info = await statLocalFile(key);
+    if (!info.exists) throw new Error("expected file to exist");
+
+    const chunks: Buffer[] = [];
+    for await (const chunk of createLocalFileReadStream(info.absolutePath, { start: 2, end: 5 })) {
+      chunks.push(chunk as Buffer);
+    }
+    expect(Buffer.concat(chunks).toString()).toBe("2345");
   });
 });
 

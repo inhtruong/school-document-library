@@ -4,7 +4,10 @@ Homepage → search → search results → document detail, backed by a real
 PostgreSQL database through a Prisma-powered REST API. Authentication
 (email/password via Auth.js) with STUDENT/TEACHER/ADMIN roles is implemented.
 Teachers and admins can upload documents (PDF, Word, Excel, images, video) to
-local file storage. No file preview, real download, or AI yet.
+local file storage. Anyone — including guests — can preview PDF, image,
+video, and modern Word (`.docx`) files directly from the document detail
+page; legacy `.doc` and Excel show an "unsupported yet" placeholder. No real
+download or AI yet.
 
 ## Stack
 
@@ -82,7 +85,7 @@ src/
     layout.tsx        fonts, header, footer
     page.tsx           homepage: hero search, subjects, popular documents
     search/page.tsx    results page, reads ?q= and ?subject=
-    documents/[id]/    document detail page + not-found state
+    documents/[id]/    document detail page (renders FilePreview) + not-found state
     login/page.tsx      email/password login (server action)
     register/page.tsx   registration — always creates STUDENT
     profile/page.tsx     requires auth; shows name/email/role
@@ -92,6 +95,7 @@ src/
       documents/route.ts        GET (list + ?search=), POST
       documents/[id]/route.ts   GET, PUT, DELETE
       documents/upload/route.ts  POST — TEACHER/ADMIN only, multipart file upload
+      documents/[id]/preview/route.ts  GET — public, streams the file inline (see Preview below)
       subjects/route.ts         GET distinct subjects with counts
       auth/[...nextauth]/route.ts  Auth.js handlers (session, sign-in/out)
       auth/register/route.ts       POST — always creates STUDENT
@@ -101,6 +105,9 @@ src/
     DocumentCard.tsx    title, subject, type, academic year, description
     SubjectCard.tsx     subject + live document count
     SiteHeader.tsx      logo, nav, session-aware login/profile/logout/upload
+    FilePreview.tsx      PDF/image/video/docx preview, unsupported/unavailable placeholders
+    DocxPreview.tsx       client-only .docx renderer (docx-preview), loading/error states
+    docx-preview-render.ts  fetch + render orchestration used by DocxPreview (unit-testable)
   lib/
     prisma.ts           Prisma client singleton
     api-client.ts        server-side fetch helpers used by the pages
@@ -117,8 +124,11 @@ src/
     documents/
       upload.ts            uploadDocument() — validate, store, create Document
       upload-config.ts       MAX_UPLOAD_SIZE_MB / MAX_UPLOAD_SIZE_BYTES (central config)
+      preview-range.ts       pure `Range: bytes=` header parser for video seeking
+      preview-kind.ts         resolvePreviewKind() — single source of truth for what's previewable
     storage/
-      local-storage.ts       format/category rules, safe keys, fs read/write/delete
+      local-storage.ts       format/category rules, safe keys, fs read/write/delete,
+                              plus statLocalFile/createLocalFileReadStream for preview
 ```
 
 ## API
@@ -134,8 +144,11 @@ src/
 | POST   | `/api/auth/register`  | Register a new account. Always creates role `STUDENT` |
 | *      | `/api/auth/[...nextauth]` | Auth.js sign-in/sign-out/session endpoints |
 | POST   | `/api/documents/upload` | Upload a file + metadata. TEACHER/ADMIN only, multipart form data |
+| GET    | `/api/documents/:id/preview` | Streams the file inline for preview. Public — no auth. See [Preview](#preview) |
 
-All responses use `{ success, data, error }` (plus `meta` for list pagination).
+All responses use `{ success, data, error }` (plus `meta` for list pagination),
+except `/api/documents/:id/preview`, which streams the raw file body on success
+(errors still use the standard envelope).
 Search matches `title`, `description`, and `subject` (case-insensitive).
 
 ## Auth
@@ -206,3 +219,30 @@ Search matches `title`, `description`, and `subject` (case-insensitive).
   across multiple app instances — swapping in a real storage backend later
   only requires changing `src/lib/storage/local-storage.ts`, since nothing
   else in the app talks to the filesystem directly.
+
+## Preview
+
+- **Public — no login required.** Anyone, including guests, can preview a
+  document's file from `/documents/[id]`. The page never calls `requireAuth()`
+  or `requireRole()` for preview.
+- **Supported inline preview:** PDF (browser-native PDF viewer via `<iframe>`),
+  images — JPG/JPEG/PNG/WEBP (`<img>`), video — MP4/WEBM (native HTML5
+  `<video controls>`, no autoplay), and modern Word — `.docx` only, rendered
+  in-browser with the `docx-preview` library (`src/components/DocxPreview.tsx`,
+  dynamically imported client-side, never during SSR). Video preview supports
+  HTTP `Range` requests (`206 Partial Content`) so browser seeking works.
+- **Not yet supported:** legacy Word `.doc` and Excel (`.xls`/`.xlsx`) show a
+  friendly "preview is not available yet" placeholder instead of a broken
+  viewer — no Google Docs/Office Online/LibreOffice conversion involved. `.doc`
+  and `.docx` share the same `WORD` file category, so which one is
+  previewable is decided by the stored `mimeType`
+  (`src/lib/documents/preview-kind.ts`), not the filename.
+- **Served entirely through the backend** — `GET /api/documents/:id/preview`
+  takes only a Document ID, looks up its `fileKey` in Postgres server-side,
+  and resolves it through the same containment-checked path resolution used
+  by uploads. `storage_local/` is never exposed as a static/public folder and
+  is not under `public/` — there is no URL that lets the browser pick a
+  filesystem path directly.
+- **Preview ≠ download:** the response has no `Content-Disposition:
+  attachment`, so supported types render inline. The Download button on the
+  document page stays disabled — a real download feature is a later step.

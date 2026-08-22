@@ -1,8 +1,8 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { FilePreview } from "@/components/FilePreview";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
 import { fetchDocumentById } from "@/lib/api-client";
 import { subjectAccent } from "@/lib/subjects";
 
@@ -91,9 +91,14 @@ export default async function DocumentDetailPage({ params }: DocumentDetailPageP
         </dl>
       ) : null}
 
-      <Card className="mt-8 flex flex-col items-center justify-center gap-2 border-dashed bg-surface px-6 py-16 text-center">
-        <p className="text-sm text-muted">Document preview will be available here.</p>
-      </Card>
+      <div className="mt-8">
+        <FilePreview
+          documentId={doc.id}
+          fileCategory={doc.fileCategory}
+          mimeType={doc.mimeType}
+          fileName={doc.fileName}
+        />
+      </div>
 
       <div className="mt-6">
         <Button disabled title="Downloads aren't available yet">

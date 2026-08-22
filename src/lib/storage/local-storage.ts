@@ -1,6 +1,7 @@
 import "server-only";
 import { randomUUID } from "node:crypto";
-import { mkdir, unlink, writeFile } from "node:fs/promises";
+import { createReadStream } from "node:fs";
+import { mkdir, stat, unlink, writeFile } from "node:fs/promises";
 import path from "node:path";
 
 export const FILE_CATEGORIES = ["PDF", "WORD", "EXCEL", "IMAGE", "VIDEO"] as const;
@@ -36,6 +37,14 @@ const FORMAT_ALLOWLIST: Record<string, FormatRule> = {
   ".mp4": { category: "VIDEO", mimeTypes: ["video/mp4"] },
   ".webm": { category: "VIDEO", mimeTypes: ["video/webm"] },
 };
+
+/**
+ * `.doc` and `.docx` share the WORD `fileCategory`, so telling modern DOCX
+ * apart from legacy DOC (for preview support) has to go by `mimeType`, not
+ * category alone. Derived from the allowlist above — the one place that
+ * decides accepted formats — instead of a second hardcoded literal.
+ */
+export const DOCX_MIME_TYPE = FORMAT_ALLOWLIST[".docx"].mimeTypes[0];
 
 type SignatureCheck = { offset: number; bytes: number[] };
 
@@ -132,4 +141,36 @@ export async function deleteLocalFile(fileKey: string): Promise<void> {
       console.error(`Failed to delete local file "${fileKey}":`, error);
     }
   }
+}
+
+export type LocalFileInfo =
+  | { exists: true; absolutePath: string; size: number }
+  | { exists: false };
+
+/**
+ * Confirms a stored file still exists on disk (DB and filesystem can drift)
+ * and returns its size. Never throws — a bad/traversal-attempting key or a
+ * missing file both resolve to `{ exists: false }` so callers can respond
+ * with a generic "not available" instead of leaking filesystem details.
+ */
+export async function statLocalFile(fileKey: string): Promise<LocalFileInfo> {
+  try {
+    const absolutePath = resolveStoragePath(fileKey);
+    const info = await stat(absolutePath);
+    return { exists: true, absolutePath, size: info.size };
+  } catch (error) {
+    const isMissing = (error as NodeJS.ErrnoException)?.code === "ENOENT";
+    if (!isMissing) {
+      console.error(`Failed to stat local file "${fileKey}":`, error);
+    }
+    return { exists: false };
+  }
+}
+
+/** Opens a read stream for an already-resolved, already-verified absolute path. */
+export function createLocalFileReadStream(
+  absolutePath: string,
+  range?: { start: number; end: number }
+) {
+  return createReadStream(absolutePath, range ? { start: range.start, end: range.end } : undefined);
 }

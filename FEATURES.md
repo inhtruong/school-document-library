@@ -1,6 +1,6 @@
 # Tính năng hiện tại — Stacks (School Document Library)
 
-Tài liệu này mô tả các tính năng đã hoàn thiện tính đến thời điểm hiện tại. Đây là bản MVP tập trung vào quản lý/tìm kiếm tài liệu, xác thực, và upload tài liệu — **chưa có** xem PDF thật, tải file thật, trang quản trị, hay tìm kiếm AI.
+Tài liệu này mô tả các tính năng đã hoàn thiện tính đến thời điểm hiện tại. Đây là bản MVP tập trung vào quản lý/tìm kiếm tài liệu, xác thực, upload, và xem trước tài liệu công khai (PDF/ảnh/video/Word hiện đại .docx) — **chưa có** tải file thật (download), preview Word cũ (.doc)/Excel, trang quản trị, hay tìm kiếm AI.
 
 ## Stack công nghệ
 
@@ -9,7 +9,7 @@ Tài liệu này mô tả các tính năng đã hoàn thiện tính đến thờ
 - **Database:** PostgreSQL + Prisma ORM
 - **Auth:** Auth.js (Credentials provider, JWT session)
 - **File Storage:** Local filesystem (`storage_local/`, server-side only) — không cần dịch vụ lưu trữ ngoài
-- **Test:** Vitest (113 test, cover validation + API routes + api-client + auth/authorization + upload/local storage)
+- **Test:** Vitest (166 test, cover validation + API routes + api-client + auth/authorization + upload/local storage + preview/Range parsing + preview-kind classification + DOCX render integration boundary)
 
 ## Luồng người dùng chính
 
@@ -38,7 +38,7 @@ Trang chủ ──▶ Tìm kiếm / Duyệt theo môn ──▶ Kết quả tìm
 
 - Bấm vào bất kỳ `DocumentCard` nào (ở trang chủ hoặc trang tìm kiếm) sẽ mở trang này
 - Hiển thị đầy đủ: tiêu đề, môn học, loại tài liệu, năm học, mô tả, ngày tạo (format "Added <ngày>")
-- **Preview placeholder:** khối "Document preview will be available here." — chưa xem được nội dung thật
+- **Preview file thật** qua component `FilePreview` — xem chi tiết ở mục [10. Xem trước tài liệu công khai](#10-xem-trước-tài-liệu-công-khai--public-file-preview-step-5a-mới)
 - **Nút Download:** hiển thị nhưng bị disable — chưa tải file được
 - **ID không tồn tại/không hợp lệ** → hiển thị trang "Document not found" thân thiện (qua `notFound()` của Next.js), có nút quay lại trang tìm kiếm
 - Lỗi backend/DB (nếu có) sẽ rơi vào error boundary chung của app (`error.tsx`)
@@ -125,13 +125,31 @@ updatedAt     DateTime
 - **Feedback:** upload thành công chuyển sang trang chi tiết tài liệu kèm toast "Document uploaded successfully". Lỗi validate (file/type không hỗ trợ, quá dung lượng, thiếu metadata) hiển thị inline sát form; lỗi cấp hệ thống (ghi file/lưu DB thất bại) hiển thị cả inline lẫn toast. Không lộ đường dẫn hệ thống, lỗi database hay stack trace ra client.
 - **Giới hạn MVP đã biết:** file nằm trên ổ đĩa cục bộ của server — phù hợp cho local/single-instance, nhưng **không** phù hợp cho serverless/nhiều instance (file không được share, có thể mất khi redeploy). Do toàn bộ logic filesystem gói gọn trong `src/lib/storage/local-storage.ts`, sau này đổi sang storage khác chỉ cần sửa 1 module.
 
+## 10. Xem trước tài liệu công khai — Public File Preview (Step 5A, *mới*)
+
+- **Hoàn toàn công khai:** guest, STUDENT, TEACHER, ADMIN đều xem trước được — trang `/documents/[id]` và API preview **không** gọi `requireAuth()`/`requireRole()`.
+- **Luồng chính:** Search → Document Detail → Preview, không cần đăng nhập.
+- **4 loại được xem trực tiếp:**
+  - **PDF** (`.pdf`) ✅ — nhúng qua `<iframe>`, dùng trình xem PDF gốc của trình duyệt (cuộn, zoom, in — chưa dùng PDF.js).
+  - **Ảnh** (`.jpg`, `.jpeg`, `.png`, `.webp`) ✅ — `<img>` responsive, giữ tỷ lệ, không tràn layout, không lightbox/zoom/gallery.
+  - **Video** (`.mp4`, `.webm`) ✅ — `<video controls>` gốc của trình duyệt, không autoplay, không custom player. Hỗ trợ HTTP `Range` request (`206 Partial Content`) để tua video mượt.
+  - **Word hiện đại** (`.docx`) ✅ *(mới)* — render trực tiếp trong trình duyệt bằng thư viện `docx-preview` (client-side, không convert phía server), qua component `DocxPreview` (`src/components/DocxPreview.tsx`, dynamic import — không chạy lúc SSR). Có trạng thái loading ("Loading document preview...") và fallback lỗi thân thiện ("Unable to preview this Word document.") khi file lỗi/không mở được.
+- **Word cũ (`.doc`) ❌ và Excel (`.xls`/`.xlsx`) ❌ — vẫn chỉ placeholder:** `.doc` hiện "Preview is not available for legacy Word (.doc) files yet.", `.xls`/`.xlsx` hiện "Excel spreadsheet preview is not available yet." — không dùng Google Docs Viewer, Office Online, hay convert phía server. `.doc` và `.docx` dùng chung `fileCategory = WORD`, nên phân biệt bằng `mimeType` (`src/lib/documents/preview-kind.ts` — nguồn duy nhất quyết định loại preview, dùng chung cho cả API và UI), không dựa vào tên file.
+- **Tài liệu không có file** (12 tài liệu seed cũ) hiện "File preview is not available for this document." — không crash.
+- **API công khai** `GET /api/documents/:id/preview` — chỉ nhận Document ID, không nhận đường dẫn file. Luồng: id → tra `Document` trong Postgres → đọc `fileKey` (server-controlled) → resolve an toàn qua `resolveStoragePath`/`statLocalFile` (tái dùng từ Step 4, có kiểm containment chặn path traversal) → trả nội dung file (kể cả DOCX — trả nguyên byte file, không convert HTML phía server). Không set `Content-Disposition: attachment` (đây là preview, không phải download).
+- **`storage_local/` không bao giờ public:** không nằm trong `public/`, không có route static nào expose trực tiếp — mọi truy cập file đều phải qua API preview này.
+- **Component dùng chung** `FilePreview` (`src/components/FilePreview.tsx`) quyết định render gì dựa theo `resolvePreviewKind(fileCategory, mimeType)`, dùng lại ở `/documents/[id]`.
+- **Xử lý lỗi:** tài liệu không tồn tại → 404; không có file → 404 kèm placeholder thân thiện; `fileKey` có trong DB nhưng file vật lý bị mất → 404 thân thiện, không crash; loại không hỗ trợ preview (Word cũ/Excel) → 415, không stream nhầm byte; DOCX lỗi/hỏng ở phía client → fallback thân thiện, không crash cả trang, không lộ chi tiết parse lỗi; lỗi hệ thống bất ngờ → 500 chung chung, không lộ absolute path hay stack trace.
+- **Nút Download vẫn disable** — chưa có download thật, chưa có download API, chưa có login redirect cho download (thuộc Step 5B).
+
 ---
 
 ## Chưa làm (ngoài phạm vi hiện tại)
 
 - Trang quản trị (Admin dashboard), quản lý người dùng (User management)
 - Duyệt giáo viên (teacher approval)
-- Xem file thật (preview: PDF viewer, xem ảnh, phát video), tải file thật (real download), signed download URL
+- Tải file thật (real download), download API, signed download URL, login redirect khi download
+- Preview Word cũ (.doc), preview Excel (.xls/.xlsx), PDF.js, thumbnail, image gallery
 - Đăng nhập Google/OAuth, xác minh email, quên mật khẩu, 2FA
 - Tìm kiếm AI / semantic search / embeddings, trích xuất nội dung file, xử lý AI
 - Upload nhiều file cùng lúc, drag & drop, thanh tiến trình upload

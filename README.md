@@ -64,78 +64,76 @@ are sent to log in and returned to the same document. No AI yet.
 ## Scripts
 
 ```
-npm run dev          start the Next.js dev server
+npm run dev           start the Next.js dev server
 npm run build         production build
 npm run db:generate   regenerate the Prisma client
 npm run db:migrate    create/apply a migration (dev)
 npm run db:seed       reset and reseed sample documents
 npm run db:studio     open Prisma Studio to browse the database
-npm test               run the Vitest suite
+npm test              run the Vitest suite
 ```
 
 ## What's here
 
 ```
-storage_local/        uploaded files, auto-created (gitignored) — see Uploads below
+storage_local/                    uploaded files, auto-created (gitignored) — see Uploads below
 prisma/
-  schema.prisma      Document, User models + Role/FileCategory enums
-  seed.ts             sample documents + dev accounts (student/teacher/admin)
+  schema.prisma                   Document, User models + Role/FileCategory enums
+  seed.ts                         sample documents + dev accounts (student/teacher/admin)
 src/
-  auth.ts              Auth.js config: Credentials provider, JWT callbacks
+  auth.ts                         Auth.js config: Credentials provider, JWT callbacks
   app/
-    layout.tsx        fonts, header, footer
-    page.tsx           homepage: hero search, subjects, popular documents
-    search/page.tsx    results page, reads ?q= and ?subject=
-    documents/[id]/    document detail page (renders FilePreview) + not-found state
-    login/page.tsx      email/password login (server action)
-    register/page.tsx   registration — always creates STUDENT
-    profile/page.tsx     requires auth; shows name/email/role
-    upload/page.tsx       TEACHER/ADMIN only; file upload form (server action)
-    error.tsx           friendly fallback if the API/DB is unreachable
+    layout.tsx                    fonts, header, footer
+    page.tsx                      homepage: hero search, subjects, popular documents
+    search/page.tsx               results page, reads ?q= and ?subject=
+    documents/[id]/               document detail page (renders FilePreview) + not-found state
+    login/page.tsx                email/password login (server action)
+    register/page.tsx             registration — always creates STUDENT
+    profile/page.tsx              requires auth; shows name/email/role
+    upload/page.tsx               TEACHER/ADMIN only; file upload form (server action)
+    error.tsx                     friendly fallback if the API/DB is unreachable
     api/
-      documents/route.ts        GET (list + ?search=), POST
-      documents/[id]/route.ts   GET, PUT, DELETE
-      documents/upload/route.ts  POST — TEACHER/ADMIN only, multipart file upload
-      documents/[id]/preview/route.ts  GET — public, streams the file inline (see Preview below)
+      documents/route.ts                GET (list + ?search=), POST
+      documents/[id]/route.ts           GET, PUT, DELETE
+      documents/upload/route.ts         POST — TEACHER/ADMIN only, multipart file upload
+      documents/[id]/preview/route.ts   GET — public, streams the file inline (see Preview below)
       documents/[id]/download/route.ts  GET — any signed-in user, attachment download (see Download below)
-      subjects/route.ts         GET distinct subjects with counts
-      auth/[...nextauth]/route.ts  Auth.js handlers (session, sign-in/out)
-      auth/register/route.ts       POST — always creates STUDENT
+      subjects/route.ts                 GET distinct subjects with counts
+      auth/[...nextauth]/route.ts       Auth.js handlers (session, sign-in/out)
+      auth/register/route.ts            POST — always creates STUDENT
   components/
-    ui/                Button, Input, Badge, Card primitives
-    SearchBar.tsx       client component, pushes /search?q=...
-    DocumentCard.tsx    title, subject, type, academic year, description
-    SubjectCard.tsx     subject + live document count
-    SiteHeader.tsx      logo, nav, session-aware login/profile/logout/upload
-    FilePreview.tsx      PDF/image/video/docx preview, unsupported/unavailable placeholders
-    DocxPreview.tsx       client-only .docx renderer (docx-preview), loading/error states
-    docx-preview-render.ts  fetch + render orchestration used by DocxPreview (unit-testable)
-    DownloadButton.tsx     login link for guests, protected download link once signed in
-    download-href.ts        pure href-decision logic behind DownloadButton (unit-testable)
+    ui/                                 Button, Input, Badge, Card primitives
+    SearchBar.tsx                       client component, pushes /search?q=...
+    DocumentCard.tsx                    title, subject, type, academic year, description
+    SubjectCard.tsx                     subject + live document count
+    SiteHeader.tsx                      logo, nav, session-aware login/profile/logout/upload
+    FilePreview.tsx                     PDF/image/video/docx preview, unsupported/unavailable placeholders
+    DocxPreview.tsx                     client-only .docx renderer (docx-preview), loading/error states
+    docx-preview-render.ts              fetch + render orchestration used by DocxPreview (unit-testable)
+    DownloadButton.tsx                  login link for guests, protected download link once signed in
+    download-href.ts                    pure href-decision logic behind DownloadButton (unit-testable)
   lib/
-    prisma.ts           Prisma client singleton
-    api-client.ts        server-side fetch helpers used by the pages
-    api-response.ts      { success, data, error, meta } response envelope
-    validation/document.ts  zod schemas for create/update
-    validation/auth.ts       zod schemas for register/login
-    subjects.ts           cosmetic accent-colour helper (no document data)
+    prisma.ts                       Prisma client singleton
+    api-client.ts                   server-side fetch helpers used by the pages
+    api-response.ts                 { success, data, error, meta } response envelope
+    validation/document.ts          zod schemas for create/update
+    validation/auth.ts              zod schemas for register/login
+    subjects.ts                     cosmetic accent-colour helper (no document data)
     auth/
-      password.ts        bcrypt hash/verify
-      authenticate.ts     Credentials provider authorize() logic
-      session.ts          jwt/session callback logic
-      register.ts          registerStudent() — role always STUDENT
-      authorize.ts         requireAuth(), requireRole(), hasRole()
-      callback-url.ts       isSafeCallbackUrl()/resolveCallbackUrl() — open-redirect guard for ?callbackUrl=
+      password.ts                   bcrypt hash/verify
+      authenticate.ts               Credentials provider authorize() logic
+      session.ts                    jwt/session callback logic
+      register.ts                   registerStudent() — role always STUDENT
+      authorize.ts                  requireAuth(), requireRole(), hasRole()
+      callback-url.ts               isSafeCallbackUrl()/resolveCallbackUrl() — open-redirect guard for ?callbackUrl=
     documents/
-      upload.ts            uploadDocument() — validate, store, create Document
-      upload-config.ts       MAX_UPLOAD_SIZE_MB / MAX_UPLOAD_SIZE_BYTES (central config)
-      preview-range.ts       pure `Range: bytes=` header parser for video seeking
-      preview-kind.ts         resolvePreviewKind() — single source of truth for what's previewable
-      content-disposition.ts  buildContentDisposition() — safe attachment filename header
+      upload.ts                     uploadDocument() — validate, store, create Document
+      upload-config.ts              MAX_UPLOAD_SIZE_MB / MAX_UPLOAD_SIZE_BYTES (central config)
+      preview-range.ts              pure `Range: bytes=` header parser for video seeking
+      preview-kind.ts               resolvePreviewKind() — single source of truth for what's previewable
+      content-disposition.ts        buildContentDisposition() — safe attachment filename header
     storage/
-      local-storage.ts       format/category rules, safe keys, fs read/write/delete,
-                              plus statLocalFile/createLocalFileReadStream reused by both
-                              preview and download
+      local-storage.ts              format/category rules, safe keys, fs read/write/delete, plus statLocalFile/createLocalFileReadStream reused by both preview and download
 ```
 
 ## API

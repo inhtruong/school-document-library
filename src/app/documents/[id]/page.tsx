@@ -1,8 +1,9 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { auth } from "@/auth";
+import { DownloadButton } from "@/components/DownloadButton";
 import { FilePreview } from "@/components/FilePreview";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import { fetchDocumentById } from "@/lib/api-client";
 import { subjectAccent } from "@/lib/subjects";
 
@@ -31,7 +32,7 @@ const CATEGORY_LABELS: Record<string, string> = {
 
 export default async function DocumentDetailPage({ params }: DocumentDetailPageProps) {
   const { id } = await params;
-  const doc = await fetchDocumentById(id);
+  const [doc, session] = await Promise.all([fetchDocumentById(id), auth()]);
 
   if (!doc) notFound();
 
@@ -101,9 +102,11 @@ export default async function DocumentDetailPage({ params }: DocumentDetailPageP
       </div>
 
       <div className="mt-6">
-        <Button disabled title="Downloads aren't available yet">
-          Download
-        </Button>
+        <DownloadButton
+          documentId={doc.id}
+          hasFile={Boolean(doc.fileName)}
+          isAuthenticated={Boolean(session?.user)}
+        />
       </div>
     </div>
   );

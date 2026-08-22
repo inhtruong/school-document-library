@@ -6,8 +6,9 @@ PostgreSQL database through a Prisma-powered REST API. Authentication
 Teachers and admins can upload documents (PDF, Word, Excel, images, video) to
 local file storage. Anyone — including guests — can preview PDF, image,
 video, and modern Word (`.docx`) files directly from the document detail
-page; legacy `.doc` and Excel show an "unsupported yet" placeholder. No real
-download or AI yet.
+page; legacy `.doc` and Excel show an "unsupported yet" placeholder.
+Downloading the original file requires being signed in (any role); guests
+are sent to log in and returned to the same document. No AI yet.
 
 ## Stack
 
@@ -96,6 +97,7 @@ src/
       documents/[id]/route.ts   GET, PUT, DELETE
       documents/upload/route.ts  POST — TEACHER/ADMIN only, multipart file upload
       documents/[id]/preview/route.ts  GET — public, streams the file inline (see Preview below)
+      documents/[id]/download/route.ts  GET — any signed-in user, attachment download (see Download below)
       subjects/route.ts         GET distinct subjects with counts
       auth/[...nextauth]/route.ts  Auth.js handlers (session, sign-in/out)
       auth/register/route.ts       POST — always creates STUDENT
@@ -108,6 +110,8 @@ src/
     FilePreview.tsx      PDF/image/video/docx preview, unsupported/unavailable placeholders
     DocxPreview.tsx       client-only .docx renderer (docx-preview), loading/error states
     docx-preview-render.ts  fetch + render orchestration used by DocxPreview (unit-testable)
+    DownloadButton.tsx     login link for guests, protected download link once signed in
+    download-href.ts        pure href-decision logic behind DownloadButton (unit-testable)
   lib/
     prisma.ts           Prisma client singleton
     api-client.ts        server-side fetch helpers used by the pages
@@ -121,14 +125,17 @@ src/
       session.ts          jwt/session callback logic
       register.ts          registerStudent() — role always STUDENT
       authorize.ts         requireAuth(), requireRole(), hasRole()
+      callback-url.ts       isSafeCallbackUrl()/resolveCallbackUrl() — open-redirect guard for ?callbackUrl=
     documents/
       upload.ts            uploadDocument() — validate, store, create Document
       upload-config.ts       MAX_UPLOAD_SIZE_MB / MAX_UPLOAD_SIZE_BYTES (central config)
       preview-range.ts       pure `Range: bytes=` header parser for video seeking
       preview-kind.ts         resolvePreviewKind() — single source of truth for what's previewable
+      content-disposition.ts  buildContentDisposition() — safe attachment filename header
     storage/
       local-storage.ts       format/category rules, safe keys, fs read/write/delete,
-                              plus statLocalFile/createLocalFileReadStream for preview
+                              plus statLocalFile/createLocalFileReadStream reused by both
+                              preview and download
 ```
 
 ## API
@@ -145,10 +152,11 @@ src/
 | *      | `/api/auth/[...nextauth]` | Auth.js sign-in/sign-out/session endpoints |
 | POST   | `/api/documents/upload` | Upload a file + metadata. TEACHER/ADMIN only, multipart form data |
 | GET    | `/api/documents/:id/preview` | Streams the file inline for preview. Public — no auth. See [Preview](#preview) |
+| GET    | `/api/documents/:id/download` | Streams the file as an attachment. Requires any signed-in user. See [Download](#download) |
 
 All responses use `{ success, data, error }` (plus `meta` for list pagination),
-except `/api/documents/:id/preview`, which streams the raw file body on success
-(errors still use the standard envelope).
+except `/api/documents/:id/preview` and `/api/documents/:id/download`, which
+stream the raw file body on success (errors still use the standard envelope).
 Search matches `title`, `description`, and `subject` (case-insensitive).
 
 ## Auth
@@ -244,5 +252,46 @@ Search matches `title`, `description`, and `subject` (case-insensitive).
   is not under `public/` — there is no URL that lets the browser pick a
   filesystem path directly.
 - **Preview ≠ download:** the response has no `Content-Disposition:
-  attachment`, so supported types render inline. The Download button on the
-  document page stays disabled — a real download feature is a later step.
+  attachment`, so supported types render inline. Downloading the original
+  file is a separate, protected endpoint — see [Download](#download).
+
+## Download
+
+- **Requires being signed in — any role.** STUDENT, TEACHER, and ADMIN can
+  all download; guests cannot. `GET /api/documents/:id/download` calls
+  `auth()` directly (no `requireRole()` — no specific role is required) and
+  returns `401` for a guest request. The page never relies on hiding the
+  Download button as the security boundary.
+- **Guest flow:** the Download button is still a plain link, not disabled —
+  it points at `/login?callbackUrl=/documents/:id`. After a successful login
+  the user lands back on that same document (not the homepage) and can click
+  Download again; there's no auto-download after login.
+- **Safe callback URLs only** (`src/lib/auth/callback-url.ts`) —
+  `isSafeCallbackUrl()` accepts only an internal root-relative path and
+  rejects anything that could redirect off-site (`https://...`,
+  `//evil.example.com`, backslash tricks, `javascript:`). An unsafe or
+  missing `callbackUrl` just falls back to the normal post-login redirect
+  (`/`).
+- **Original filename, not the storage key** — the response's
+  `Content-Disposition: attachment` uses `Document.fileName` (the name the
+  uploader's browser originally sent), built safely by
+  `buildContentDisposition()` (`src/lib/documents/content-disposition.ts`):
+  control characters/quotes are stripped or escaped, and a UTF-8
+  `filename*=` parameter is included for non-ASCII names. The generated
+  `fileKey` (`pdf/550e8400-....pdf`) is never exposed to the browser as a
+  filename.
+- **Same safe file resolution as preview** — reuses
+  `statLocalFile`/`createLocalFileReadStream` from
+  `src/lib/storage/local-storage.ts` (no duplicated path logic): Document ID
+  → DB `fileKey` → containment-checked resolution under `storage_local/` →
+  file bytes. `storage_local/` stays off-limits as a static/public folder,
+  exactly as for preview.
+- **Works for every supported upload format**, independent of preview
+  support — DOC and XLS/XLSX download even though they have no preview.
+- **A document with no uploaded file** always keeps the Download button
+  disabled (a real `<button disabled>`, not a link) for every visitor,
+  logged in or not — a missing file is never confused with "you need to log
+  in."
+- **Preview is untouched and stays public** — the download endpoint is a
+  fully separate route; `GET /api/documents/:id/preview` still never calls
+  `auth()`/`requireAuth()`/`requireRole()`.

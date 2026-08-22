@@ -4,10 +4,11 @@ import { AuthError } from "next-auth";
 import { signIn } from "@/auth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { isSafeCallbackUrl } from "@/lib/auth/callback-url";
 import { TOAST_KEYS } from "@/lib/toast-messages";
 
 type LoginPageProps = {
-  searchParams: Promise<{ error?: string }>;
+  searchParams: Promise<{ error?: string; callbackUrl?: string }>;
 };
 
 const ERROR_MESSAGES: Record<string, string> = {
@@ -15,16 +16,20 @@ const ERROR_MESSAGES: Record<string, string> = {
 };
 
 export default async function LoginPage({ searchParams }: LoginPageProps) {
-  const { error } = await searchParams;
+  const { error, callbackUrl } = await searchParams;
+  const safeCallbackUrl = isSafeCallbackUrl(callbackUrl) ? callbackUrl : null;
 
   async function login(formData: FormData) {
     "use server";
+
+    const destination = safeCallbackUrl ?? "/";
+    const separator = destination.includes("?") ? "&" : "?";
 
     try {
       await signIn("credentials", {
         email: String(formData.get("email") ?? ""),
         password: String(formData.get("password") ?? ""),
-        redirectTo: `/?toast=${TOAST_KEYS.loggedIn}`,
+        redirectTo: `${destination}${separator}toast=${TOAST_KEYS.loggedIn}`,
       });
     } catch (err) {
       if (err instanceof AuthError) {
@@ -32,7 +37,9 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
         // Auth failure is an action outcome (not a field-format validation
         // issue like a malformed email), so it gets a toast too, matching
         // the register-duplicate-email pattern — alongside the inline box.
-        redirect(`/login?error=${encodeURIComponent(message)}&notify=1`);
+        const retryParams = new URLSearchParams({ error: message, notify: "1" });
+        if (safeCallbackUrl) retryParams.set("callbackUrl", safeCallbackUrl);
+        redirect(`/login?${retryParams.toString()}`);
       }
       throw err;
     }

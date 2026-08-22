@@ -1,6 +1,6 @@
 # Tính năng hiện tại — Stacks (School Document Library)
 
-Tài liệu này mô tả các tính năng đã hoàn thiện tính đến thời điểm hiện tại. Đây là bản MVP tập trung vào quản lý/tìm kiếm tài liệu, xác thực, upload, và xem trước tài liệu công khai (PDF/ảnh/video/Word hiện đại .docx) — **chưa có** tải file thật (download), preview Word cũ (.doc)/Excel, trang quản trị, hay tìm kiếm AI.
+Tài liệu này mô tả các tính năng đã hoàn thiện tính đến thời điểm hiện tại. Đây là bản MVP tập trung vào quản lý/tìm kiếm tài liệu, xác thực, upload, xem trước tài liệu công khai (PDF/ảnh/video/Word hiện đại .docx), và tải tài liệu có bảo vệ đăng nhập — **chưa có** preview Word cũ (.doc)/Excel, trang quản trị, hay tìm kiếm AI.
 
 ## Stack công nghệ
 
@@ -9,7 +9,7 @@ Tài liệu này mô tả các tính năng đã hoàn thiện tính đến thờ
 - **Database:** PostgreSQL + Prisma ORM
 - **Auth:** Auth.js (Credentials provider, JWT session)
 - **File Storage:** Local filesystem (`storage_local/`, server-side only) — không cần dịch vụ lưu trữ ngoài
-- **Test:** Vitest (166 test, cover validation + API routes + api-client + auth/authorization + upload/local storage + preview/Range parsing + preview-kind classification + DOCX render integration boundary)
+- **Test:** Vitest (204 test, cover validation + API routes + api-client + auth/authorization + upload/local storage + preview/Range parsing + preview-kind classification + DOCX render integration boundary + protected download + safe callback URL + Content-Disposition filename safety)
 
 ## Luồng người dùng chính
 
@@ -39,7 +39,7 @@ Trang chủ ──▶ Tìm kiếm / Duyệt theo môn ──▶ Kết quả tìm
 - Bấm vào bất kỳ `DocumentCard` nào (ở trang chủ hoặc trang tìm kiếm) sẽ mở trang này
 - Hiển thị đầy đủ: tiêu đề, môn học, loại tài liệu, năm học, mô tả, ngày tạo (format "Added <ngày>")
 - **Preview file thật** qua component `FilePreview` — xem chi tiết ở mục [10. Xem trước tài liệu công khai](#10-xem-trước-tài-liệu-công-khai--public-file-preview-step-5a-mới)
-- **Nút Download:** hiển thị nhưng bị disable — chưa tải file được
+- **Nút Download** (`DownloadButton`) — xem chi tiết ở mục [11. Tải tài liệu có bảo vệ đăng nhập](#11-tải-tài-liệu-có-bảo-vệ-đăng-nhập--protected-download-step-5b-mới). Tài liệu không có file → nút vẫn disable cho mọi đối tượng.
 - **ID không tồn tại/không hợp lệ** → hiển thị trang "Document not found" thân thiện (qua `notFound()` của Next.js), có nút quay lại trang tìm kiếm
 - Lỗi backend/DB (nếu có) sẽ rơi vào error boundary chung của app (`error.tsx`)
 
@@ -140,7 +140,19 @@ updatedAt     DateTime
 - **`storage_local/` không bao giờ public:** không nằm trong `public/`, không có route static nào expose trực tiếp — mọi truy cập file đều phải qua API preview này.
 - **Component dùng chung** `FilePreview` (`src/components/FilePreview.tsx`) quyết định render gì dựa theo `resolvePreviewKind(fileCategory, mimeType)`, dùng lại ở `/documents/[id]`.
 - **Xử lý lỗi:** tài liệu không tồn tại → 404; không có file → 404 kèm placeholder thân thiện; `fileKey` có trong DB nhưng file vật lý bị mất → 404 thân thiện, không crash; loại không hỗ trợ preview (Word cũ/Excel) → 415, không stream nhầm byte; DOCX lỗi/hỏng ở phía client → fallback thân thiện, không crash cả trang, không lộ chi tiết parse lỗi; lỗi hệ thống bất ngờ → 500 chung chung, không lộ absolute path hay stack trace.
-- **Nút Download vẫn disable** — chưa có download thật, chưa có download API, chưa có login redirect cho download (thuộc Step 5B).
+- **Download (tải file thật)** — xem chi tiết ở mục [11. Tải tài liệu có bảo vệ đăng nhập](#11-tải-tài-liệu-có-bảo-vệ-đăng-nhập--protected-download-step-5b-mới).
+
+## 11. Tải tài liệu có bảo vệ đăng nhập — Protected Download (Step 5B, *mới*)
+
+- **Bắt buộc đăng nhập, không phân biệt role:** guest ❌ — STUDENT ✅, TEACHER ✅, ADMIN ✅ đều tải được. `GET /api/documents/:id/download` gọi `auth()` trực tiếp (không dùng `requireRole()` vì không giới hạn role cụ thể), guest gọi API sẽ nhận `401`. Bảo mật luôn thực hiện ở server, không dựa vào việc ẩn nút Download trên UI.
+- **Luồng guest:** nút Download vẫn là link bấm được (không disable) — trỏ tới `/login?callbackUrl=/documents/{id}`. Đăng nhập thành công sẽ quay lại đúng trang tài liệu đó (không phải trang chủ), người dùng bấm Download lần nữa để tải — **không** tự động tải ngay sau khi đăng nhập.
+- **Callback URL an toàn** (`src/lib/auth/callback-url.ts`, `isSafeCallbackUrl()`) — chỉ chấp nhận đường dẫn nội bộ dạng `/...`, từ chối mọi giá trị có thể redirect ra ngoài site (`https://evil.example.com`, `//evil.example.com`, mẹo dùng backslash, `javascript:`...). Callback không hợp lệ/thiếu sẽ dùng lại hành vi mặc định (`/`) như trước.
+- **Giữ tên file gốc, không lộ `fileKey`:** `Content-Disposition: attachment` dùng `Document.fileName` (tên file người upload đặt), qua `buildContentDisposition()` (`src/lib/documents/content-disposition.ts`) — loại bỏ ký tự điều khiển/xuống dòng (chống header injection), escape dấu ngoặc kép, và có thêm tham số `filename*=UTF-8''...` cho tên file có dấu. `fileKey` dạng `pdf/550e8400-....pdf` không bao giờ xuất hiện làm tên file tải về.
+- **Tái dùng cơ chế resolve file an toàn từ Step 5A** — `statLocalFile`/`createLocalFileReadStream` (`src/lib/storage/local-storage.ts`), không viết lại logic path. Luồng: Document ID → `fileKey` từ DB → resolve có kiểm containment trong `storage_local/` → trả file. `storage_local/` vẫn không bao giờ public.
+- **Tải được mọi định dạng upload hỗ trợ**, không phụ thuộc việc có preview hay không: DOC, XLS/XLSX tải được dù không xem trước được.
+- **Tài liệu không có file** → nút Download luôn disable (button thật, không phải link) cho mọi người, kể cả đã đăng nhập — không đưa người dùng sang trang login cho tài liệu không có file để tải.
+- **Xử lý lỗi:** guest gọi API → 401; tài liệu không tồn tại → 404; không có file → 404; `fileKey` có trong DB nhưng file vật lý bị mất → 404 thân thiện, không crash; lỗi hệ thống bất ngờ → 500 chung chung, không lộ absolute path/stack trace/chi tiết Prisma.
+- **Preview vẫn công khai, không đổi:** `GET /api/documents/:id/preview` vẫn không gọi `auth()`/`requireAuth()`/`requireRole()` — endpoint download hoàn toàn tách biệt, không tái dùng logic auth của download bên trong preview.
 
 ---
 
@@ -148,7 +160,6 @@ updatedAt     DateTime
 
 - Trang quản trị (Admin dashboard), quản lý người dùng (User management)
 - Duyệt giáo viên (teacher approval)
-- Tải file thật (real download), download API, signed download URL, login redirect khi download
 - Preview Word cũ (.doc), preview Excel (.xls/.xlsx), PDF.js, thumbnail, image gallery
 - Đăng nhập Google/OAuth, xác minh email, quên mật khẩu, 2FA
 - Tìm kiếm AI / semantic search / embeddings, trích xuất nội dung file, xử lý AI

@@ -20,9 +20,9 @@ export default function DocumentCard({ doc }: { doc: DocumentRecord }) {
             {doc.title}
           </h3>
 
-          {doc.description ? (
-            <p className="mt-1.5 line-clamp-2 text-sm text-muted">{doc.description}</p>
-          ) : null}
+          <p className="mt-1.5 line-clamp-2 min-h-[2.5rem] text-sm text-muted">
+            {doc.description}
+          </p>
 
           <div className="mt-3 flex flex-wrap items-center gap-2">
             {doc.grade ? <Badge variant="soft">{doc.grade.name}</Badge> : null}

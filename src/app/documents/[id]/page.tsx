@@ -10,13 +10,15 @@ import { LessonFollowAction } from "@/components/LessonFollowAction";
 import { ReportDocumentAction } from "@/components/ReportDocumentAction";
 import { TeacherFollowAction } from "@/components/TeacherFollowAction";
 import { Badge } from "@/components/ui/badge";
-import { fetchComments, fetchDocumentById } from "@/lib/api-client";
 import { isBookmarked } from "@/lib/documents/bookmark";
+import { listComments } from "@/lib/documents/comment";
 import { DOCUMENT_TYPE_LABELS } from "@/lib/documents/document-type";
+import { getDocumentById } from "@/lib/documents/get-document";
 import { getRatingSummary } from "@/lib/documents/rating";
 import { subjectAccent } from "@/lib/documents/subject-accent";
 import { isFollowingLesson } from "@/lib/follow/lesson-follow";
 import { isFollowingTeacher } from "@/lib/follow/teacher-follow";
+import type { DocumentCommentRecord } from "@/types/comment";
 
 type DocumentDetailPageProps = {
   params: Promise<{ id: string }>;
@@ -43,7 +45,7 @@ const CATEGORY_LABELS: Record<string, string> = {
 
 export default async function DocumentDetailPage({ params }: DocumentDetailPageProps) {
   const { id } = await params;
-  const [doc, session] = await Promise.all([fetchDocumentById(id), auth()]);
+  const [doc, session] = await Promise.all([getDocumentById(id), auth()]);
 
   if (!doc) notFound();
 
@@ -52,13 +54,18 @@ export default async function DocumentDetailPage({ params }: DocumentDetailPageP
 
   const [ratingSummary, commentsPage, bookmarked, teacherFollowing, lessonFollowing] = await Promise.all([
     getRatingSummary(doc.id, currentUserId),
-    fetchComments(doc.id),
+    listComments(doc.id, 1),
     isBookmarked(doc.id, currentUserId),
     isUploaderTeacher && doc.uploadedBy ? isFollowingTeacher(currentUserId, doc.uploadedBy.id) : Promise.resolve(false),
     doc.lessonId ? isFollowingLesson(currentUserId, doc.lessonId) : Promise.resolve(false),
   ]);
   const createdLabel = formatDate(doc.createdAt);
   const documentPagePath = `/documents/${doc.id}`;
+  const initialComments: DocumentCommentRecord[] = commentsPage.comments.map((comment) => ({
+    ...comment,
+    createdAt: comment.createdAt.toISOString(),
+    updatedAt: comment.updatedAt.toISOString(),
+  }));
 
   return (
     <div className="mx-auto max-w-3xl px-5 py-8 sm:py-10">
@@ -175,7 +182,7 @@ export default async function DocumentDetailPage({ params }: DocumentDetailPageP
           isAuthenticated={Boolean(session?.user)}
           currentUserId={session?.user?.id ?? null}
           isAdmin={session?.user?.role === "ADMIN"}
-          initialComments={commentsPage.comments}
+          initialComments={initialComments}
           initialTotal={commentsPage.total}
           initialTotalPages={commentsPage.totalPages}
         />

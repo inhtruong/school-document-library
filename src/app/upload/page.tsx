@@ -2,8 +2,8 @@ import { redirect } from "next/navigation";
 import { TaxonomySelectFields } from "@/components/TaxonomySelectFields";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { fetchGrades } from "@/lib/api-client";
 import { requireRole } from "@/lib/auth/authorize";
+import { listGrades } from "@/lib/documents/grades";
 import { MAX_UPLOAD_SIZE_MB } from "@/lib/documents/upload-config";
 import { uploadDocument } from "@/lib/documents/upload";
 import { TOAST_KEYS } from "@/lib/toast-messages";
@@ -17,7 +17,7 @@ type UploadPageProps = {
 
 export default async function UploadPage({ searchParams }: UploadPageProps) {
   await requireRole(["TEACHER", "ADMIN"]);
-  const [{ error }, grades] = await Promise.all([searchParams, fetchGrades()]);
+  const [{ error }, grades] = await Promise.all([searchParams, listGrades()]);
 
   async function uploadAction(formData: FormData) {
     "use server";

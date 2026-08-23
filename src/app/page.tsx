@@ -1,12 +1,14 @@
 import DocumentCard from "@/components/DocumentCard";
 import SearchBar from "@/components/SearchBar";
 import SubjectCard from "@/components/SubjectCard";
-import { fetchDocuments, fetchSubjects } from "@/lib/api-client";
+import { searchDocuments } from "@/lib/documents/search";
+import { DEFAULT_SORT } from "@/lib/documents/search-query";
+import { listSubjectSummaries } from "@/lib/documents/subject-summary";
 
 export default async function HomePage() {
   const [{ documents: popularDocuments, total }, subjects] = await Promise.all([
-    fetchDocuments({ take: 4 }),
-    fetchSubjects(),
+    searchDocuments({ take: 4, sort: DEFAULT_SORT }),
+    listSubjectSummaries(),
   ]);
 
   return (

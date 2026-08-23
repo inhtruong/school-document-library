@@ -2,7 +2,8 @@ import Link from "next/link";
 import DocumentCard from "@/components/DocumentCard";
 import SearchBar from "@/components/SearchBar";
 import { SearchFilters } from "@/components/SearchFilters";
-import { fetchDocuments, fetchGrades } from "@/lib/api-client";
+import { listGrades } from "@/lib/documents/grades";
+import { searchDocuments } from "@/lib/documents/search";
 import { parseSearchQuery } from "@/lib/documents/search-query";
 
 type SearchPageProps = {
@@ -32,10 +33,10 @@ export default async function SearchPage({ searchParams: searchParamsPromise }: 
   const query = parseSearchQuery(currentParams);
   const legacySubject = typeof rawParams.subject === "string" ? rawParams.subject : undefined;
 
-  const [{ documents: results, total, page, totalPages }, grades] = await Promise.all([
-    fetchDocuments({
+  const [{ documents: results, total, page = query.page, totalPages = 1 }, grades] = await Promise.all([
+    searchDocuments({
       search: query.search,
-      subject: legacySubject,
+      legacySubject,
       gradeId: query.gradeId,
       subjectId: query.subjectId,
       lessonId: query.lessonId,
@@ -43,7 +44,7 @@ export default async function SearchPage({ searchParams: searchParamsPromise }: 
       sort: query.sort,
       page: query.page,
     }),
-    fetchGrades(),
+    listGrades(),
   ]);
 
   const clearFiltersHref = query.search ? `/search?q=${encodeURIComponent(query.search)}` : "/search";

@@ -1,5 +1,6 @@
 import type { NextRequest } from "next/server";
 import { apiError, apiSuccess } from "@/lib/api-response";
+import { listSubjectSummaries } from "@/lib/documents/subject-summary";
 import { prisma } from "@/lib/prisma";
 
 /**
@@ -27,17 +28,7 @@ export async function GET(request: NextRequest) {
       return apiSuccess(subjects);
     }
 
-    const grouped = await prisma.document.groupBy({
-      by: ["subject"],
-      _count: { _all: true },
-      orderBy: { subject: "asc" },
-    });
-
-    const subjects = grouped.map((group) => ({
-      subject: group.subject,
-      count: group._count._all,
-    }));
-
+    const subjects = await listSubjectSummaries();
     return apiSuccess(subjects);
   } catch (error) {
     console.error("GET /api/subjects failed", error);

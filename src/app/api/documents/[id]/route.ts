@@ -1,5 +1,6 @@
 import type { NextRequest } from "next/server";
 import { apiError, apiSuccess } from "@/lib/api-response";
+import { getDocumentById } from "@/lib/documents/get-document";
 import { prisma } from "@/lib/prisma";
 import { updateDocumentSchema } from "@/lib/validation/document";
 
@@ -9,16 +10,7 @@ export async function GET(_request: NextRequest, { params }: RouteContext) {
   const { id } = await params;
 
   try {
-    const document = await prisma.document.findUnique({
-      where: { id },
-      omit: { fileKey: true },
-      include: {
-        uploadedBy: { select: { id: true, name: true, role: true } },
-        grade: true,
-        subjectRef: true,
-        lesson: true,
-      },
-    });
+    const document = await getDocumentById(id);
     if (!document) return apiError("Document not found", 404);
     return apiSuccess(document);
   } catch (error) {

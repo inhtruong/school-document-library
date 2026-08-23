@@ -221,6 +221,10 @@ See [Search](#search) for the search/filter/sort/pagination contract.
   | admin@example.com | admin123 | ADMIN |
 
 - Requires an `AUTH_SECRET` env var — see `.env.example` for how to generate one.
+- Running in production mode (`npm start`) on any host other than Vercel
+  also requires `AUTH_TRUST_HOST="true"` (already set in `.env.example`),
+  or Auth.js rejects every request with `UntrustedHost`. Not needed for
+  `npm run dev`.
 
 ## Education Taxonomy
 

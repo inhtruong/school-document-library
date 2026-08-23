@@ -366,7 +366,14 @@ model Notification {
   readAt    DateTime?
 
   @@unique([userId, documentId, type])
-  @@index([userId])
+  // Compound, not just `@@index([userId])` — every read (listNotifications,
+  // getUnreadNotificationCount, markAllNotificationsRead) filters by
+  // `{userId, readAt: null}` or `{userId}` alone; the compound index serves
+  // both via the leftmost-prefix rule, so the plain userId index would be
+  // redundant. Without this, an unread-count scoped to one user still has
+  // to filter `readAt` row-by-row across that user's whole notification
+  // history instead of jumping straight to the unread ones.
+  @@index([userId, readAt])
   @@index([documentId])
 }
 

@@ -45,11 +45,16 @@ export type CommentsPageResult = {
   totalPages: number;
 };
 
-/** Newest-first, always capped at COMMENTS_PAGE_SIZE — never an unbounded query, and the total comes from a DB `count()`, never `.length` on a partial page. */
+/**
+ * Newest-first, always capped at COMMENTS_PAGE_SIZE — never an unbounded
+ * query, and the total comes from a DB `count()`, never `.length` on a
+ * partial page. `$transaction([...])` runs both reads over one connection
+ * instead of two — see the same reasoning in `getRatingSummary()`.
+ */
 export async function listComments(documentId: string, page: number): Promise<CommentsPageResult> {
   const skip = (page - 1) * COMMENTS_PAGE_SIZE;
 
-  const [rows, total] = await Promise.all([
+  const [rows, total] = await prisma.$transaction([
     prisma.documentComment.findMany({
       where: { documentId },
       orderBy: { createdAt: "desc" },

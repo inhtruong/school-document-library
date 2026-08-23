@@ -20,20 +20,29 @@ export type RatingSummary = {
  * own API route, so no cookie-forwarding is needed for that internal call.
  */
 export async function getRatingSummary(documentId: string, userId: string | null): Promise<RatingSummary> {
-  const [aggregate, currentRating] = await Promise.all([
+  // `$transaction([...])` (rather than `Promise.all([...])`) runs both reads
+  // over a single connection instead of checking out two from the pool —
+  // on a page that already issues several other independent queries in
+  // parallel (see documents/[id]/page.tsx), that adds up under concurrent
+  // traffic even though each individual query is cheap.
+  const results = await prisma.$transaction([
     prisma.documentRating.aggregate({
       where: { documentId },
       _avg: { value: true },
       _count: { value: true },
     }),
-    userId
-      ? prisma.documentRating.findUnique({
-          where: { documentId_userId: { documentId, userId } },
-          select: { value: true },
-        })
-      : null,
+    ...(userId
+      ? [
+          prisma.documentRating.findUnique({
+            where: { documentId_userId: { documentId, userId } },
+            select: { value: true },
+          }),
+        ]
+      : []),
   ]);
 
+  const aggregate = results[0];
+  const currentRating = userId ? (results[1] as { value: number } | null) : null;
   const ratingCount = aggregate._count.value;
   const averageRating = ratingCount > 0 ? Math.round((aggregate._avg.value ?? 0) * 10) / 10 : null;
 

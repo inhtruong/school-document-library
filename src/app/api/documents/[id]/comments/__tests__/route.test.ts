@@ -7,6 +7,7 @@ vi.mock("@/lib/prisma", () => ({
   prisma: {
     document: { findUnique: vi.fn() },
     documentComment: { findMany: vi.fn(), count: vi.fn(), create: vi.fn() },
+    $transaction: vi.fn((ops: unknown[]) => Promise.all(ops)),
   },
 }));
 

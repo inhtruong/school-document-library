@@ -7,6 +7,9 @@ vi.mock("@/lib/prisma", () => ({
       count: vi.fn(),
       create: vi.fn(),
     },
+    // Array-form `$transaction` just awaits the already-invoked query
+    // promises together — same effect as `Promise.all` for these mocks.
+    $transaction: vi.fn((ops: unknown[]) => Promise.all(ops)),
   },
 }));
 

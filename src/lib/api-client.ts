@@ -1,6 +1,7 @@
 import { headers } from "next/headers";
 import type { DocumentTypeValue } from "@/lib/documents/document-type";
 import type { SortValue } from "@/lib/documents/search-query";
+import type { DocumentCommentRecord } from "@/types/comment";
 import type { DocumentRecord, GradeSummary, SubjectSummary } from "@/types/document";
 
 type ApiEnvelope<T> = {
@@ -95,4 +96,25 @@ export async function fetchDocumentById(id: string): Promise<DocumentRecord | nu
   }
 
   return body.data;
+}
+
+/** Public read — no auth needed. Newest-first, one page (COMMENTS_PAGE_SIZE) at a time. */
+export async function fetchComments(
+  documentId: string,
+  page = 1
+): Promise<{ comments: DocumentCommentRecord[]; total: number; page: number; totalPages: number }> {
+  const query = new URLSearchParams();
+  if (page > 1) query.set("page", String(page));
+  const queryString = query.toString();
+
+  const { data, meta } = await apiFetch<DocumentCommentRecord[]>(
+    `/api/documents/${encodeURIComponent(documentId)}/comments${queryString ? `?${queryString}` : ""}`
+  );
+
+  return {
+    comments: data ?? [],
+    total: meta?.total ?? data?.length ?? 0,
+    page: meta?.page ?? 1,
+    totalPages: meta?.totalPages ?? 1,
+  };
 }

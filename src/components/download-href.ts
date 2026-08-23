@@ -1,3 +1,5 @@
+import { documentLoginHref } from "@/lib/auth/document-login-href";
+
 /**
  * Decides what the Download button should link to — pure, so the
  * guest/authenticated/no-file branching is testable without rendering
@@ -9,11 +11,7 @@ export function resolveDownloadHref(
   isAuthenticated: boolean
 ): string | null {
   if (!hasFile) return null;
-
-  if (!isAuthenticated) {
-    const callbackUrl = encodeURIComponent(`/documents/${documentId}`);
-    return `/login?callbackUrl=${callbackUrl}`;
-  }
+  if (!isAuthenticated) return documentLoginHref(documentId);
 
   return `/api/documents/${documentId}/download`;
 }

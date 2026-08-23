@@ -82,7 +82,7 @@ npm test              run the Vitest suite
 ```
 storage_local/                    uploaded files, auto-created (gitignored) — see Uploads below
 prisma/
-  schema.prisma                   Document, User, Grade, Subject, Lesson models + Role/FileCategory/DocumentType enums
+  schema.prisma                   Document, User, Grade, Subject, Lesson, DocumentRating, DocumentComment models + Role/FileCategory/DocumentType enums
   seed.ts                         taxonomy (grades/subjects/lessons) + sample documents + dev accounts
 src/
   auth.ts                         Auth.js config: Credentials provider, JWT callbacks
@@ -102,6 +102,10 @@ src/
       documents/upload/route.ts         POST — TEACHER/ADMIN only, multipart file upload
       documents/[id]/preview/route.ts   GET — public, streams the file inline (see Preview below)
       documents/[id]/download/route.ts  GET — any signed-in user, attachment download (see Download below)
+      documents/[id]/ratings/route.ts   GET — public, average/count/current-user summary (see Rating below)
+      documents/[id]/rating/route.ts    PUT — any signed-in user, create-or-update one's own rating (see Rating below)
+      documents/[id]/comments/route.ts             GET — public list, POST — any signed-in user (see Comments below)
+      documents/[id]/comments/[commentId]/route.ts PUT/DELETE — owner only to edit, owner or ADMIN to delete (see Comments below)
       subjects/route.ts                 GET — no ?gradeId=: legacy subject grouping (homepage); with ?gradeId=: taxonomy Subjects for that Grade
       grades/route.ts                   GET — all Grades ordered by sortOrder (see Education Taxonomy below)
       lessons/route.ts                  GET ?subjectId=... — Lessons/Topics for one Subject
@@ -120,12 +124,19 @@ src/
     DownloadButton.tsx                  login link for guests, protected download link once signed in
     download-href.ts                    pure href-decision logic behind DownloadButton (unit-testable)
     TaxonomySelectFields.tsx            client component: Grade → Subject → Lesson cascading selects on /upload
+    StarRating.tsx                      reusable 5-star control — read-only display or interactive (button/radiogroup) (see Rating below)
+    DocumentRatingSection.tsx           client component on /documents/[id]: average/count, guest login link, authenticated submit + revalidate (see Rating below)
+    CommentSection.tsx                  client component on /documents/[id]: list/count/pagination, guest login prompt, post form (see Comments below)
+    CommentForm.tsx                     plain textarea + submit, char count, disabled while empty/submitting (see Comments below)
+    CommentItem.tsx                     one comment — inline Edit (textarea) and inline delete confirmation, owner/ADMIN-gated (see Comments below)
   lib/
     prisma.ts                       Prisma client singleton
     api-client.ts                   server-side fetch helpers used by the pages
     api-response.ts                 { success, data, error, meta } response envelope
     validation/document.ts          zod schemas for create/update
     validation/auth.ts              zod schemas for register/login
+    validation/rating.ts            zod schema for a 1-5 star rating value
+    validation/comment.ts           zod schema for comment content (trim, 1-COMMENT_MAX_LENGTH, plain text)
     auth/
       password.ts                   bcrypt hash/verify
       authenticate.ts               Credentials provider authorize() logic
@@ -133,6 +144,7 @@ src/
       register.ts                   registerStudent() — role always STUDENT
       authorize.ts                  requireAuth(), requireRole(), hasRole()
       callback-url.ts               isSafeCallbackUrl()/resolveCallbackUrl() — open-redirect guard for ?callbackUrl=
+      document-login-href.ts        documentLoginHref() — shared /login?callbackUrl= builder (Download, Rating, Comments)
     documents/
       upload.ts                     uploadDocument() — validate taxonomy + file, store, create Document
       upload-config.ts              MAX_UPLOAD_SIZE_MB / MAX_UPLOAD_SIZE_BYTES (central config)
@@ -144,6 +156,9 @@ src/
       preview-range.ts              pure `Range: bytes=` header parser for video seeking
       preview-kind.ts               resolvePreviewKind() — single source of truth for what's previewable
       content-disposition.ts        buildContentDisposition() — safe attachment filename header
+      rating.ts                     getRatingSummary() — average/count via Prisma aggregate() + the caller's own rating (see Rating below)
+      comment.ts                    listComments()/createComment()/toCommentPayload() — newest-first, paginated, author select limited to id/name/role (see Comments below)
+      comment-config.ts             COMMENT_MAX_LENGTH / COMMENTS_PAGE_SIZE (central config)
     storage/
       local-storage.ts              format/category rules, safe keys, fs read/write/delete, plus statLocalFile/createLocalFileReadStream reused by both preview and download
 ```
@@ -165,6 +180,12 @@ src/
 | GET    | `/api/documents/:id/download` | Streams the file as an attachment. Requires any signed-in user. See [Download](#download) |
 | GET    | `/api/grades`         | All Grades ordered by `sortOrder`. See [Education Taxonomy](#education-taxonomy) |
 | GET    | `/api/lessons`        | `?subjectId=...` — Lessons/Topics for one Subject |
+| GET    | `/api/documents/:id/ratings` | Public. Rating summary: `averageRating`, `ratingCount`, `currentUserRating`. See [Rating](#rating) |
+| PUT    | `/api/documents/:id/rating`  | Requires any signed-in user. Body `{ value: 1-5 }` — creates or updates the caller's own rating. See [Rating](#rating) |
+| GET    | `/api/documents/:id/comments` | Public. Newest first, paginated. `?page=`. See [Comments](#comments) |
+| POST   | `/api/documents/:id/comments` | Requires any signed-in user. Body `{ content: string }`. See [Comments](#comments) |
+| PUT    | `/api/documents/:id/comments/:commentId` | Requires being the comment's own author. Body `{ content: string }`. See [Comments](#comments) |
+| DELETE | `/api/documents/:id/comments/:commentId` | Requires being the comment's own author, or ADMIN. See [Comments](#comments) |
 
 All responses use `{ success, data, error }` (plus `meta` for list pagination),
 except `/api/documents/:id/preview` and `/api/documents/:id/download`, which
@@ -400,3 +421,107 @@ See [Search](#search) for the search/filter/sort/pagination contract.
 - **Preview is untouched and stays public** — the download endpoint is a
   fully separate route; `GET /api/documents/:id/preview` still never calls
   `auth()`/`requireAuth()`/`requireRole()`.
+
+## Rating
+
+- **1-5 stars, one rating per user per document.** `DocumentRating`
+  (`prisma/schema.prisma`) has a `@@unique([documentId, userId])`
+  constraint — a user rating the same document twice always updates their
+  existing row (via Prisma `upsert`), never creates a second one. Deleting a
+  Document or User cascades to their ratings.
+- **Reading is public — no login required.** `GET /api/documents/:id/ratings`
+  never calls `auth()`/`requireRole()`; it returns `averageRating` (`null`
+  when there are no ratings yet — never `0`, since a real average can't be
+  below `1`), `ratingCount`, and `currentUserRating` (the caller's own
+  rating if signed in, otherwise `null`).
+- **Submitting requires being signed in — no role restriction.**
+  `PUT /api/documents/:id/rating` calls `auth()` directly (STUDENT, TEACHER,
+  and ADMIN can all rate) and returns `401` for a guest. `userId` always
+  comes from the session; the request body may only contain `value` — it's
+  never accepted from the client, so a submission can never be attributed
+  to a different user. `documentId` comes from the route, and rating a
+  nonexistent Document returns `404`.
+- **Validated server-side, not trusted from the client** — `value` must be
+  an integer from 1 to 5 (`src/lib/validation/rating.ts`); `0`, `6`,
+  negatives, decimals, strings, `null`, and a missing value are all
+  rejected with a friendly `400`, matching the rest of the app's zod
+  validation style.
+- **Aggregates are always computed on read** via Prisma/PostgreSQL
+  `aggregate()` (`getRatingSummary()`,
+  `src/lib/documents/rating.ts`) — never by loading every rating row into
+  memory, and never cached on `Document` itself. The average is rounded to
+  1 decimal place for display (e.g. `4.7`).
+- **Document Detail UI** (`DocumentRatingSection.tsx` +
+  `StarRating.tsx`, both under `src/components/`): shows the average,
+  rating count, and a 5-star control. Guests see a read-only star cluster
+  (the rounded average) wrapped in a plain link to
+  `/login?callbackUrl=/documents/:id` — clicking never submits a rating
+  before login, it only navigates there (same safe-callback pattern as
+  [Download](#download), via the shared `documentLoginHref()` helper).
+  Signed-in users get real interactive stars (`role="radiogroup"`, keyboard
+  operable) that `PUT` straight to the rating endpoint, then re-fetch the
+  summary to update the displayed average/count/selection — no
+  optimistic-update or client-cache library involved, just submit → response
+  → refetch.
+- **Feedback via the existing Sonner system** — a first-time rating shows
+  "Rating submitted successfully", changing an existing rating shows
+  "Rating updated successfully"; a failed submission shows a generic
+  "Unable to save your rating." toast without exposing any Prisma/database
+  detail.
+- **Not built yet:** reports, rating-based search sorting, and a rating
+  analytics dashboard — see `FEATURES.md`.
+
+## Comments
+
+- **Flat, single-level comments — no replies/threads.** `DocumentComment`
+  (`prisma/schema.prisma`) links a Document and a User; deleting either
+  cascades to their comments. Content is plain text, capped at
+  `COMMENT_MAX_LENGTH` (1000, `src/lib/documents/comment-config.ts`) — never
+  parsed or rendered as HTML (no `dangerouslySetInnerHTML` anywhere in the
+  comment UI), so pasting something like `<script>...</script>` just
+  displays as literal text.
+- **Reading is public — no login required.**
+  `GET /api/documents/:id/comments` never calls `auth()`/`requireRole()`.
+  Newest first, paginated at `COMMENTS_PAGE_SIZE` (20,
+  same config file) — never an unbounded query; the total comment count
+  comes from a DB `count()`, not from counting the returned page. Each
+  comment's `author` only ever exposes `id`/`name`/`role` — never `email`
+  or `passwordHash`.
+- **Posting requires being signed in — no role restriction.**
+  `POST /api/documents/:id/comments` calls `auth()` directly (STUDENT,
+  TEACHER, and ADMIN can all comment) and returns `401` for a guest.
+  `userId` always comes from the session; the request body may only
+  contain `content`. Commenting on a nonexistent Document returns `404`.
+- **Editing is owner-only, even for ADMIN.**
+  `PUT /api/documents/:id/comments/:commentId` returns `403` for anyone but
+  the comment's own author — moderation is done via delete, never by an
+  admin impersonating someone else's edit. `updatedAt` changes on edit;
+  `createdAt` never does.
+- **Deleting allows the owner or ADMIN.**
+  `DELETE /api/documents/:id/comments/:commentId` allows the comment's own
+  author (any role) or any ADMIN; everyone else gets `403`, a guest gets
+  `401`. Both routes verify the comment actually belongs to the `:id` in
+  the URL — a comment from a different Document can't be edited/deleted
+  through the wrong Document's route (treated as `404`, matching a
+  genuinely missing comment, so no cross-Document existence is leaked).
+- **Validated server-side, not trusted from the client** — content is
+  required, trimmed, rejected if empty/whitespace-only or over
+  `COMMENT_MAX_LENGTH` (`src/lib/validation/comment.ts`), matching the
+  rest of the app's zod validation style.
+- **Document Detail UI** (`CommentSection.tsx` + `CommentForm.tsx` +
+  `CommentItem.tsx`, all under `src/components/`), placed after Download:
+  a `Comments (N)` header, a plain textarea + submit for signed-in users
+  (character count, disabled while empty or submitting — no rich-text
+  editor), and a "Log in to leave a comment" link
+  (`documentLoginHref()`, the same helper Download/Rating use) for guests.
+  Each comment shows author name, a role Badge, a formatted date, and
+  (when applicable) inline Edit/Delete — Edit swaps the text for a
+  textarea with Save/Cancel; Delete shows a lightweight inline "Delete
+  this comment?" confirmation instead of the browser's `window.confirm()`.
+- **Feedback via the existing Sonner system** — "Comment posted
+  successfully" / "Comment updated successfully" / "Comment deleted
+  successfully" on success; "Unable to save comment" /
+  "Unable to delete comment" on failure, without exposing any
+  Prisma/database detail.
+- **Not built yet:** replies/nested threads, mentions, rich text, images,
+  likes, and reports — see `FEATURES.md`.

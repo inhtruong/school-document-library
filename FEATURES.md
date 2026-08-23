@@ -1,6 +1,6 @@
 # Tính năng hiện tại — Stacks (School Document Library)
 
-Tài liệu này mô tả các tính năng đã hoàn thiện tính đến thời điểm hiện tại. Đây là bản MVP tập trung vào quản lý/tìm kiếm tài liệu, xác thực, upload theo học liệu phân loại (Grade → Subject → Lesson → Document Type), tìm kiếm có bộ lọc/sắp xếp/phân trang theo taxonomy, xem trước tài liệu công khai (PDF/ảnh/video/Word hiện đại .docx), và tải tài liệu có bảo vệ đăng nhập — **chưa có** preview Word cũ (.doc)/Excel, trang quản trị, hay tìm kiếm AI.
+Tài liệu này mô tả các tính năng đã hoàn thiện tính đến thời điểm hiện tại. Đây là bản MVP tập trung vào quản lý/tìm kiếm tài liệu, xác thực, upload theo học liệu phân loại (Grade → Subject → Lesson → Document Type), tìm kiếm có bộ lọc/sắp xếp/phân trang theo taxonomy, xem trước tài liệu công khai (PDF/ảnh/video/Word hiện đại .docx), tải tài liệu có bảo vệ đăng nhập, đánh giá tài liệu 1-5 sao, và bình luận tài liệu — **chưa có** preview Word cũ (.doc)/Excel, trang quản trị, báo cáo (report), hay tìm kiếm AI.
 
 ## Stack công nghệ
 
@@ -9,7 +9,7 @@ Tài liệu này mô tả các tính năng đã hoàn thiện tính đến thờ
 - **Database:** PostgreSQL + Prisma ORM
 - **Auth:** Auth.js (Credentials provider, JWT session)
 - **File Storage:** Local filesystem (`storage_local/`, server-side only) — không cần dịch vụ lưu trữ ngoài
-- **Test:** Vitest (273 test, cover validation + API routes + api-client + auth/authorization + upload/local storage + preview/Range parsing + preview-kind classification + DOCX render integration boundary + protected download + safe callback URL + Content-Disposition filename safety + education taxonomy validation/APIs + search query parsing/taxonomy filter resolution/sort/pagination)
+- **Test:** Vitest (364 test, cover validation + API routes + api-client + auth/authorization + upload/local storage + preview/Range parsing + preview-kind classification + DOCX render integration boundary + protected download + safe callback URL + Content-Disposition filename safety + education taxonomy validation/APIs + search query parsing/taxonomy filter resolution/sort/pagination + rating validation/aggregation/API/ownership + comment validation/pagination/API/ownership/cross-Document isolation)
 
 ## Luồng người dùng chính
 
@@ -44,6 +44,8 @@ Trang chủ ──▶ Tìm kiếm / Duyệt theo môn ──▶ Kết quả tìm
 - Hiển thị đầy đủ: tiêu đề, môn học, loại tài liệu, năm học, mô tả, ngày tạo (format "Added <ngày>")
 - **Preview file thật** qua component `FilePreview` — xem chi tiết ở mục [10. Xem trước tài liệu công khai](#10-xem-trước-tài-liệu-công-khai--public-file-preview-step-5a-mới)
 - **Nút Download** (`DownloadButton`) — xem chi tiết ở mục [11. Tải tài liệu có bảo vệ đăng nhập](#11-tải-tài-liệu-có-bảo-vệ-đăng-nhập--protected-download-step-5b-mới). Tài liệu không có file → nút vẫn disable cho mọi đối tượng.
+- **Đánh giá 1-5 sao** (`DocumentRatingSection`) — xem chi tiết ở mục [13. Đánh giá tài liệu](#13-đánh-giá-tài-liệu--document-rating-step-7a-mới)
+- **Bình luận** (`CommentSection`) — xem chi tiết ở mục [14. Bình luận tài liệu](#14-bình-luận-tài-liệu--document-comments-step-7b-mới)
 - **ID không tồn tại/không hợp lệ** → hiển thị trang "Document not found" thân thiện (qua `notFound()` của Next.js), có nút quay lại trang tìm kiếm
 - Lỗi backend/DB (nếu có) sẽ rơi vào error boundary chung của app (`error.tsx`)
 
@@ -172,6 +174,30 @@ updatedAt     DateTime
 - **Document Detail & DocumentCard:** hiển thị Grade (badge), Subject, Lesson, Document Type (label dễ đọc, không phải giá trị enum thô) khi tài liệu có taxonomy; tài liệu cũ không có taxonomy vẫn hiển thị gọn gàng qua `subject`/`documentType` như trước — không phá vỡ preview/download.
 - **Seed dữ liệu phát triển:** 3 khối (Grade 10/11/12), mỗi khối 2 môn (Mathematics, Physics), mỗi môn 1–2 bài học — đủ để phát triển/kiểm thử luồng, không phải bộ dữ liệu chương trình học đầy đủ. Seed dùng `upsert` theo natural key (không xoá-tạo-lại như Document/User) để chạy lại `npm run db:seed` không làm mất liên kết taxonomy của tài liệu đã có. Giữ nguyên 12 tài liệu seed Step 1 (legacy, không có taxonomy) và thêm 4 tài liệu mẫu mới có taxonomy để kiểm thử cả 2 luồng.
 
+## 13. Đánh giá tài liệu — Document Rating (Step 7A, *mới*)
+
+- **1-5 sao, mỗi người dùng chỉ 1 đánh giá cho mỗi tài liệu:** model `DocumentRating` (`prisma/schema.prisma`) với ràng buộc `@@unique([documentId, userId])` — đánh giá lại cùng tài liệu sẽ cập nhật đánh giá cũ (Prisma `upsert`), không tạo dòng mới. Xoá Document hoặc User sẽ cascade xoá đánh giá liên quan, không để mồ côi.
+- **Ai được đánh giá:** `STUDENT`, `TEACHER`, `ADMIN` đều đánh giá được, không phân biệt role. Guest **không** đánh giá được — bấm vào sao sẽ chuyển sang `/login?callbackUrl=/documents/{id}` (tái dùng đúng cơ chế callback an toàn của nút Download, qua helper dùng chung `documentLoginHref()`), **không** gửi đánh giá trước khi đăng nhập.
+- **API:**
+  - `GET /api/documents/:id/ratings` — công khai, không cần đăng nhập. Trả `averageRating` (làm tròn 1 chữ số thập phân, `null` nếu chưa có đánh giá nào — không dùng `0` vì `0` không phải giá trị đánh giá hợp lệ), `ratingCount`, `currentUserRating` (đánh giá của người gọi nếu đã đăng nhập, ngược lại `null`).
+  - `PUT /api/documents/:id/rating` — bắt buộc đăng nhập (mọi role), body `{ value: 1-5 }`. `userId` luôn lấy từ session, **không** nhận từ body — client chỉ được gửi `value`. Đánh giá tài liệu không tồn tại → `404`.
+- **Validate server-side:** `value` phải là số nguyên 1-5 (`src/lib/validation/rating.ts`, zod) — `0`, `6`, số âm, số thập phân, chuỗi, `null`, thiếu giá trị đều bị từ chối với `400` thân thiện.
+- **Tính trung bình bằng Prisma/PostgreSQL `aggregate()`** (`getRatingSummary()`, `src/lib/documents/rating.ts`) — không load hết các dòng đánh giá vào bộ nhớ, không lưu average trực tiếp trên `Document`.
+- **UI trên `/documents/[id]`** (`DocumentRatingSection` + `StarRating`): hiển thị điểm trung bình, tổng số lượt đánh giá, và cụm 5 sao. Guest thấy sao ở chế độ chỉ đọc (theo điểm trung bình đã làm tròn), bấm vào sẽ chuyển sang đăng nhập. Người đã đăng nhập thấy sao tương tác thật (`role="radiogroup"`, dùng bàn phím được), bấm sao sẽ gọi `PUT` rồi tải lại tóm tắt để cập nhật — không dùng optimistic update hay thư viện cache phía client.
+- **Toast** (Sonner có sẵn): lần đầu đánh giá → "Rating submitted successfully"; đổi đánh giá đã có → "Rating updated successfully"; lỗi → "Unable to save your rating." (không lộ chi tiết Prisma/database).
+- **Tài liệu cũ/legacy và tài liệu có taxonomy đều đánh giá được như nhau** — không cần migrate gì thêm ngoài bảng `DocumentRating` mới.
+
+## 14. Bình luận tài liệu — Document Comments (Step 7B, *mới*)
+
+- **Bình luận phẳng, chưa có reply/thread:** model `DocumentComment` (`prisma/schema.prisma`) liên kết Document và User; xoá Document hoặc User sẽ cascade xoá bình luận liên quan. Nội dung là plain text, giới hạn `COMMENT_MAX_LENGTH` (1000 ký tự, `src/lib/documents/comment-config.ts`) — **không** parse/render như HTML (không dùng `dangerouslySetInnerHTML` ở đâu trong UI bình luận), nên dán nội dung kiểu `<script>...</script>` chỉ hiển thị ra chữ, không thực thi.
+- **Đọc công khai, không cần đăng nhập:** `GET /api/documents/:id/comments` — mới nhất trước, phân trang `COMMENTS_PAGE_SIZE` (20, cùng file config) — không bao giờ query không giới hạn; tổng số bình luận lấy từ `count()` của DB, không đếm theo trang trả về. Mỗi bình luận chỉ lộ `author.id`/`name`/`role` — **không** lộ `email`/`passwordHash`.
+- **Đăng bình luận cần đăng nhập, không phân biệt role:** `POST /api/documents/:id/comments` — `STUDENT`, `TEACHER`, `ADMIN` đều đăng được. `userId` luôn lấy từ session, client chỉ được gửi `content`. Bình luận tài liệu không tồn tại → `404`.
+- **Sửa: chỉ chủ sở hữu, kể cả ADMIN cũng không được sửa bình luận người khác:** `PUT /api/documents/:id/comments/:commentId` trả `403` cho bất kỳ ai không phải tác giả — kiểm duyệt dùng xoá, không dùng sửa giả danh. `updatedAt` đổi khi sửa, `createdAt` giữ nguyên.
+- **Xoá: chủ sở hữu hoặc ADMIN:** `DELETE /api/documents/:id/comments/:commentId` — tác giả (mọi role) hoặc ADMIN xoá được; người khác → `403`, guest → `401`. Cả 2 route đều kiểm tra bình luận thực sự thuộc `:id` trong URL — bình luận của Document khác không sửa/xoá được qua nhầm route (trả `404` giống như không tồn tại, không lộ thông tin tồn tại chéo Document).
+- **Validate server-side:** nội dung bắt buộc, trim, từ chối rỗng/toàn khoảng trắng/vượt `COMMENT_MAX_LENGTH` (`src/lib/validation/comment.ts`, zod).
+- **UI trên `/documents/[id]`** (`CommentSection` + `CommentForm` + `CommentItem`, đặt sau nút Download): tiêu đề `Comments (N)`, textarea thường + nút gửi cho người đã đăng nhập (đếm ký tự, disable khi rỗng/đang gửi — không có rich-text editor), link "Log in to leave a comment" (dùng chung `documentLoginHref()` với Download/Rating) cho guest. Mỗi bình luận hiện tên tác giả, badge role, ngày định dạng, và Edit/Delete inline khi có quyền — Edit chuyển thành textarea kèm Save/Cancel; Delete hiện xác nhận inline nhẹ "Delete this comment?" thay vì `window.confirm()` của trình duyệt.
+- **Toast** (Sonner có sẵn): "Comment posted successfully" / "Comment updated successfully" / "Comment deleted successfully" khi thành công; "Unable to save comment" / "Unable to delete comment" khi lỗi (không lộ chi tiết Prisma/database).
+
 ---
 
 ## Chưa làm (ngoài phạm vi hiện tại)
@@ -183,4 +209,6 @@ updatedAt     DateTime
 - Đăng nhập Google/OAuth, xác minh email, quên mật khẩu, 2FA
 - Tìm kiếm AI / semantic search / embeddings, trích xuất nội dung file, xử lý AI, lưu tìm kiếm (saved searches)
 - Upload nhiều file cùng lúc, drag & drop, thanh tiến trình upload
-- Đánh giá (rating), bình luận (comments), báo cáo (reports), yêu thích (bookmark), theo dõi giáo viên/bài học (follow), thông báo (notifications)
+- Sắp xếp tìm kiếm theo rating (rating-based search sort), rating analytics/moderation
+- Trả lời bình luận / thread lồng nhau (comment replies, nested threads), mention, rich text/hình ảnh trong bình luận, thích bình luận (comment likes)
+- Báo cáo tài liệu (report), yêu thích (bookmark), theo dõi giáo viên/bài học (follow), thông báo (notifications)

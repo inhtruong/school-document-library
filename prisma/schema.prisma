@@ -45,6 +45,9 @@ model Document {
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
+  ratings  DocumentRating[]
+  comments DocumentComment[]
+
   @@index([subject])
   @@index([documentType])
   @@index([academicYear])
@@ -52,6 +55,55 @@ model Document {
   @@index([gradeId])
   @@index([subjectId])
   @@index([lessonId])
+}
+
+/**
+ * One 1-5 star rating per User per Document (Step 7A). Aggregates
+ * (average/count) are always computed on read, never cached on Document —
+ * see `getRatingSummary()` in `src/lib/documents/rating.ts`. Deleting a
+ * Document or User cascades to their ratings so none are left orphaned.
+ */
+model DocumentRating {
+  id String @id @default(cuid())
+
+  documentId String
+  document   Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  /** 1-5, enforced at the application layer (zod) — see src/lib/validation/rating.ts. */
+  value Int
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([documentId, userId])
+  @@index([documentId])
+  @@index([userId])
+}
+
+/**
+ * A single, flat (non-threaded) comment on a Document — Step 7B. Content
+ * length is capped at the application layer only (see
+ * `COMMENT_MAX_LENGTH` in `src/lib/documents/comment-config.ts`), matching
+ * how `DocumentRating.value`'s 1-5 range is enforced above. Deleting a
+ * Document or User cascades to their comments so none are left orphaned.
+ */
+model DocumentComment {
+  id String @id @default(cuid())
+
+  documentId String
+  document   Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  content String
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([documentId])
+  @@index([userId])
 }
 
 enum Role {
@@ -138,6 +190,8 @@ model User {
   updatedAt    DateTime @updatedAt
 
   uploadedDocuments Document[]
+  ratings           DocumentRating[]
+  comments          DocumentComment[]
 
   @@index([role])
 }

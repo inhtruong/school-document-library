@@ -1,11 +1,14 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { auth } from "@/auth";
+import { CommentSection } from "@/components/CommentSection";
+import { DocumentRatingSection } from "@/components/DocumentRatingSection";
 import { DownloadButton } from "@/components/DownloadButton";
 import { FilePreview } from "@/components/FilePreview";
 import { Badge } from "@/components/ui/badge";
-import { fetchDocumentById } from "@/lib/api-client";
+import { fetchComments, fetchDocumentById } from "@/lib/api-client";
 import { DOCUMENT_TYPE_LABELS } from "@/lib/documents/document-type";
+import { getRatingSummary } from "@/lib/documents/rating";
 import { subjectAccent } from "@/lib/documents/subject-accent";
 
 type DocumentDetailPageProps = {
@@ -37,6 +40,10 @@ export default async function DocumentDetailPage({ params }: DocumentDetailPageP
 
   if (!doc) notFound();
 
+  const [ratingSummary, commentsPage] = await Promise.all([
+    getRatingSummary(doc.id, session?.user?.id ?? null),
+    fetchComments(doc.id),
+  ]);
   const createdLabel = formatDate(doc.createdAt);
 
   return (
@@ -66,6 +73,14 @@ export default async function DocumentDetailPage({ params }: DocumentDetailPageP
           </div>
 
           {createdLabel ? <p className="mt-2 text-xs text-muted">Added {createdLabel}</p> : null}
+
+          <div className="mt-3">
+            <DocumentRatingSection
+              documentId={doc.id}
+              isAuthenticated={Boolean(session?.user)}
+              initialSummary={ratingSummary}
+            />
+          </div>
         </div>
       </div>
 
@@ -109,6 +124,18 @@ export default async function DocumentDetailPage({ params }: DocumentDetailPageP
           documentId={doc.id}
           hasFile={Boolean(doc.fileName)}
           isAuthenticated={Boolean(session?.user)}
+        />
+      </div>
+
+      <div className="mt-10 border-t border-line pt-8">
+        <CommentSection
+          documentId={doc.id}
+          isAuthenticated={Boolean(session?.user)}
+          currentUserId={session?.user?.id ?? null}
+          isAdmin={session?.user?.role === "ADMIN"}
+          initialComments={commentsPage.comments}
+          initialTotal={commentsPage.total}
+          initialTotalPages={commentsPage.totalPages}
         />
       </div>
     </div>

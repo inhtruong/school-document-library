@@ -4,6 +4,10 @@ export type ApiMeta = {
   total: number;
   take: number;
   skip: number;
+  /** Present only for page-based search results (`/api/documents` without a legacy `?take=`); absent for offset-based callers like the homepage. */
+  page?: number;
+  pageSize?: number;
+  totalPages?: number;
 };
 
 type SuccessBody<T> = {

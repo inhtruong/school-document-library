@@ -1,11 +1,13 @@
 import { headers } from "next/headers";
+import type { DocumentTypeValue } from "@/lib/documents/document-type";
+import type { SortValue } from "@/lib/documents/search-query";
 import type { DocumentRecord, GradeSummary, SubjectSummary } from "@/types/document";
 
 type ApiEnvelope<T> = {
   success: boolean;
   data: T | null;
   error: string | null;
-  meta?: { total: number; take: number; skip: number };
+  meta?: { total: number; take: number; skip: number; page?: number; pageSize?: number; totalPages?: number };
 };
 
 async function getBaseUrl(): Promise<string> {
@@ -30,11 +32,27 @@ async function apiFetch<T>(path: string): Promise<ApiEnvelope<T>> {
 }
 
 export async function fetchDocuments(
-  params: { search?: string; subject?: string; take?: number } = {}
-): Promise<{ documents: DocumentRecord[]; total: number }> {
+  params: {
+    search?: string;
+    subject?: string;
+    gradeId?: string;
+    subjectId?: string;
+    lessonId?: string;
+    documentType?: DocumentTypeValue;
+    sort?: SortValue;
+    page?: number;
+    take?: number;
+  } = {}
+): Promise<{ documents: DocumentRecord[]; total: number; page: number; pageSize: number; totalPages: number }> {
   const query = new URLSearchParams();
   if (params.search) query.set("search", params.search);
   if (params.subject) query.set("subject", params.subject);
+  if (params.gradeId) query.set("gradeId", params.gradeId);
+  if (params.subjectId) query.set("subjectId", params.subjectId);
+  if (params.lessonId) query.set("lessonId", params.lessonId);
+  if (params.documentType) query.set("documentType", params.documentType);
+  if (params.sort) query.set("sort", params.sort);
+  if (params.page) query.set("page", String(params.page));
   if (params.take) query.set("take", String(params.take));
 
   const queryString = query.toString();
@@ -42,7 +60,13 @@ export async function fetchDocuments(
     `/api/documents${queryString ? `?${queryString}` : ""}`
   );
 
-  return { documents: data ?? [], total: meta?.total ?? data?.length ?? 0 };
+  return {
+    documents: data ?? [],
+    total: meta?.total ?? data?.length ?? 0,
+    page: meta?.page ?? 1,
+    pageSize: meta?.pageSize ?? data?.length ?? 0,
+    totalPages: meta?.totalPages ?? 1,
+  };
 }
 
 export async function fetchSubjects(): Promise<SubjectSummary[]> {

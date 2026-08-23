@@ -5,12 +5,14 @@ PostgreSQL database through a Prisma-powered REST API. Authentication
 (email/password via Auth.js) with STUDENT/TEACHER/ADMIN roles is implemented.
 Teachers and admins classify uploads with a structured education taxonomy —
 Grade → Subject → Lesson/Topic, plus a controlled Document Type — and upload
-documents (PDF, Word, Excel, images, video) to local file storage. Anyone —
-including guests — can preview PDF, image, video, and modern Word (`.docx`)
-files directly from the document detail page; legacy `.doc` and Excel show an
-"unsupported yet" placeholder. Downloading the original file requires being
-signed in (any role); guests are sent to log in and returned to the same
-document. No AI yet.
+documents (PDF, Word, Excel, images, video) to local file storage. `/search`
+supports filtering by that same taxonomy (cascading Grade → Subject → Lesson,
+plus Document Type), sorting, and pagination, all reflected in the URL — see
+[Search](#search). Anyone — including guests — can preview PDF, image, video,
+and modern Word (`.docx`) files directly from the document detail page;
+legacy `.doc` and Excel show an "unsupported yet" placeholder. Downloading
+the original file requires being signed in (any role); guests are sent to
+log in and returned to the same document. No AI yet.
 
 ## Stack
 
@@ -87,7 +89,7 @@ src/
   app/
     layout.tsx                    fonts, header, footer
     page.tsx                      homepage: hero search, subjects, popular documents
-    search/page.tsx               results page, reads ?q= and ?subject=
+    search/page.tsx               results page — filters/sort/pagination, URL is the source of truth (see Search below)
     documents/[id]/               document detail page (renders FilePreview) + not-found state
     login/page.tsx                email/password login (server action)
     register/page.tsx             registration — always creates STUDENT
@@ -95,7 +97,7 @@ src/
     upload/page.tsx               TEACHER/ADMIN only; file upload form (server action)
     error.tsx                     friendly fallback if the API/DB is unreachable
     api/
-      documents/route.ts                GET (list + ?search=), POST
+      documents/route.ts                GET (search + filters + sort + pagination, see Search below), POST
       documents/[id]/route.ts           GET, PUT, DELETE
       documents/upload/route.ts         POST — TEACHER/ADMIN only, multipart file upload
       documents/[id]/preview/route.ts   GET — public, streams the file inline (see Preview below)
@@ -107,7 +109,8 @@ src/
       auth/register/route.ts            POST — always creates STUDENT
   components/
     ui/                                 Button, Input, Badge, Card primitives
-    SearchBar.tsx                       client component, pushes /search?q=...
+    SearchBar.tsx                       client component; pushes ?q=..., preserving any active filters/sort from the URL
+    SearchFilters.tsx                   client component: Grade → Subject → Lesson/Topic + Document Type + Sort, URL-driven (see Search below)
     DocumentCard.tsx                    title, taxonomy/subject, type, academic year, description
     SubjectCard.tsx                     subject + live document count
     SiteHeader.tsx                      logo, nav, session-aware login/profile/logout/upload
@@ -123,7 +126,6 @@ src/
     api-response.ts                 { success, data, error, meta } response envelope
     validation/document.ts          zod schemas for create/update
     validation/auth.ts              zod schemas for register/login
-    subjects.ts                     cosmetic accent-colour helper (no document data)
     auth/
       password.ts                   bcrypt hash/verify
       authenticate.ts               Credentials provider authorize() logic
@@ -134,8 +136,11 @@ src/
     documents/
       upload.ts                     uploadDocument() — validate taxonomy + file, store, create Document
       upload-config.ts              MAX_UPLOAD_SIZE_MB / MAX_UPLOAD_SIZE_BYTES (central config)
-      taxonomy.ts                   validateTaxonomySelection() — server-side Grade/Subject/Lesson hierarchy check
+      taxonomy.ts                   validateTaxonomySelection() — server-side Grade/Subject/Lesson hierarchy check (upload path, all 3 required)
+      search-query.ts               parseSearchQuery() + SEARCH_PAGE_SIZE/SORT_VALUES/SORT_ORDER_BY — pure search query parsing (see Search below)
+      search-filters.ts             resolveSearchTaxonomyFilters() — tolerant Grade/Subject/Lesson resolution for search (drops invalid/mismatched IDs instead of rejecting)
       document-type.ts              DOCUMENT_TYPE_VALUES / DOCUMENT_TYPE_LABELS — controlled Document Type
+      subject-accent.ts             cosmetic accent-colour helper (no document data)
       preview-range.ts              pure `Range: bytes=` header parser for video seeking
       preview-kind.ts               resolvePreviewKind() — single source of truth for what's previewable
       content-disposition.ts        buildContentDisposition() — safe attachment filename header
@@ -147,7 +152,7 @@ src/
 
 | Method | Path                  | Description                          |
 | ------ | --------------------- | ------------------------------------- |
-| GET    | `/api/documents`      | List documents. `?search=`, `?subject=`, `?take=`, `?skip=` |
+| GET    | `/api/documents`      | List/search documents. `?search=` (or `?q=`), `?gradeId=`, `?subjectId=`, `?lessonId=`, `?documentType=`, `?sort=`, `?page=` — see [Search](#search). Legacy `?subject=`, `?take=`, `?skip=` still work |
 | GET    | `/api/documents/:id`  | Get one document                      |
 | POST   | `/api/documents`      | Create a document                     |
 | PUT    | `/api/documents/:id`  | Update a document                     |
@@ -164,7 +169,7 @@ src/
 All responses use `{ success, data, error }` (plus `meta` for list pagination),
 except `/api/documents/:id/preview` and `/api/documents/:id/download`, which
 stream the raw file body on success (errors still use the standard envelope).
-Search matches `title`, `description`, and `subject` (case-insensitive).
+See [Search](#search) for the search/filter/sort/pagination contract.
 
 ## Auth
 
@@ -219,6 +224,66 @@ Search matches `title`, `description`, and `subject` (case-insensitive).
   from the taxonomy Subject's name), so homepage/search subject grouping —
   which still reads that field — keeps working unchanged for both legacy
   and taxonomy-backed documents without a redesign.
+
+## Search
+
+- **Filter hierarchy:** `Grade → Subject → Lesson/Topic`, plus **Document
+  Type** — the same taxonomy as upload (see [Education
+  Taxonomy](#education-taxonomy)). Filters combine with AND logic, and the
+  keyword combines with whatever filters are active. Selecting a new Grade
+  resets Subject and Lesson; selecting a new Subject resets Lesson — enforced
+  by `SearchFilters.tsx`, which fetches Subject/Lesson options from the
+  existing `/api/subjects?gradeId=`/`/api/lessons?subjectId=` taxonomy APIs
+  (no duplicated taxonomy data in the frontend).
+- **The URL is the source of truth**, not React state: `q`, `gradeId`,
+  `subjectId`, `lessonId`, `documentType`, `sort`, `page`. Copying a filtered
+  search URL into a fresh browser session restores the exact same
+  keyword/filters/sort/page — every filter `<select>` reads its value
+  directly from `useSearchParams()` and pushes a new URL on change (via
+  `next/navigation`'s `router.push`), rather than keeping its own committed
+  state.
+- **Sort options:** `newest` (default), `oldest`, `title_asc`, `title_desc`.
+  The URL's `sort` value is only ever looked up in an explicit allowlist
+  (`SORT_ORDER_BY` in `src/lib/documents/search-query.ts`) before being
+  passed to Prisma's `orderBy` — an unrecognized value falls back to
+  `newest` rather than being passed through.
+- **Pagination:** server-side, via Prisma `skip`/`take` + `count()` — never
+  loaded into memory and paginated in JS. Page size is centralized as
+  `SEARCH_PAGE_SIZE` in `src/lib/documents/search-query.ts` (currently `12`);
+  the API response `meta` includes `page`, `pageSize`, `total`, and
+  `totalPages` for the page-based search flow. Changing the keyword, any
+  filter, or the sort always resets to page 1. The legacy `?take=`/`?skip=`
+  offset pagination (used by the homepage's "popular documents" query) keeps
+  working unchanged side-by-side with the new page-based flow.
+- **Query parsing is centralized**, not duplicated between the page and the
+  API route — `parseSearchQuery()` (`src/lib/documents/search-query.ts`) is a
+  pure function shared by both `GET /api/documents` (where the keyword
+  arrives as `search`) and `/search` (where it arrives as `q`); this is the
+  one place that `q`↔`search` translation happens.
+- **Untrusted filter combinations are validated server-side, not just
+  trusted from the URL** — `resolveSearchTaxonomyFilters()`
+  (`src/lib/documents/search-filters.ts`) re-checks every `gradeId`/
+  `subjectId`/`lessonId` against the database on every request. Unlike
+  upload's `validateTaxonomySelection()` (which rejects a bad combination
+  outright), this resolver is tolerant: a Subject that doesn't belong to the
+  selected Grade, or a Lesson that doesn't belong to the selected Subject,
+  is silently dropped rather than erroring — the search just becomes
+  broader instead of crashing or leaking a DB error. An invalid `sort` or
+  `page` is normalized the same way (falls back to `newest` / `1`).
+- **Legacy documents** (no `gradeId`/`subjectId`/`lessonId`) remain fully
+  searchable by keyword when no taxonomy filter is active; selecting a
+  taxonomy filter naturally excludes them, the same way it excludes any
+  other non-matching Document — no special-casing needed.
+- **Homepage compatibility:** the homepage's "Browse by subject" and
+  "Popular documents" sections are untouched — they still use the legacy
+  `?subject=` grouping and `?take=` offset pagination respectively, both of
+  which keep working exactly as before alongside the new filters.
+- **Empty results / Clear filters:** a friendly "No documents found for
+  these filters" state (with a link back to the unfiltered `/search`)
+  replaces the default error state for a valid empty result. A "Clear
+  filters" link appears whenever any filter is active, resetting Grade/
+  Subject/Lesson/Document Type/Sort/page back to default while preserving
+  the keyword.
 
 ## Uploads
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -8,26 +8,24 @@ import { Input } from "@/components/ui/input";
 type SearchBarProps = {
   /** Pre-fills the input, e.g. when coming back to a results page. */
   defaultValue?: string;
-  /** Keeps the current subject filter when searching again from the results page. */
-  subject?: string;
   size?: "large" | "compact";
 };
 
-export default function SearchBar({
-  defaultValue = "",
-  subject,
-  size = "large",
-}: SearchBarProps) {
+export default function SearchBar({ defaultValue = "", size = "large" }: SearchBarProps) {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [query, setQuery] = useState(defaultValue);
 
   function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
-    const params = new URLSearchParams();
+    // Preserve any active filters/sort (from the current URL) — only the
+    // keyword and page reset on a new search.
+    const params = new URLSearchParams(searchParams.toString());
     const trimmed = query.trim();
     if (trimmed) params.set("q", trimmed);
-    if (subject) params.set("subject", subject);
+    else params.delete("q");
+    params.delete("page");
 
     const queryString = params.toString();
     router.push(queryString ? `/search?${queryString}` : "/search");

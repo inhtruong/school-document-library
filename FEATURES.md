@@ -1,6 +1,6 @@
 # Tính năng hiện tại — Stacks (School Document Library)
 
-Tài liệu này mô tả các tính năng đã hoàn thiện tính đến thời điểm hiện tại. Đây là bản MVP tập trung vào quản lý/tìm kiếm tài liệu, xác thực, upload theo học liệu phân loại (Grade → Subject → Lesson → Document Type), xem trước tài liệu công khai (PDF/ảnh/video/Word hiện đại .docx), và tải tài liệu có bảo vệ đăng nhập — **chưa có** bộ lọc tìm kiếm nâng cao theo taxonomy (Step 6B), preview Word cũ (.doc)/Excel, trang quản trị, hay tìm kiếm AI.
+Tài liệu này mô tả các tính năng đã hoàn thiện tính đến thời điểm hiện tại. Đây là bản MVP tập trung vào quản lý/tìm kiếm tài liệu, xác thực, upload theo học liệu phân loại (Grade → Subject → Lesson → Document Type), tìm kiếm có bộ lọc/sắp xếp/phân trang theo taxonomy, xem trước tài liệu công khai (PDF/ảnh/video/Word hiện đại .docx), và tải tài liệu có bảo vệ đăng nhập — **chưa có** preview Word cũ (.doc)/Excel, trang quản trị, hay tìm kiếm AI.
 
 ## Stack công nghệ
 
@@ -9,7 +9,7 @@ Tài liệu này mô tả các tính năng đã hoàn thiện tính đến thờ
 - **Database:** PostgreSQL + Prisma ORM
 - **Auth:** Auth.js (Credentials provider, JWT session)
 - **File Storage:** Local filesystem (`storage_local/`, server-side only) — không cần dịch vụ lưu trữ ngoài
-- **Test:** Vitest (226 test, cover validation + API routes + api-client + auth/authorization + upload/local storage + preview/Range parsing + preview-kind classification + DOCX render integration boundary + protected download + safe callback URL + Content-Disposition filename safety + education taxonomy validation/APIs)
+- **Test:** Vitest (273 test, cover validation + API routes + api-client + auth/authorization + upload/local storage + preview/Range parsing + preview-kind classification + DOCX render integration boundary + protected download + safe callback URL + Content-Disposition filename safety + education taxonomy validation/APIs + search query parsing/taxonomy filter resolution/sort/pagination)
 
 ## Luồng người dùng chính
 
@@ -26,13 +26,17 @@ Trang chủ ──▶ Tìm kiếm / Duyệt theo môn ──▶ Kết quả tìm
 - **Popular documents:** 4 tài liệu mới nhất (`GET /api/documents?take=4`, sắp xếp theo `createdAt` giảm dần)
 - Toàn bộ dữ liệu tải qua API, không có mock data trong UI
 
-## 2. Tìm kiếm & Kết quả — `/search?q=...&subject=...`
+## 2. Tìm kiếm & Kết quả — `/search` (Step 6B, *mới*)
 
-- Nhận từ khoá qua query param `q`, lọc theo môn qua `subject`
-- Search khớp không phân biệt hoa/thường trên 3 trường: `title`, `description`, `subject`
-- Chip lọc theo môn học (All subjects + từng môn), có trạng thái active
+- **Bộ lọc theo taxonomy, cùng cấu trúc với upload:** `Grade → Subject → Lesson/Topic`, cộng thêm **Document Type**. Chọn lại Grade sẽ reset Subject + Lesson; chọn lại Subject sẽ reset Lesson. Subject bị disable tới khi chọn Grade, Lesson bị disable tới khi chọn Subject — component `SearchFilters` (`src/components/SearchFilters.tsx`), tái dùng đúng 2 API đọc taxonomy đã có (`/api/subjects?gradeId=`, `/api/lessons?subjectId=`), không tạo API riêng.
+- **URL là nguồn sự thật duy nhất** cho toàn bộ trạng thái tìm kiếm: `q`, `gradeId`, `subjectId`, `lessonId`, `documentType`, `sort`, `page`. Copy URL đã lọc dán vào tab/trình duyệt khác sẽ khôi phục đúng y hệt từ khoá, bộ lọc, sắp xếp, trang — không lưu trạng thái chỉ ở React state.
+- **Sắp xếp:** `newest` (mặc định), `oldest`, `title_asc`, `title_desc` — map tường minh sang Prisma `orderBy` qua bảng cho phép cố định (`SORT_ORDER_BY`), không bao giờ truyền thẳng giá trị query vào `orderBy`.
+- **Phân trang phía server** qua Prisma `skip`/`take` + `count()` (không load hết rồi phân trang ở bộ nhớ). Page size cố định 1 chỗ: `SEARCH_PAGE_SIZE = 12` (`src/lib/documents/search-query.ts`). Đổi từ khoá/bộ lọc/sắp xếp sẽ luôn reset về trang 1.
+- **Search khớp không phân biệt hoa/thường trên 5 trường:** `title`, `description`, `subject` (legacy free-text), tên Subject theo taxonomy, tên Lesson theo taxonomy — tài liệu legacy (không có taxonomy) vẫn tìm được bình thường khi không chọn bộ lọc taxonomy.
+- **Không tin dữ liệu từ URL:** `resolveSearchTaxonomyFilters()` (`src/lib/documents/search-filters.ts`) luôn tra lại DB — Subject sai Grade hoặc Lesson sai Subject sẽ tự động bị bỏ qua (kết quả rộng hơn) thay vì lỗi/crash; `sort`/`page` không hợp lệ tự chuẩn hoá về mặc định.
+- **Tương thích ngược hoàn toàn:** trang chủ ("Browse by subject", "Popular documents") vẫn dùng nguyên `?subject=` và `?take=` như cũ, chạy song song với luồng lọc/phân trang mới trên cùng API `GET /api/documents`.
 - Mỗi kết quả hiển thị qua `DocumentCard`: tiêu đề, môn học, loại tài liệu, năm học, mô tả ngắn
-- Empty state thân thiện khi không có kết quả, kèm nút quay về xem tất cả
+- **Empty state** thân thiện khi không có kết quả khớp bộ lọc, kèm nút quay về xem tất cả; nút **"Clear filters"** xuất hiện khi có bộ lọc đang active, reset Grade/Subject/Lesson/Document Type/Sort/trang về mặc định (giữ nguyên từ khoá)
 
 ## 3. Chi tiết tài liệu — `/documents/[id]` *(mới)*
 
@@ -174,10 +178,9 @@ updatedAt     DateTime
 
 - Trang quản trị (Admin dashboard), quản lý người dùng (User management)
 - Quản trị taxonomy (thêm/sửa/xoá Grade/Subject/Lesson qua UI)
-- Bộ lọc tìm kiếm nâng cao theo Grade/Subject/Lesson/Document Type, sắp xếp, phân trang (Step 6B)
 - Duyệt giáo viên (teacher approval)
 - Preview Word cũ (.doc), preview Excel (.xls/.xlsx), PDF.js, thumbnail, image gallery
 - Đăng nhập Google/OAuth, xác minh email, quên mật khẩu, 2FA
-- Tìm kiếm AI / semantic search / embeddings, trích xuất nội dung file, xử lý AI
+- Tìm kiếm AI / semantic search / embeddings, trích xuất nội dung file, xử lý AI, lưu tìm kiếm (saved searches)
 - Upload nhiều file cùng lúc, drag & drop, thanh tiến trình upload
-- Yêu thích (favorites), bình luận (comments)
+- Đánh giá (rating), bình luận (comments), báo cáo (reports), yêu thích (bookmark), theo dõi giáo viên/bài học (follow), thông báo (notifications)

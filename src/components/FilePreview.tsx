@@ -1,7 +1,7 @@
 import { DocxPreview } from "@/components/DocxPreview";
 import { Card } from "@/components/ui/card";
 import { resolvePreviewKind } from "@/lib/documents/preview-kind";
-import type { DocumentRecord } from "@/lib/types";
+import type { DocumentRecord } from "@/types/document";
 
 type FilePreviewProps = {
   documentId: string;

@@ -5,7 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { resolvePreviewKind, STREAMABLE_PREVIEW_KINDS } from "@/lib/documents/preview-kind";
 import { parseRangeHeader } from "@/lib/documents/preview-range";
 import { createLocalFileReadStream, statLocalFile } from "@/lib/storage/local-storage";
-import type { DocumentRecord } from "@/lib/types";
+import type { DocumentRecord } from "@/types/document";
 
 type RouteContext = { params: Promise<{ id: string }> };
 

@@ -1,5 +1,5 @@
 import { headers } from "next/headers";
-import type { DocumentRecord, GradeSummary, SubjectSummary } from "@/lib/types";
+import type { DocumentRecord, GradeSummary, SubjectSummary } from "@/types/document";
 
 type ApiEnvelope<T> = {
   success: boolean;

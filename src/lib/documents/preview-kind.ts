@@ -1,5 +1,5 @@
 import { DOCX_MIME_TYPE } from "@/lib/storage/local-storage";
-import type { DocumentRecord } from "@/lib/types";
+import type { DocumentRecord } from "@/types/document";
 
 export type PreviewKind = "pdf" | "image" | "video" | "docx" | "word-legacy" | "excel" | "none";
 

@@ -6,7 +6,7 @@ import { FilePreview } from "@/components/FilePreview";
 import { Badge } from "@/components/ui/badge";
 import { fetchDocumentById } from "@/lib/api-client";
 import { DOCUMENT_TYPE_LABELS } from "@/lib/documents/document-type";
-import { subjectAccent } from "@/lib/subjects";
+import { subjectAccent } from "@/lib/documents/subject-accent";
 
 type DocumentDetailPageProps = {
   params: Promise<{ id: string }>;

@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { Card } from "@/components/ui/card";
-import { subjectAccent } from "@/lib/subjects";
-import type { SubjectSummary } from "@/lib/types";
+import { subjectAccent } from "@/lib/documents/subject-accent";
+import type { SubjectSummary } from "@/types/document";
 
 export default function SubjectCard({ subject }: { subject: SubjectSummary }) {
   return (

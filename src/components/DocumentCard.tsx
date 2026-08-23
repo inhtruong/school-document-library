@@ -2,8 +2,8 @@ import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { DOCUMENT_TYPE_LABELS } from "@/lib/documents/document-type";
-import { subjectAccent } from "@/lib/subjects";
-import type { DocumentRecord } from "@/lib/types";
+import { subjectAccent } from "@/lib/documents/subject-accent";
+import type { DocumentRecord } from "@/types/document";
 
 export default function DocumentCard({ doc }: { doc: DocumentRecord }) {
   return (

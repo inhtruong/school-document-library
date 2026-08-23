@@ -6,6 +6,9 @@ vi.mock("@/lib/prisma", () => ({
     grade: { findUnique: vi.fn() },
     subject: { findUnique: vi.fn() },
     lesson: { findUnique: vi.fn() },
+    teacherFollow: { findMany: vi.fn() },
+    lessonFollow: { findMany: vi.fn() },
+    notification: { createMany: vi.fn() },
   },
 }));
 
@@ -145,7 +148,7 @@ const mockCreatedDocument = {
   mimeType: "application/pdf",
   fileCategory: "PDF",
   uploadedById: "user_1",
-  uploadedBy: { id: "user_1", name: "Tara Teacher" },
+  uploadedBy: { id: "user_1", name: "Tara Teacher", role: "TEACHER" },
   grade: GRADE_A,
   subjectRef: SUBJECT_A,
   lesson: LESSON_A,
@@ -166,6 +169,9 @@ beforeEach(() => {
   vi.mocked(prisma.lesson.findUnique).mockImplementation(
     ({ where }) => Promise.resolve(LESSONS[where.id as string] ?? null) as never
   );
+  vi.mocked(prisma.teacherFollow.findMany).mockResolvedValue([] as never);
+  vi.mocked(prisma.lessonFollow.findMany).mockResolvedValue([] as never);
+  vi.mocked(prisma.notification.createMany).mockResolvedValue({ count: 0 } as never);
 });
 
 describe("uploadDocument — accepted formats", () => {

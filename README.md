@@ -82,7 +82,7 @@ npm test              run the Vitest suite
 ```
 storage_local/                    uploaded files, auto-created (gitignored) — see Uploads below
 prisma/
-  schema.prisma                   Document, User, Grade, Subject, Lesson, DocumentRating, DocumentComment, DocumentReport, DocumentBookmark, TeacherFollow, LessonFollow models + Role/FileCategory/DocumentType/ReportReason/ReportStatus enums
+  schema.prisma                   Document, User, Grade, Subject, Lesson, DocumentRating, DocumentComment, DocumentReport, DocumentBookmark, TeacherFollow, LessonFollow, Notification models + Role/FileCategory/DocumentType/ReportReason/ReportStatus/NotificationType enums
   seed.ts                         taxonomy (grades/subjects/lessons) + sample documents + dev accounts
 src/
   auth.ts                         Auth.js config: Credentials provider, JWT callbacks
@@ -93,6 +93,7 @@ src/
     documents/[id]/               document detail page (renders FilePreview) + not-found state
     saved/page.tsx                 requires auth; paginated list of the current user's bookmarked documents (see Bookmarks below)
     following/page.tsx             requires auth; paginated Followed Teachers + Followed Lessons, independent ?teachersPage=/?lessonsPage= (see Follow below)
+    notifications/page.tsx         requires auth; paginated notification list, newest first, "Mark all as read" (see Notifications below)
     login/page.tsx                email/password login (server action)
     register/page.tsx             registration — always creates STUDENT
     profile/page.tsx              requires auth; shows name/email/role
@@ -113,6 +114,10 @@ src/
       documents/[id]/bookmark/route.ts               GET/POST/DELETE — any signed-in user, own saved state only (see Bookmarks below)
       teachers/[teacherId]/follow/route.ts          GET/POST/DELETE — any signed-in user, own follow state only; target must be role=TEACHER (see Follow below)
       lessons/[lessonId]/follow/route.ts            GET/POST/DELETE — any signed-in user, own follow state only (see Follow below)
+      notifications/route.ts                        GET — any signed-in user, own notifications only, paginated (see Notifications below)
+      notifications/unread-count/route.ts           GET — any signed-in user, own unread count only (see Notifications below)
+      notifications/[id]/read/route.ts              PATCH — any signed-in user, own notification only (see Notifications below)
+      notifications/read-all/route.ts               POST — any signed-in user, marks own unread notifications read (see Notifications below)
       subjects/route.ts                 GET — no ?gradeId=: legacy subject grouping (homepage); with ?gradeId=: taxonomy Subjects for that Grade
       grades/route.ts                   GET — all Grades ordered by sortOrder (see Education Taxonomy below)
       lessons/route.ts                  GET ?subjectId=... — Lessons/Topics for one Subject
@@ -124,7 +129,7 @@ src/
     SearchFilters.tsx                   client component: Grade → Subject → Lesson/Topic + Document Type + Sort, URL-driven (see Search below)
     DocumentCard.tsx                    title, taxonomy/subject, type, academic year, description
     SubjectCard.tsx                     subject + live document count
-    SiteHeader.tsx                      logo, nav, session-aware login/profile/logout/upload/saved/following
+    SiteHeader.tsx                      logo, nav, session-aware login/profile/logout/upload/saved/following/notifications bell + unread badge
     FilePreview.tsx                     PDF/image/video/docx preview, unsupported/unavailable placeholders
     DocxPreview.tsx                     client-only .docx renderer (docx-preview), loading/error states
     docx-preview-render.ts              fetch + render orchestration used by DocxPreview (unit-testable)
@@ -142,6 +147,8 @@ src/
     LessonFollowAction.tsx              follow/unfollow toggle shown next to the Lesson on /documents/[id] when the Document has one (see Follow below)
     FollowedTeachersList.tsx            client list on /following — Unfollow removes the item from the current page immediately (see Follow below)
     FollowedLessonsList.tsx             client list on /following — same Unfollow pattern as FollowedTeachersList (see Follow below)
+    NotificationsList.tsx               client list on /notifications — local read state, "Mark all as read" (see Notifications below)
+    NotificationItem.tsx                one notification — click marks it read and navigates to the Document (see Notifications below)
   lib/
     prisma.ts                       Prisma client singleton
     api-client.ts                   server-side fetch helpers used by the pages
@@ -158,7 +165,7 @@ src/
       register.ts                   registerStudent() — role always STUDENT
       authorize.ts                  requireAuth(), requireRole(), hasRole()
       callback-url.ts               isSafeCallbackUrl()/resolveCallbackUrl() — open-redirect guard for ?callbackUrl=
-      document-login-href.ts        documentLoginHref() / loginHrefFor() — shared /login?callbackUrl= builder (Download, Rating, Comments, Reporting, Bookmarks/Saved, Follow/Following)
+      document-login-href.ts        documentLoginHref() / loginHrefFor() — shared /login?callbackUrl= builder (Download, Rating, Comments, Reporting, Bookmarks/Saved, Follow/Following, Notifications)
     documents/
       upload.ts                     uploadDocument() — validate taxonomy + file, store, create Document
       upload-config.ts              MAX_UPLOAD_SIZE_MB / MAX_UPLOAD_SIZE_BYTES (central config)
@@ -184,6 +191,9 @@ src/
       teacher-follow.ts             isFollowingTeacher()/followTeacher()/unfollowTeacher()/listFollowedTeachers() — TEACHER-only target, self-follow rejected (see Follow below)
       lesson-follow.ts              isFollowingLesson()/followLesson()/unfollowLesson()/listFollowedLessons() (see Follow below)
       follow-config.ts              FOLLOWING_PAGE_SIZE (central config, shared by Teachers/Lessons lists)
+    notifications/
+      notification.ts               createNewDocumentNotifications()/listNotifications()/getUnreadNotificationCount()/markNotificationRead()/markAllNotificationsRead() (see Notifications below)
+      notification-config.ts        NOTIFICATIONS_PAGE_SIZE (central config)
 ```
 
 ## API
@@ -220,6 +230,10 @@ src/
 | GET    | `/api/lessons/:lessonId/follow` | Requires any signed-in user. Returns `{ following }` for the caller only. See [Follow](#follow) |
 | POST   | `/api/lessons/:lessonId/follow` | Requires any signed-in user. Idempotent. `404` if the Lesson doesn't exist. See [Follow](#follow) |
 | DELETE | `/api/lessons/:lessonId/follow` | Requires any signed-in user. Removes the caller's own follow; safe if none exists. See [Follow](#follow) |
+| GET    | `/api/notifications` | Requires any signed-in user. Own notifications only, paginated, newest first. `?page=`. `meta` includes `unreadCount`. See [Notifications](#notifications) |
+| GET    | `/api/notifications/unread-count` | Requires any signed-in user. Returns `{ unreadCount }` for the caller only. See [Notifications](#notifications) |
+| PATCH  | `/api/notifications/:id/read` | Requires any signed-in user. Marks the caller's own notification read; idempotent. `404` if it doesn't exist or belongs to someone else. See [Notifications](#notifications) |
+| POST   | `/api/notifications/read-all` | Requires any signed-in user. Marks all of the caller's own unread notifications read. Returns `{ updatedCount }`. See [Notifications](#notifications) |
 
 All responses use `{ success, data, error }` (plus `meta` for list pagination),
 except `/api/documents/:id/preview` and `/api/documents/:id/download`, which
@@ -654,8 +668,8 @@ See [Search](#search) for the search/filter/sort/pagination contract.
 - **Feedback via the existing Sonner system** — "Document saved" /
   "Document removed from saved items" on success, "Unable to update
   saved document" on failure.
-- **Not built yet:** Notifications, bookmark counts, trending-by-bookmark,
-  collections/folders, and social sharing — see `FEATURES.md`.
+- **Not built yet:** bookmark counts, trending-by-bookmark, collections/folders,
+  and social sharing — see `FEATURES.md`.
 
 ## Follow
 
@@ -710,8 +724,72 @@ See [Search](#search) for the search/filter/sort/pagination contract.
 - **Feedback via the existing Sonner system** — "Teacher followed" /
   "Teacher unfollowed" / "Lesson followed" / "Lesson unfollowed" on
   success, "Unable to update follow status" on failure.
-- **Not built yet:** any notification generation, a notification table,
-  a notification bell, unread state, or email/push delivery — this step
-  only creates and manages the follow relationships themselves. A future
-  step can query `TeacherFollow`/`LessonFollow` directly to decide who to
-  notify when a new Document is uploaded. See `FEATURES.md`.
+- **Not built yet (this step):** the follow relationships themselves don't
+  notify anyone — see [Notifications](#notifications) below for what
+  consumes them. See `FEATURES.md`.
+
+## Notifications
+
+- **In-app only, triggered by new Document uploads (Step 8C)** — a
+  `Notification` row is created for a user when a newly-uploaded Document
+  matches something they follow: they follow the uploading Teacher (only
+  when the uploader has `role = TEACHER` — a STUDENT/ADMIN upload never
+  triggers a Teacher-follow notification), or they follow the Document's
+  Lesson (only when the Document has a structured Lesson). No comment,
+  rating, or report notifications yet, and no email/push delivery.
+- **Generated from inside the existing upload flow** — `uploadDocument()`
+  (`src/lib/documents/upload.ts`) calls `createNewDocumentNotifications()`
+  right after the Document row is successfully created. This call has its
+  own try/catch, entirely separate from the Document-creation try/catch
+  above it: if notification generation throws, the error is logged and
+  swallowed — the Document that was already saved is never rolled back,
+  deleted, or reported as a failed upload.
+- **Recipients are deduplicated, and the uploader is always excluded** —
+  the Teacher-follower set and the Lesson-follower set are combined into a
+  single `Set` of user ids before any row is written, so a user following
+  both the Teacher and the Lesson still gets exactly one notification for
+  that Document. The uploader's own id is removed from that set even if
+  they follow their own Teacher profile or Lesson, so no one is ever
+  notified about their own upload.
+- **Idempotent generation** — `@@unique([userId, documentId, type])` on
+  `Notification`, paired with `createMany({ skipDuplicates: true })`,
+  means calling the generator more than once for the same Document never
+  creates duplicate rows.
+- **No historical backfill** — this only applies to new uploads from this
+  step forward; existing Documents never retroactively generate
+  notifications.
+- **Notifications are completely private per user** — `GET
+  /api/notifications`, `GET /api/notifications/unread-count`, and
+  `/notifications` only ever query the signed-in user's own rows;
+  `userId` always comes from the session, never from a query/body param.
+  Marking one notification read (`PATCH /api/notifications/:id/read`)
+  checks ownership first — a notification that doesn't belong to the
+  caller (or doesn't exist) returns `404` either way, and a repeat mark-read
+  is a safe no-op. `POST /api/notifications/read-all` only ever updates
+  the caller's own unread rows.
+- **Content is server-generated plain text, never HTML** — e.g. `Teacher
+  Nguyen Van A uploaded "Derivative Exercises" for Derivatives.` for a
+  TEACHER upload, or `A new document "Derivative Exercises" was added to
+  Derivatives.` for an ADMIN upload. The client never supplies or
+  influences notification title/message text.
+- **`/notifications`** — requires auth (`/login?callbackUrl=/notifications`
+  for guests, via the same `loginHrefFor()` helper every other guest-facing
+  action uses). Lists the signed-in user's own notifications newest first,
+  paginated at `NOTIFICATIONS_PAGE_SIZE` (20,
+  `src/lib/notifications/notification-config.ts`). Unread notifications
+  get a subtle tinted background, a small accent dot, and slightly bolder
+  title text — never anything aggressive. A "Mark all as read" button
+  appears only when there's at least one unread notification.
+- **Clicking a notification** (`NotificationItem.tsx`) marks it read (a
+  fire-and-forget `PATCH`) and navigates to `/documents/:id` via a normal
+  `<Link>`; `router.refresh()` keeps the header bell's count in sync on
+  the next render, without any global client state.
+- **Header bell** (`SiteHeader.tsx`) — a Bell icon, authenticated users
+  only, with a small unread-count badge (capped display at `99+`) that
+  disappears entirely once `unreadCount` is `0`. Links to `/notifications`.
+- **Feedback via the existing Sonner system** — "All notifications marked
+  as read" on a successful "Mark all as read"; "Unable to update
+  notifications" on failure.
+- **Not built yet:** email notifications, push notifications, notification
+  preferences/subscriptions beyond Follow Teacher/Lesson, comment/rating/
+  report notifications, and any AI — see `FEATURES.md`.

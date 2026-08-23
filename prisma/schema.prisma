@@ -45,10 +45,11 @@ model Document {
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
-  ratings   DocumentRating[]
-  comments  DocumentComment[]
-  reports   DocumentReport[]
-  bookmarks DocumentBookmark[]
+  ratings       DocumentRating[]
+  comments      DocumentComment[]
+  reports       DocumentReport[]
+  bookmarks     DocumentBookmark[]
+  notifications Notification[]
 
   @@index([subject])
   @@index([documentType])
@@ -271,6 +272,7 @@ model User {
   teacherFollowing  TeacherFollow[] @relation("TeacherFollowFollower")
   followedByUsers   TeacherFollow[] @relation("TeacherFollowTeacher")
   lessonFollows     LessonFollow[]
+  notifications     Notification[]
 
   @@index([role])
 }
@@ -320,4 +322,43 @@ model LessonFollow {
   @@unique([userId, lessonId])
   @@index([userId])
   @@index([lessonId])
+}
+
+/**
+ * An in-app notification for a User — Step 8C. Currently only generated
+ * for `NEW_DOCUMENT` (a followed Teacher or followed Lesson got a new
+ * upload); the enum stays small on purpose rather than pre-designing
+ * categories (comment/rating/report) that don't exist yet. Title/message
+ * are always server-generated plain text — never HTML, never
+ * client-supplied. `readAt = null` means unread. `@@unique([userId,
+ * documentId, type])` makes generation idempotent: a user who follows both
+ * the Document's Teacher and its Lesson gets only one row per Document,
+ * and `createMany({ skipDuplicates: true })` can be called safely more
+ * than once. Deleting the User or the Document cascades — a notification
+ * never outlives what it's about.
+ */
+model Notification {
+  id String @id @default(cuid())
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  documentId String
+  document   Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+
+  type    NotificationType
+  title   String
+  message String
+
+  createdAt DateTime  @default(now())
+  readAt    DateTime?
+
+  @@unique([userId, documentId, type])
+  @@index([userId])
+  @@index([documentId])
+}
+
+/** Kept intentionally small — see Notification's doc comment. */
+enum NotificationType {
+  NEW_DOCUMENT
 }

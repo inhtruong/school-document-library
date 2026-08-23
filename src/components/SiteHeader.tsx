@@ -1,11 +1,14 @@
 import Link from "next/link";
+import { Bell } from "lucide-react";
 import { auth, signOut } from "@/auth";
 import { Badge } from "@/components/ui/badge";
 import { hasRole } from "@/lib/auth/authorize";
+import { getUnreadNotificationCount } from "@/lib/notifications/notification";
 import { TOAST_KEYS } from "@/lib/toast-messages";
 
 export default async function SiteHeader() {
   const session = await auth();
+  const unreadCount = session?.user ? await getUnreadNotificationCount(session.user.id) : 0;
 
   return (
     <header className="border-b border-line">
@@ -55,6 +58,19 @@ export default async function SiteHeader() {
                 className="rounded-full border border-line px-3 py-1.5 text-sm text-muted transition-colors hover:border-ink/25 hover:text-ink"
               >
                 Following
+              </Link>
+
+              <Link
+                href="/notifications"
+                aria-label={unreadCount > 0 ? `Notifications (${unreadCount} unread)` : "Notifications"}
+                className="relative inline-flex items-center rounded-full border border-line p-2 text-muted transition-colors hover:border-ink/25 hover:text-ink"
+              >
+                <Bell className="h-4 w-4" aria-hidden />
+                {unreadCount > 0 ? (
+                  <span className="absolute -right-1 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-accent px-1 text-[10px] font-medium leading-none text-paper">
+                    {unreadCount > 99 ? "99+" : unreadCount}
+                  </span>
+                ) : null}
               </Link>
 
               <Link

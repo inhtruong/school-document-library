@@ -1,6 +1,6 @@
 # Tính năng hiện tại — Stacks (School Document Library)
 
-Tài liệu này mô tả các tính năng đã hoàn thiện tính đến thời điểm hiện tại. Đây là bản MVP tập trung vào quản lý/tìm kiếm tài liệu, xác thực, upload theo học liệu phân loại (Grade → Subject → Lesson → Document Type), tìm kiếm có bộ lọc/sắp xếp/phân trang theo taxonomy, xem trước tài liệu công khai (PDF/ảnh/video/Word hiện đại .docx), tải tài liệu có bảo vệ đăng nhập, đánh giá tài liệu 1-5 sao, bình luận tài liệu, báo cáo tài liệu (report), lưu tài liệu yêu thích (bookmark), và theo dõi Giáo viên/Bài học (follow) — **chưa có** preview Word cũ (.doc)/Excel, trang quản trị (bao gồm cả duyệt report), thông báo (notifications), hay tìm kiếm AI.
+Tài liệu này mô tả các tính năng đã hoàn thiện tính đến thời điểm hiện tại. Đây là bản MVP tập trung vào quản lý/tìm kiếm tài liệu, xác thực, upload theo học liệu phân loại (Grade → Subject → Lesson → Document Type), tìm kiếm có bộ lọc/sắp xếp/phân trang theo taxonomy, xem trước tài liệu công khai (PDF/ảnh/video/Word hiện đại .docx), tải tài liệu có bảo vệ đăng nhập, đánh giá tài liệu 1-5 sao, bình luận tài liệu, báo cáo tài liệu (report), lưu tài liệu yêu thích (bookmark), theo dõi Giáo viên/Bài học (follow), và thông báo trong ứng dụng khi có tài liệu mới (in-app notifications) — **chưa có** preview Word cũ (.doc)/Excel, trang quản trị (bao gồm cả duyệt report), thông báo qua email/push, hay tìm kiếm AI.
 
 ## Stack công nghệ
 
@@ -9,7 +9,7 @@ Tài liệu này mô tả các tính năng đã hoàn thiện tính đến thờ
 - **Database:** PostgreSQL + Prisma ORM
 - **Auth:** Auth.js (Credentials provider, JWT session)
 - **File Storage:** Local filesystem (`storage_local/`, server-side only) — không cần dịch vụ lưu trữ ngoài
-- **Test:** Vitest (501 test, cover validation + API routes + api-client + auth/authorization + upload/local storage + preview/Range parsing + preview-kind classification + DOCX render integration boundary + protected download + safe callback URL + Content-Disposition filename safety + education taxonomy validation/APIs + search query parsing/taxonomy filter resolution/sort/pagination + rating validation/aggregation/API/ownership + comment validation/pagination/API/ownership/cross-Document isolation + report validation/duplicate-prevention/API/ownership + bookmark idempotency/pagination/API/ownership + Teacher/Lesson follow target-validation/self-follow/idempotency/pagination/isolation)
+- **Test:** Vitest (540 test, cover validation + API routes + api-client + auth/authorization + upload/local storage + preview/Range parsing + preview-kind classification + DOCX render integration boundary + protected download + safe callback URL + Content-Disposition filename safety + education taxonomy validation/APIs + search query parsing/taxonomy filter resolution/sort/pagination + rating validation/aggregation/API/ownership + comment validation/pagination/API/ownership/cross-Document isolation + report validation/duplicate-prevention/API/ownership + bookmark idempotency/pagination/API/ownership + Teacher/Lesson follow target-validation/self-follow/idempotency/pagination/isolation + notification recipient-calculation/dedup/uploader-exclusion/idempotency/pagination/ownership/isolation)
 
 ## Luồng người dùng chính
 
@@ -240,7 +240,26 @@ updatedAt     DateTime
 - **Trang `/following`** — bắt buộc đăng nhập (guest → `/login?callbackUrl=/following`). 2 mục: **Followed Teachers** (tên + số tài liệu đã upload, tính hiệu quả bằng Prisma `_count`, không lộ email) và **Followed Lessons** (Grade/Subject/Lesson), đều sắp theo **ngày follow mới nhất trước** (`createdAt` của dòng follow, không phải ngày tạo Teacher/Lesson). Phân trang độc lập qua `?teachersPage=`/`?lessonsPage=`, giới hạn `FOLLOWING_PAGE_SIZE` (12, `src/lib/follow/follow-config.ts`). Mỗi mục có nút Unfollow, bấm là xoá khỏi danh sách ngay. Chỉ hiển thị follow của chính user đang đăng nhập — không lộ danh sách follow của người khác.
 - **Không hiển thị số lượng follower công khai** ở đâu cả — không xếp hạng giáo viên/bài học phổ biến, không gợi ý follow. Các bảng follow tồn tại để bước Admin/notification sau này truy vấn "ai đang theo dõi Teacher/Lesson này", không phải để hiển thị số đếm ở bước này.
 - **Toast** (Sonner có sẵn): "Teacher followed" / "Teacher unfollowed" / "Lesson followed" / "Lesson unfollowed" khi thành công; "Unable to update follow status" khi lỗi.
-- **Chưa có notification:** bước này chỉ tạo và quản lý quan hệ follow — chưa có bảng Notification, chuông thông báo, trạng thái chưa đọc, hay email/push. Bước sau có thể truy vấn trực tiếp `TeacherFollow`/`LessonFollow` để biết cần thông báo cho ai khi có tài liệu mới.
+- **Bước này chỉ tạo và quản lý quan hệ follow** — việc dùng các quan hệ này để thông báo cho người theo dõi khi có tài liệu mới được xây ở Step 8C, xem mục [18. Thông báo trong ứng dụng](#18-thông-báo-trong-ứng-dụng--in-app-notifications-step-8c-mới) bên dưới.
+
+## 18. Thông báo trong ứng dụng — In-App Notifications (Step 8C, *mới*)
+
+- **Chỉ 1 loại thông báo, tạo tự động sau khi upload thành công:** model `Notification` (`prisma/schema.prisma`, enum `NotificationType` hiện chỉ có `NEW_DOCUMENT` — cố tình giữ nhỏ, chưa thiết kế trước các loại comment/rating/report). Người nhận là **hợp của 2 tập** — user đang theo dõi Giáo viên upload (chỉ khi người upload có `role = TEACHER`; ADMIN upload thì nhánh Teacher-follow không áp dụng) và user đang theo dõi Lesson của tài liệu (chỉ khi tài liệu có Lesson cấu trúc) — gộp lại bằng `Set` nên user theo dõi **cả hai** chỉ nhận **đúng 1** thông báo cho tài liệu đó. Người upload luôn bị loại khỏi danh sách nhận, kể cả khi họ tự theo dõi chính mình/Lesson của mình.
+- **Sinh thông báo nằm trong flow upload có sẵn, tách bạch khỏi việc tạo Document:** `uploadDocument()` (`src/lib/documents/upload.ts`) gọi `createNewDocumentNotifications()` ngay sau khi `prisma.document.create()` thành công, trong 1 khối `try/catch` **riêng biệt** với khối tạo Document. Nếu sinh thông báo lỗi, lỗi chỉ được log lại — Document đã tạo **không bị xoá, không rollback**, upload vẫn được coi là thành công.
+- **Idempotent:** `@@unique([userId, documentId, type])` trên `Notification`, kết hợp `createMany({ skipDuplicates: true })` — gọi sinh thông báo nhiều lần cho cùng 1 Document không bao giờ tạo dòng trùng.
+- **Nội dung do server tự sinh, chỉ plain text, không HTML, client không thể can thiệp:** ví dụ khi TEACHER upload: `Teacher Nguyen Van A uploaded "Derivative Exercises" for Derivatives.`; khi ADMIN upload: `A new document "Derivative Exercises" was added to Derivatives.`
+- **API:**
+  - `GET /api/notifications` — bắt buộc đăng nhập, chỉ trả thông báo của chính người gọi, sắp **mới nhất trước**, phân trang qua `?page=`, giới hạn `NOTIFICATIONS_PAGE_SIZE` (20, `src/lib/notifications/notification-config.ts`). `meta` có thêm `unreadCount` — không phụ thuộc trang hiện tại.
+  - `GET /api/notifications/unread-count` — bắt buộc đăng nhập, trả `{ unreadCount }` của chính người gọi.
+  - `PATCH /api/notifications/:id/read` — bắt buộc đăng nhập, chỉ đánh dấu đọc thông báo của chính mình; thông báo không tồn tại hoặc của người khác đều trả `404` giống hệt nhau. Gọi lại nhiều lần vẫn an toàn (idempotent).
+  - `POST /api/notifications/read-all` — bắt buộc đăng nhập, đánh dấu đọc toàn bộ thông báo **chưa đọc của chính mình**, trả về `{ updatedCount }`.
+- **Riêng tư hoàn toàn theo từng user:** `userId` luôn lấy từ session, không bao giờ nhận từ query/body. Không endpoint nào lộ thông báo, số chưa đọc, hay danh sách follower của người khác.
+- **Trang `/notifications`** — bắt buộc đăng nhập (guest → `/login?callbackUrl=/notifications`, dùng chung `loginHrefFor()`). Danh sách sắp mới nhất trước; thông báo chưa đọc có nền tô nhẹ, chấm tròn nhỏ, chữ đậm hơn — không dùng màu sắc/hiệu ứng mạnh. Nút "Mark all as read" chỉ hiện khi còn thông báo chưa đọc.
+- **Bấm vào 1 thông báo** (`NotificationItem`): đánh dấu đã đọc (gọi API nền, không chặn điều hướng) rồi chuyển sang `/documents/:id` qua `<Link>` bình thường; `router.refresh()` giúp số chưa đọc trên header đồng bộ ở lần render kế tiếp — không cần state toàn cục.
+- **Chuông thông báo trên header** (`SiteHeader.tsx`) — chỉ hiện với user đã đăng nhập, có badge số chưa đọc (hiển thị tối đa `99+`), ẩn hẳn badge khi `unreadCount = 0`. Bấm vào chuyển tới `/notifications`.
+- **Toast** (Sonner có sẵn): "All notifications marked as read" khi "Mark all as read" thành công; "Unable to update notifications" khi lỗi.
+- **Không backfill lịch sử:** chỉ tài liệu upload **sau** khi có Step 8C mới sinh thông báo — tài liệu cũ không được tạo thông báo hồi tố.
+- **Chưa có:** thông báo qua email, push notification, tuỳ chọn/cài đặt thông báo (notification preferences), thông báo cho bình luận/đánh giá/báo cáo, hay AI.
 
 ---
 
@@ -258,4 +277,4 @@ updatedAt     DateTime
 - Kiểm duyệt báo cáo (admin report moderation), resolve/dismiss report, ghi chú admin, `/admin/reports`, email thông báo
 - Tổng số lượt lưu công khai (bookmark count), xếp hạng phổ biến/trending theo bookmark, bộ sưu tập/thư mục (collections), chia sẻ mạng xã hội
 - Số lượt follower công khai, gợi ý follow, trang hồ sơ giáo viên (teacher public profile), trang chi tiết bài học (lesson detail page)
-- Thông báo (notifications), bảng Notification, chuông thông báo, trạng thái chưa đọc, email/push notification
+- Thông báo qua email/push, tuỳ chọn/cài đặt thông báo (notification preferences), thông báo cho bình luận/đánh giá/báo cáo

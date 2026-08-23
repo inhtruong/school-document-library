@@ -1,8 +1,9 @@
 import "server-only";
-import type { Document, Grade, Lesson, Subject } from "@prisma/client";
+import type { Document, Grade, Lesson, Role, Subject } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { MAX_UPLOAD_SIZE_BYTES, MAX_UPLOAD_SIZE_MB } from "@/lib/documents/upload-config";
 import { validateTaxonomySelection } from "@/lib/documents/taxonomy";
+import { createNewDocumentNotifications } from "@/lib/notifications/notification";
 import {
   buildFileKey,
   deleteLocalFile,
@@ -13,7 +14,7 @@ import {
 import { uploadDocumentSchema } from "@/lib/validation/document";
 
 export type UploadedDocument = Document & {
-  uploadedBy: { id: string; name: string } | null;
+  uploadedBy: { id: string; name: string; role: Role } | null;
   grade: Grade | null;
   subjectRef: Subject | null;
   lesson: Lesson | null;
@@ -93,8 +94,9 @@ export async function uploadDocument(input: {
     return { success: false, error: "Failed to save the file. Please try again.", status: 500 };
   }
 
+  let document: UploadedDocument;
   try {
-    const document = await prisma.document.create({
+    document = await prisma.document.create({
       data: {
         title: parsedMetadata.data.title,
         description: parsedMetadata.data.description,
@@ -115,14 +117,12 @@ export async function uploadDocument(input: {
         uploadedById: input.uploaderId,
       },
       include: {
-        uploadedBy: { select: { id: true, name: true } },
+        uploadedBy: { select: { id: true, name: true, role: true } },
         grade: true,
         subjectRef: true,
         lesson: true,
       },
     });
-
-    return { success: true, document };
   } catch (error) {
     console.error(
       "Document creation failed after a successful file write; cleaning up orphan file",
@@ -131,4 +131,20 @@ export async function uploadDocument(input: {
     await deleteLocalFile(fileKey);
     return { success: false, error: "Failed to save the document. Please try again.", status: 500 };
   }
+
+  // The Document is already saved at this point — notification generation
+  // is best-effort and must never roll back or fail an otherwise-successful
+  // upload (Step 8C). Its own try/catch keeps it fully isolated from the
+  // Document-creation try/catch above, which would otherwise mistake a
+  // notification failure for a Document-creation failure and delete the
+  // just-written file.
+  if (document.uploadedBy) {
+    try {
+      await createNewDocumentNotifications(document, document.uploadedBy);
+    } catch (error) {
+      console.error("Notification generation failed for a new document upload", error);
+    }
+  }
+
+  return { success: true, document };
 }

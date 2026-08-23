@@ -8,6 +8,8 @@ export type ApiMeta = {
   page?: number;
   pageSize?: number;
   totalPages?: number;
+  /** Present only for `/api/notifications` — the caller's total unread count, independent of the current page. */
+  unreadCount?: number;
 };
 
 type SuccessBody<T> = {

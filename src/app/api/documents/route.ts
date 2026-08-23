@@ -46,6 +46,7 @@ export async function GET(request: NextRequest) {
         take,
         skip,
         omit: { fileKey: true },
+        include: { grade: true, subjectRef: true, lesson: true },
       }),
       prisma.document.count({ where }),
     ]);

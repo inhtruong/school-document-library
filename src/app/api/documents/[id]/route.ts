@@ -12,7 +12,12 @@ export async function GET(_request: NextRequest, { params }: RouteContext) {
     const document = await prisma.document.findUnique({
       where: { id },
       omit: { fileKey: true },
-      include: { uploadedBy: { select: { id: true, name: true } } },
+      include: {
+        uploadedBy: { select: { id: true, name: true } },
+        grade: true,
+        subjectRef: true,
+        lesson: true,
+      },
     });
     if (!document) return apiError("Document not found", 404);
     return apiSuccess(document);

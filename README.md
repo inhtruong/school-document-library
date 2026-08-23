@@ -3,12 +3,14 @@
 Homepage → search → search results → document detail, backed by a real
 PostgreSQL database through a Prisma-powered REST API. Authentication
 (email/password via Auth.js) with STUDENT/TEACHER/ADMIN roles is implemented.
-Teachers and admins can upload documents (PDF, Word, Excel, images, video) to
-local file storage. Anyone — including guests — can preview PDF, image,
-video, and modern Word (`.docx`) files directly from the document detail
-page; legacy `.doc` and Excel show an "unsupported yet" placeholder.
-Downloading the original file requires being signed in (any role); guests
-are sent to log in and returned to the same document. No AI yet.
+Teachers and admins classify uploads with a structured education taxonomy —
+Grade → Subject → Lesson/Topic, plus a controlled Document Type — and upload
+documents (PDF, Word, Excel, images, video) to local file storage. Anyone —
+including guests — can preview PDF, image, video, and modern Word (`.docx`)
+files directly from the document detail page; legacy `.doc` and Excel show an
+"unsupported yet" placeholder. Downloading the original file requires being
+signed in (any role); guests are sent to log in and returned to the same
+document. No AI yet.
 
 ## Stack
 
@@ -78,8 +80,8 @@ npm test              run the Vitest suite
 ```
 storage_local/                    uploaded files, auto-created (gitignored) — see Uploads below
 prisma/
-  schema.prisma                   Document, User models + Role/FileCategory enums
-  seed.ts                         sample documents + dev accounts (student/teacher/admin)
+  schema.prisma                   Document, User, Grade, Subject, Lesson models + Role/FileCategory/DocumentType enums
+  seed.ts                         taxonomy (grades/subjects/lessons) + sample documents + dev accounts
 src/
   auth.ts                         Auth.js config: Credentials provider, JWT callbacks
   app/
@@ -98,13 +100,15 @@ src/
       documents/upload/route.ts         POST — TEACHER/ADMIN only, multipart file upload
       documents/[id]/preview/route.ts   GET — public, streams the file inline (see Preview below)
       documents/[id]/download/route.ts  GET — any signed-in user, attachment download (see Download below)
-      subjects/route.ts                 GET distinct subjects with counts
+      subjects/route.ts                 GET — no ?gradeId=: legacy subject grouping (homepage); with ?gradeId=: taxonomy Subjects for that Grade
+      grades/route.ts                   GET — all Grades ordered by sortOrder (see Education Taxonomy below)
+      lessons/route.ts                  GET ?subjectId=... — Lessons/Topics for one Subject
       auth/[...nextauth]/route.ts       Auth.js handlers (session, sign-in/out)
       auth/register/route.ts            POST — always creates STUDENT
   components/
     ui/                                 Button, Input, Badge, Card primitives
     SearchBar.tsx                       client component, pushes /search?q=...
-    DocumentCard.tsx                    title, subject, type, academic year, description
+    DocumentCard.tsx                    title, taxonomy/subject, type, academic year, description
     SubjectCard.tsx                     subject + live document count
     SiteHeader.tsx                      logo, nav, session-aware login/profile/logout/upload
     FilePreview.tsx                     PDF/image/video/docx preview, unsupported/unavailable placeholders
@@ -112,6 +116,7 @@ src/
     docx-preview-render.ts              fetch + render orchestration used by DocxPreview (unit-testable)
     DownloadButton.tsx                  login link for guests, protected download link once signed in
     download-href.ts                    pure href-decision logic behind DownloadButton (unit-testable)
+    TaxonomySelectFields.tsx            client component: Grade → Subject → Lesson cascading selects on /upload
   lib/
     prisma.ts                       Prisma client singleton
     api-client.ts                   server-side fetch helpers used by the pages
@@ -127,8 +132,10 @@ src/
       authorize.ts                  requireAuth(), requireRole(), hasRole()
       callback-url.ts               isSafeCallbackUrl()/resolveCallbackUrl() — open-redirect guard for ?callbackUrl=
     documents/
-      upload.ts                     uploadDocument() — validate, store, create Document
+      upload.ts                     uploadDocument() — validate taxonomy + file, store, create Document
       upload-config.ts              MAX_UPLOAD_SIZE_MB / MAX_UPLOAD_SIZE_BYTES (central config)
+      taxonomy.ts                   validateTaxonomySelection() — server-side Grade/Subject/Lesson hierarchy check
+      document-type.ts              DOCUMENT_TYPE_VALUES / DOCUMENT_TYPE_LABELS — controlled Document Type
       preview-range.ts              pure `Range: bytes=` header parser for video seeking
       preview-kind.ts               resolvePreviewKind() — single source of truth for what's previewable
       content-disposition.ts        buildContentDisposition() — safe attachment filename header
@@ -145,12 +152,14 @@ src/
 | POST   | `/api/documents`      | Create a document                     |
 | PUT    | `/api/documents/:id`  | Update a document                     |
 | DELETE | `/api/documents/:id`  | Delete a document                     |
-| GET    | `/api/subjects`       | Distinct subjects with document counts |
+| GET    | `/api/subjects`       | No `?gradeId=`: distinct legacy subjects with document counts (homepage). With `?gradeId=`: taxonomy Subjects for that Grade |
 | POST   | `/api/auth/register`  | Register a new account. Always creates role `STUDENT` |
 | *      | `/api/auth/[...nextauth]` | Auth.js sign-in/sign-out/session endpoints |
-| POST   | `/api/documents/upload` | Upload a file + metadata. TEACHER/ADMIN only, multipart form data |
+| POST   | `/api/documents/upload` | Upload a file + taxonomy metadata. TEACHER/ADMIN only, multipart form data |
 | GET    | `/api/documents/:id/preview` | Streams the file inline for preview. Public — no auth. See [Preview](#preview) |
 | GET    | `/api/documents/:id/download` | Streams the file as an attachment. Requires any signed-in user. See [Download](#download) |
+| GET    | `/api/grades`         | All Grades ordered by `sortOrder`. See [Education Taxonomy](#education-taxonomy) |
+| GET    | `/api/lessons`        | `?subjectId=...` — Lessons/Topics for one Subject |
 
 All responses use `{ success, data, error }` (plus `meta` for list pagination),
 except `/api/documents/:id/preview` and `/api/documents/:id/download`, which
@@ -177,6 +186,39 @@ Search matches `title`, `description`, and `subject` (case-insensitive).
   | admin@example.com | admin123 | ADMIN |
 
 - Requires an `AUTH_SECRET` env var — see `.env.example` for how to generate one.
+
+## Education Taxonomy
+
+- **Hierarchy:** `Grade → Subject → Lesson/Topic`, plus a controlled
+  **Document Type** on every Document. A Subject belongs to exactly one
+  Grade; a Lesson belongs to exactly one Subject (no many-to-many yet).
+  Models live in `prisma/schema.prisma` (`Grade`, `Subject`, `Lesson`) and
+  the `DocumentType` enum (`LECTURE`, `EXERCISE`, `EXAM`, `ANSWER`,
+  `REFERENCE`, `OTHER`).
+- **Read APIs** — `GET /api/grades` (ordered by `sortOrder`),
+  `GET /api/subjects?gradeId=...`, `GET /api/lessons?subjectId=...`. Same
+  `{ success, data, error }` envelope as the rest of the API.
+- **Upload uses cascading selectors** (`TaxonomySelectFields`, a small client
+  component) instead of free-text Subject/Document Type inputs: choosing a
+  Grade loads its Subjects, choosing a Subject loads its Lessons; each
+  `<select>` still submits via a plain form field, so no extra client state
+  beyond the two parent IDs is needed.
+- **Server-side hierarchy validation is mandatory, not just cascading
+  dropdowns** — `validateTaxonomySelection()`
+  (`src/lib/documents/taxonomy.ts`) re-checks every upload's
+  `gradeId`/`subjectId`/`lessonId` against the database: the Subject must
+  actually belong to the given Grade, and the Lesson must actually belong to
+  the given Subject. A forged/inconsistent combination (e.g. a Grade 12
+  upload paired with a Subject that's actually under Grade 11) is rejected
+  with `400`, regardless of what the client sent.
+- **Backward compatibility:** `Document.gradeId`/`subjectId`/`lessonId` are
+  all nullable — documents created before this taxonomy (or via the legacy
+  `subject` free-text field) keep rendering with their existing `subject`
+  text and a `documentType` migrated into the new enum. New taxonomy-backed
+  uploads also populate the legacy `subject` field automatically (copied
+  from the taxonomy Subject's name), so homepage/search subject grouping —
+  which still reads that field — keeps working unchanged for both legacy
+  and taxonomy-backed documents without a redesign.
 
 ## Uploads
 

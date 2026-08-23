@@ -8,7 +8,7 @@ describe("createDocumentSchema", () => {
       title: "Database Final Exam 2025",
       description: "Covers normalization and transactions.",
       subject: "Database",
-      documentType: "Exam",
+      documentType: "EXAM",
       academicYear: "2024-2025",
     };
 
@@ -23,7 +23,18 @@ describe("createDocumentSchema", () => {
     const result = createDocumentSchema.safeParse({
       title: "",
       subject: "Database",
-      documentType: "Exam",
+      documentType: "EXAM",
+      academicYear: "2024-2025",
+    });
+
+    expect(result.success).toBe(false);
+  });
+
+  test("rejects a documentType value outside the controlled enum", () => {
+    const result = createDocumentSchema.safeParse({
+      title: "Database Final Exam 2025",
+      subject: "Database",
+      documentType: "Exam", // legacy free-text value, no longer accepted
       academicYear: "2024-2025",
     });
 
@@ -33,7 +44,7 @@ describe("createDocumentSchema", () => {
   test("rejects a payload missing the subject field", () => {
     const result = createDocumentSchema.safeParse({
       title: "Database Final Exam 2025",
-      documentType: "Exam",
+      documentType: "EXAM",
       academicYear: "2024-2025",
     });
 
@@ -44,7 +55,7 @@ describe("createDocumentSchema", () => {
     const result = createDocumentSchema.safeParse({
       title: "Database Final Exam 2025",
       subject: "Database",
-      documentType: "Exam",
+      documentType: "EXAM",
       academicYear: "2024-2025",
     });
 
@@ -55,7 +66,7 @@ describe("createDocumentSchema", () => {
     const result = createDocumentSchema.safeParse({
       title: "  Database Final Exam 2025  ",
       subject: " Database ",
-      documentType: " Exam ",
+      documentType: "EXAM",
       academicYear: " 2024-2025 ",
     });
 

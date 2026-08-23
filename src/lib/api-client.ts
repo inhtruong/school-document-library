@@ -1,5 +1,5 @@
 import { headers } from "next/headers";
-import type { DocumentRecord, SubjectSummary } from "@/lib/types";
+import type { DocumentRecord, GradeSummary, SubjectSummary } from "@/lib/types";
 
 type ApiEnvelope<T> = {
   success: boolean;
@@ -47,6 +47,12 @@ export async function fetchDocuments(
 
 export async function fetchSubjects(): Promise<SubjectSummary[]> {
   const { data } = await apiFetch<SubjectSummary[]>("/api/subjects");
+  return data ?? [];
+}
+
+/** Grades ordered by sortOrder — used to seed the initial Grade dropdown on /upload. */
+export async function fetchGrades(): Promise<GradeSummary[]> {
+  const { data } = await apiFetch<GradeSummary[]>("/api/grades");
   return data ?? [];
 }
 

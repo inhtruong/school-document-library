@@ -1,6 +1,6 @@
 # Tính năng hiện tại — Stacks (School Document Library)
 
-Tài liệu này mô tả các tính năng đã hoàn thiện tính đến thời điểm hiện tại. Đây là bản MVP tập trung vào quản lý/tìm kiếm tài liệu, xác thực, upload, xem trước tài liệu công khai (PDF/ảnh/video/Word hiện đại .docx), và tải tài liệu có bảo vệ đăng nhập — **chưa có** preview Word cũ (.doc)/Excel, trang quản trị, hay tìm kiếm AI.
+Tài liệu này mô tả các tính năng đã hoàn thiện tính đến thời điểm hiện tại. Đây là bản MVP tập trung vào quản lý/tìm kiếm tài liệu, xác thực, upload theo học liệu phân loại (Grade → Subject → Lesson → Document Type), xem trước tài liệu công khai (PDF/ảnh/video/Word hiện đại .docx), và tải tài liệu có bảo vệ đăng nhập — **chưa có** bộ lọc tìm kiếm nâng cao theo taxonomy (Step 6B), preview Word cũ (.doc)/Excel, trang quản trị, hay tìm kiếm AI.
 
 ## Stack công nghệ
 
@@ -9,7 +9,7 @@ Tài liệu này mô tả các tính năng đã hoàn thiện tính đến thờ
 - **Database:** PostgreSQL + Prisma ORM
 - **Auth:** Auth.js (Credentials provider, JWT session)
 - **File Storage:** Local filesystem (`storage_local/`, server-side only) — không cần dịch vụ lưu trữ ngoài
-- **Test:** Vitest (204 test, cover validation + API routes + api-client + auth/authorization + upload/local storage + preview/Range parsing + preview-kind classification + DOCX render integration boundary + protected download + safe callback URL + Content-Disposition filename safety)
+- **Test:** Vitest (226 test, cover validation + API routes + api-client + auth/authorization + upload/local storage + preview/Range parsing + preview-kind classification + DOCX render integration boundary + protected download + safe callback URL + Content-Disposition filename safety + education taxonomy validation/APIs)
 
 ## Luồng người dùng chính
 
@@ -61,23 +61,27 @@ Trang chủ ──▶ Tìm kiếm / Duyệt theo môn ──▶ Kết quả tìm
 
 ## 5. Database (PostgreSQL + Prisma)
 
-Model `Document` (đơn giản, không quan hệ):
+Model `Document`:
 
 ```
-id            String   @id (cuid)
+id            String        @id (cuid)
 title         String
 description   String?
-subject       String
-documentType  String
+subject       String        // legacy free-text, xem mục 12
 academicYear  String
+documentType  DocumentType  // enum, xem mục 12 (trước đây là String)
+gradeId       String?       // taxonomy, nullable — xem mục 12
+subjectId     String?
+lessonId      String?
 createdAt     DateTime
 updatedAt     DateTime
 ```
 
-- Có seed script (`prisma/seed.ts`) tạo sẵn 12 tài liệu mẫu trải đều 4 môn: Database, Data Structures, Web Development, Computer Networks
+- Có seed script (`prisma/seed.ts`) tạo sẵn 12 tài liệu mẫu legacy trải đều 4 môn (Database, Data Structures, Web Development, Computer Networks) + 4 tài liệu mẫu mới có taxonomy (Grade/Subject/Lesson) — xem mục [12. Học liệu phân loại](#12-học-liệu-phân-loại--education-taxonomy-step-6a-mới)
 - `npm run db:migrate` / `npm run db:seed` / `npm run db:studio` để quản lý DB
 - Model `User` (id, name, email unique, passwordHash, role, createdAt, updatedAt) + Prisma enum `Role` (STUDENT/TEACHER/ADMIN, mặc định STUDENT) — xem chi tiết ở mục [8. Xác thực & Phân quyền](#8-xác-thực--phân-quyền--authjs-mới)
-- `Document` có thêm 6 field file (đều nullable): `fileKey`, `fileName`, `fileSize`, `mimeType`, `fileCategory` (enum `FileCategory`: PDF/WORD/EXCEL/IMAGE/VIDEO), `uploadedById` (quan hệ tới `User`) — 12 tài liệu seed cũ không có file vẫn hoạt động bình thường (giá trị null). Xem mục [9. Upload tài liệu](#9-upload-tài-liệu--teacheradmin-mới)
+- `Document` có thêm 6 field file (đều nullable): `fileKey`, `fileName`, `fileSize`, `mimeType`, `fileCategory` (enum `FileCategory`: PDF/WORD/EXCEL/IMAGE/VIDEO), `uploadedById` (quan hệ tới `User`) — tài liệu không có file vẫn hoạt động bình thường (giá trị null). Xem mục [9. Upload tài liệu](#9-upload-tài-liệu--teacheradmin-mới)
+- Model `Grade`, `Subject`, `Lesson` — xem mục [12. Học liệu phân loại](#12-học-liệu-phân-loại--education-taxonomy-step-6a-mới)
 
 ## 6. UI / Design system
 
@@ -108,7 +112,7 @@ updatedAt     DateTime
 ## 9. Upload tài liệu — Teacher/Admin, Local Storage *(mới)*
 
 - **Ai được upload:** chỉ `TEACHER` và `ADMIN`. STUDENT và guest không được phép — kiểm tra luôn thực hiện ở server (`hasRole`/`requireRole`), việc ẩn nút "Upload Document" trên header với các role khác chỉ là UX, không phải cơ chế bảo mật.
-- **Trang** `/upload` — form đơn giản: Title, Subject, Document Type, Academic Year, Description, File (1 file). Chỉ TEACHER/ADMIN truy cập được (redirect nếu không đủ quyền).
+- **Trang** `/upload` — form: Title, **Grade → Subject → Lesson/Topic (dropdown xếp tầng) → Document Type**, Academic Year, Description, File (1 file). Chỉ TEACHER/ADMIN truy cập được (redirect nếu không đủ quyền). Xem chi tiết bộ chọn xếp tầng và validate ở mục [12. Học liệu phân loại](#12-học-liệu-phân-loại--education-taxonomy-step-6a-mới).
 - **API** `POST /api/documents/upload` — cùng logic, dùng chung service `uploadDocument()` với trang `/upload`.
 - **5 loại file được hỗ trợ**, allowlist tập trung ở `src/lib/storage/local-storage.ts`:
   - **PDF:** `.pdf`
@@ -154,11 +158,23 @@ updatedAt     DateTime
 - **Xử lý lỗi:** guest gọi API → 401; tài liệu không tồn tại → 404; không có file → 404; `fileKey` có trong DB nhưng file vật lý bị mất → 404 thân thiện, không crash; lỗi hệ thống bất ngờ → 500 chung chung, không lộ absolute path/stack trace/chi tiết Prisma.
 - **Preview vẫn công khai, không đổi:** `GET /api/documents/:id/preview` vẫn không gọi `auth()`/`requireAuth()`/`requireRole()` — endpoint download hoàn toàn tách biệt, không tái dùng logic auth của download bên trong preview.
 
+## 12. Học liệu phân loại — Education Taxonomy (Step 6A, *mới*)
+
+- **Cấu trúc phân cấp:** `Grade (Khối lớp) → Subject (Môn học) → Lesson/Topic (Bài học)`, cộng thêm **Document Type** kiểm soát trên mọi Document. Một Subject thuộc đúng 1 Grade; một Lesson thuộc đúng 1 Subject (chưa hỗ trợ many-to-many). Model: `Grade`, `Subject`, `Lesson` trong `prisma/schema.prisma`, enum `DocumentType` (`LECTURE`, `EXERCISE`, `EXAM`, `ANSWER`, `REFERENCE`, `OTHER`).
+- **API đọc taxonomy:** `GET /api/grades` (sắp theo `sortOrder`), `GET /api/subjects?gradeId=...`, `GET /api/lessons?subjectId=...` — dùng chung envelope `{ success, data, error }` với các API khác. Chưa có CRUD/quản trị taxonomy ở bước này (chỉ đọc, dữ liệu seed).
+- **Dropdown xếp tầng trên `/upload`** (`TaxonomySelectFields`, client component nhỏ): chọn Grade → tải Subject theo Grade đó; chọn Subject → tải Lesson theo Subject đó. Đổi Grade sẽ reset Subject + Lesson; đổi Subject sẽ reset Lesson. Có trạng thái loading và fallback lỗi thân thiện khi không tải được Subject/Lesson.
+- **Validate hierarchy bắt buộc ở server, không chỉ dựa vào dropdown:** `validateTaxonomySelection()` (`src/lib/documents/taxonomy.ts`) luôn tra lại DB — Subject phải thực sự thuộc Grade đã chọn, Lesson phải thực sự thuộc Subject đã chọn. Tổ hợp giả mạo/không nhất quán (vd. chọn Grade 12 nhưng gửi kèm Subject thực chất thuộc Grade 11) bị từ chối với `400`, bất kể client gửi ID gì.
+- **Tương thích ngược:** `Document.gradeId`/`subjectId`/`lessonId` đều nullable — tài liệu tạo trước khi có taxonomy (hoặc dùng field `subject` free-text cũ) vẫn hiển thị bình thường với `subject` text sẵn có; `documentType` cũ đã migrate sang enum mới, không mất dữ liệu (migration giữ nguyên 24 tài liệu thật lúc chạy, map đúng theo từng loại). Tài liệu upload mới qua taxonomy tự động điền `subject` (text, legacy) từ tên Subject đã chọn, nên trang chủ/tìm kiếm (vẫn nhóm theo field `subject` này) hoạt động không đổi cho cả 2 loại tài liệu.
+- **Document Detail & DocumentCard:** hiển thị Grade (badge), Subject, Lesson, Document Type (label dễ đọc, không phải giá trị enum thô) khi tài liệu có taxonomy; tài liệu cũ không có taxonomy vẫn hiển thị gọn gàng qua `subject`/`documentType` như trước — không phá vỡ preview/download.
+- **Seed dữ liệu phát triển:** 3 khối (Grade 10/11/12), mỗi khối 2 môn (Mathematics, Physics), mỗi môn 1–2 bài học — đủ để phát triển/kiểm thử luồng, không phải bộ dữ liệu chương trình học đầy đủ. Seed dùng `upsert` theo natural key (không xoá-tạo-lại như Document/User) để chạy lại `npm run db:seed` không làm mất liên kết taxonomy của tài liệu đã có. Giữ nguyên 12 tài liệu seed Step 1 (legacy, không có taxonomy) và thêm 4 tài liệu mẫu mới có taxonomy để kiểm thử cả 2 luồng.
+
 ---
 
 ## Chưa làm (ngoài phạm vi hiện tại)
 
 - Trang quản trị (Admin dashboard), quản lý người dùng (User management)
+- Quản trị taxonomy (thêm/sửa/xoá Grade/Subject/Lesson qua UI)
+- Bộ lọc tìm kiếm nâng cao theo Grade/Subject/Lesson/Document Type, sắp xếp, phân trang (Step 6B)
 - Duyệt giáo viên (teacher approval)
 - Preview Word cũ (.doc), preview Excel (.xls/.xlsx), PDF.js, thumbnail, image gallery
 - Đăng nhập Google/OAuth, xác minh email, quên mật khẩu, 2FA

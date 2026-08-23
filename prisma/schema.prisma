@@ -8,12 +8,30 @@ datasource db {
 }
 
 model Document {
-  id           String   @id @default(cuid())
-  title        String
-  description  String?
+  id          String  @id @default(cuid())
+  title       String
+  description String?
+
+  // Legacy free-text classification, predating the Grade→Subject→Lesson
+  // taxonomy below. Kept (not removed) so existing documents created before
+  // Step 6A keep rendering, and auto-populated from the taxonomy Subject's
+  // name on new taxonomy-backed uploads so homepage/search grouping by this
+  // field keeps working unchanged. The taxonomy relations below are the
+  // source of truth going forward — see FEATURES.md Step 6A.
   subject      String
-  documentType String
   academicYear String
+
+  documentType DocumentType @default(OTHER)
+
+  // Structured education taxonomy (Step 6A). All nullable so documents
+  // created before this taxonomy existed remain valid; new uploads set all
+  // three together (enforced in the upload service, not just the DB).
+  gradeId    String?
+  grade      Grade?   @relation(fields: [gradeId], references: [id], onDelete: SetNull)
+  subjectId  String?
+  subjectRef Subject? @relation(fields: [subjectId], references: [id], onDelete: SetNull)
+  lessonId   String?
+  lesson     Lesson?  @relation(fields: [lessonId], references: [id], onDelete: SetNull)
 
   // File metadata — nullable so existing (fileless) documents keep working.
   fileKey      String?
@@ -31,6 +49,9 @@ model Document {
   @@index([documentType])
   @@index([academicYear])
   @@index([uploadedById])
+  @@index([gradeId])
+  @@index([subjectId])
+  @@index([lessonId])
 }
 
 enum Role {
@@ -45,6 +66,66 @@ enum FileCategory {
   EXCEL
   IMAGE
   VIDEO
+}
+
+/** Controlled classification for what a Document actually is — replaces free-text documentType. */
+enum DocumentType {
+  LECTURE
+  EXERCISE
+  EXAM
+  ANSWER
+  REFERENCE
+  OTHER
+}
+
+/** School grade/class level — the root of the education taxonomy. */
+model Grade {
+  id        String   @id @default(cuid())
+  name      String
+  code      String   @unique
+  sortOrder Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  subjects  Subject[]
+  documents Document[]
+
+  @@index([sortOrder])
+}
+
+/** A Subject belongs to exactly one Grade for this MVP (no many-to-many yet). */
+model Subject {
+  id      String @id @default(cuid())
+  name    String
+  code    String
+  gradeId String
+  grade   Grade  @relation(fields: [gradeId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  lessons   Lesson[]
+  documents Document[]
+
+  @@unique([gradeId, code])
+  @@index([gradeId])
+}
+
+/** A Lesson/Topic belongs to exactly one Subject. */
+model Lesson {
+  id        String  @id @default(cuid())
+  name      String
+  code      String
+  subjectId String
+  subject   Subject @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  documents Document[]
+
+  @@unique([subjectId, code])
+  @@index([subjectId])
 }
 
 model User {

@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
+import { DOCUMENT_TYPE_LABELS } from "@/lib/documents/document-type";
 import { subjectAccent } from "@/lib/subjects";
 import type { DocumentRecord } from "@/lib/types";
 
@@ -24,8 +25,10 @@ export default function DocumentCard({ doc }: { doc: DocumentRecord }) {
           ) : null}
 
           <div className="mt-3 flex flex-wrap items-center gap-2">
-            <span className="text-sm text-ink">{doc.subject}</span>
-            <Badge>{doc.documentType}</Badge>
+            {doc.grade ? <Badge variant="soft">{doc.grade.name}</Badge> : null}
+            <span className="text-sm text-ink">{doc.subjectRef ? doc.subjectRef.name : doc.subject}</span>
+            {doc.lesson ? <span className="text-sm text-muted">· {doc.lesson.name}</span> : null}
+            <Badge>{DOCUMENT_TYPE_LABELS[doc.documentType]}</Badge>
             <span className="text-sm text-muted">{doc.academicYear}</span>
           </div>
         </div>

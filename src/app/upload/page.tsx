@@ -1,6 +1,8 @@
 import { redirect } from "next/navigation";
+import { TaxonomySelectFields } from "@/components/TaxonomySelectFields";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { fetchGrades } from "@/lib/api-client";
 import { requireRole } from "@/lib/auth/authorize";
 import { MAX_UPLOAD_SIZE_MB } from "@/lib/documents/upload-config";
 import { uploadDocument } from "@/lib/documents/upload";
@@ -15,7 +17,7 @@ type UploadPageProps = {
 
 export default async function UploadPage({ searchParams }: UploadPageProps) {
   await requireRole(["TEACHER", "ADMIN"]);
-  const { error } = await searchParams;
+  const [{ error }, grades] = await Promise.all([searchParams, fetchGrades()]);
 
   async function uploadAction(formData: FormData) {
     "use server";
@@ -50,15 +52,7 @@ export default async function UploadPage({ searchParams }: UploadPageProps) {
           <Input id="upload-title" name="title" type="text" required />
         </label>
 
-        <label className="flex flex-col gap-1.5 text-sm" htmlFor="upload-subject">
-          Subject
-          <Input id="upload-subject" name="subject" type="text" required />
-        </label>
-
-        <label className="flex flex-col gap-1.5 text-sm" htmlFor="upload-documentType">
-          Document type
-          <Input id="upload-documentType" name="documentType" type="text" required />
-        </label>
+        <TaxonomySelectFields grades={grades} />
 
         <label className="flex flex-col gap-1.5 text-sm" htmlFor="upload-academicYear">
           Academic year

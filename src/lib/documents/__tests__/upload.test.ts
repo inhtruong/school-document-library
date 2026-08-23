@@ -1,7 +1,12 @@
 import { beforeEach, describe, expect, test, vi } from "vitest";
 
 vi.mock("@/lib/prisma", () => ({
-  prisma: { document: { create: vi.fn() } },
+  prisma: {
+    document: { create: vi.fn() },
+    grade: { findUnique: vi.fn() },
+    subject: { findUnique: vi.fn() },
+    lesson: { findUnique: vi.fn() },
+  },
 }));
 
 // Keep the real (pure) format/key logic — only mock the actual filesystem I/O.
@@ -47,10 +52,56 @@ const SAMPLES = {
   webm: () => makeFile("clip.webm", "video/webm", [0x1a, 0x45, 0xdf, 0xa3, 0, 0]),
 };
 
+// A consistent, valid Grade→Subject→Lesson combo, plus a second one nested
+// under a *different* Grade/Subject — used to build forged cross-hierarchy
+// payloads without ever needing a real database.
+const now = new Date("2025-01-01T00:00:00.000Z");
+const GRADE_A = { id: "grade_a", name: "Grade 12", code: "G12", sortOrder: 12, createdAt: now, updatedAt: now };
+const SUBJECT_A = {
+  id: "subject_a",
+  name: "Mathematics",
+  code: "MATH",
+  gradeId: "grade_a",
+  createdAt: now,
+  updatedAt: now,
+};
+const LESSON_A = {
+  id: "lesson_a",
+  name: "Derivatives",
+  code: "DERIVATIVES",
+  subjectId: "subject_a",
+  createdAt: now,
+  updatedAt: now,
+};
+
+const GRADE_B = { id: "grade_b", name: "Grade 11", code: "G11", sortOrder: 11, createdAt: now, updatedAt: now };
+const SUBJECT_B = {
+  id: "subject_b",
+  name: "Physics",
+  code: "PHYSICS",
+  gradeId: "grade_b", // belongs to GRADE_B, not GRADE_A
+  createdAt: now,
+  updatedAt: now,
+};
+const LESSON_B = {
+  id: "lesson_b",
+  name: "Electric Field",
+  code: "ELECTRIC_FIELD",
+  subjectId: "subject_b", // belongs to SUBJECT_B, not SUBJECT_A
+  createdAt: now,
+  updatedAt: now,
+};
+
+const GRADES: Record<string, typeof GRADE_A> = { [GRADE_A.id]: GRADE_A, [GRADE_B.id]: GRADE_B };
+const SUBJECTS: Record<string, typeof SUBJECT_A> = { [SUBJECT_A.id]: SUBJECT_A, [SUBJECT_B.id]: SUBJECT_B };
+const LESSONS: Record<string, typeof LESSON_A> = { [LESSON_A.id]: LESSON_A, [LESSON_B.id]: LESSON_B };
+
 function buildFormData(
   overrides: Partial<{
     title: string;
-    subject: string;
+    gradeId: string;
+    subjectId: string;
+    lessonId: string;
     documentType: string;
     academicYear: string;
     description: string;
@@ -60,8 +111,10 @@ function buildFormData(
 ) {
   const formData = new FormData();
   formData.set("title", overrides.title ?? "Midterm Exam");
-  formData.set("subject", overrides.subject ?? "Database");
-  formData.set("documentType", overrides.documentType ?? "Exam");
+  formData.set("gradeId", overrides.gradeId ?? GRADE_A.id);
+  formData.set("subjectId", overrides.subjectId ?? SUBJECT_A.id);
+  formData.set("lessonId", overrides.lessonId ?? LESSON_A.id);
+  formData.set("documentType", overrides.documentType ?? "EXAM");
   formData.set("academicYear", overrides.academicYear ?? "2024-2025");
   if (overrides.description !== undefined) formData.set("description", overrides.description);
 
@@ -80,9 +133,12 @@ const mockCreatedDocument = {
   id: "doc_1",
   title: "Midterm Exam",
   description: null,
-  subject: "Database",
-  documentType: "Exam",
+  subject: "Mathematics",
+  documentType: "EXAM",
   academicYear: "2024-2025",
+  gradeId: GRADE_A.id,
+  subjectId: SUBJECT_A.id,
+  lessonId: LESSON_A.id,
   fileKey: "pdf/generated.pdf",
   fileName: "report.pdf",
   fileSize: 24,
@@ -90,14 +146,26 @@ const mockCreatedDocument = {
   fileCategory: "PDF",
   uploadedById: "user_1",
   uploadedBy: { id: "user_1", name: "Tara Teacher" },
-  createdAt: new Date("2025-01-01T00:00:00.000Z"),
-  updatedAt: new Date("2025-01-01T00:00:00.000Z"),
+  grade: GRADE_A,
+  subjectRef: SUBJECT_A,
+  lesson: LESSON_A,
+  createdAt: now,
+  updatedAt: now,
 };
 
 beforeEach(() => {
   vi.clearAllMocks();
   vi.mocked(writeLocalFile).mockResolvedValue({ success: true });
   vi.mocked(prisma.document.create).mockResolvedValue(mockCreatedDocument as never);
+  vi.mocked(prisma.grade.findUnique).mockImplementation(
+    ({ where }) => Promise.resolve(GRADES[where.id as string] ?? null) as never
+  );
+  vi.mocked(prisma.subject.findUnique).mockImplementation(
+    ({ where }) => Promise.resolve(SUBJECTS[where.id as string] ?? null) as never
+  );
+  vi.mocked(prisma.lesson.findUnique).mockImplementation(
+    ({ where }) => Promise.resolve(LESSONS[where.id as string] ?? null) as never
+  );
 });
 
 describe("uploadDocument — accepted formats", () => {
@@ -131,6 +199,68 @@ describe("uploadDocument — accepted formats", () => {
   });
 });
 
+describe("uploadDocument — taxonomy", () => {
+  test("accepts a valid, correctly-nested Grade/Subject/Lesson combination", async () => {
+    const result = await uploadDocument({ uploaderId: "user_1", formData: buildFormData() });
+
+    expect(result.success).toBe(true);
+    const createCall = vi.mocked(prisma.document.create).mock.calls[0][0] as { data: Record<string, unknown> };
+    expect(createCall.data.gradeId).toBe(GRADE_A.id);
+    expect(createCall.data.subjectId).toBe(SUBJECT_A.id);
+    expect(createCall.data.lessonId).toBe(LESSON_A.id);
+    // Legacy subject text is auto-derived from the taxonomy Subject's name.
+    expect(createCall.data.subject).toBe(SUBJECT_A.name);
+  });
+
+  test("rejects a Subject that belongs to a different Grade than the one selected", async () => {
+    // SUBJECT_B actually belongs to GRADE_B, not GRADE_A — a forged/inconsistent combo.
+    const formData = buildFormData({ gradeId: GRADE_A.id, subjectId: SUBJECT_B.id, lessonId: LESSON_B.id });
+
+    const result = await uploadDocument({ uploaderId: "user_1", formData });
+
+    expect(result.success).toBe(false);
+    if (result.success) return;
+    expect(result.status).toBe(400);
+    expect(prisma.document.create).not.toHaveBeenCalled();
+    expect(writeLocalFile).not.toHaveBeenCalled();
+  });
+
+  test("rejects a Lesson that belongs to a different Subject than the one selected", async () => {
+    // LESSON_B actually belongs to SUBJECT_B, not SUBJECT_A.
+    const formData = buildFormData({ gradeId: GRADE_A.id, subjectId: SUBJECT_A.id, lessonId: LESSON_B.id });
+
+    const result = await uploadDocument({ uploaderId: "user_1", formData });
+
+    expect(result.success).toBe(false);
+    if (result.success) return;
+    expect(result.status).toBe(400);
+    expect(prisma.document.create).not.toHaveBeenCalled();
+    expect(writeLocalFile).not.toHaveBeenCalled();
+  });
+
+  test("rejects a gradeId/subjectId/lessonId that don't exist at all", async () => {
+    const formData = buildFormData({ gradeId: "does-not-exist" });
+
+    const result = await uploadDocument({ uploaderId: "user_1", formData });
+
+    expect(result.success).toBe(false);
+    if (result.success) return;
+    expect(result.status).toBe(400);
+    expect(writeLocalFile).not.toHaveBeenCalled();
+  });
+
+  test("rejects a documentType outside the controlled enum", async () => {
+    const formData = buildFormData({ documentType: "Exam" }); // legacy free-text, not a valid enum value
+
+    const result = await uploadDocument({ uploaderId: "user_1", formData });
+
+    expect(result.success).toBe(false);
+    if (result.success) return;
+    expect(result.status).toBe(400);
+    expect(writeLocalFile).not.toHaveBeenCalled();
+  });
+});
+
 describe("uploadDocument — rejections", () => {
   test("rejects when no file is provided", async () => {
     const result = await uploadDocument({ uploaderId: "user_1", formData: buildFormData({ file: null }) });
@@ -142,7 +272,7 @@ describe("uploadDocument — rejections", () => {
   });
 
   test("rejects an unsupported file type", async () => {
-    const file = makeFile("archive.zip", "application/zip", "PKfake zip");
+    const file = makeFile("archive.zip", "application/zip", "PKfake zip");
     const result = await uploadDocument({ uploaderId: "user_1", formData: buildFormData({ file }) });
 
     expect(result.success).toBe(false);

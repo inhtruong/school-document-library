@@ -1,7 +1,8 @@
 import "server-only";
-import type { Document } from "@prisma/client";
+import type { Document, Grade, Lesson, Subject } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { MAX_UPLOAD_SIZE_BYTES, MAX_UPLOAD_SIZE_MB } from "@/lib/documents/upload-config";
+import { validateTaxonomySelection } from "@/lib/documents/taxonomy";
 import {
   buildFileKey,
   deleteLocalFile,
@@ -9,9 +10,14 @@ import {
   resolveFileFormat,
   writeLocalFile,
 } from "@/lib/storage/local-storage";
-import { createDocumentSchema } from "@/lib/validation/document";
+import { uploadDocumentSchema } from "@/lib/validation/document";
 
-export type UploadedDocument = Document & { uploadedBy: { id: string; name: string } | null };
+export type UploadedDocument = Document & {
+  uploadedBy: { id: string; name: string } | null;
+  grade: Grade | null;
+  subjectRef: Subject | null;
+  lesson: Lesson | null;
+};
 
 export type UploadDocumentResult =
   | { success: true; document: UploadedDocument }
@@ -31,12 +37,14 @@ export async function uploadDocument(input: {
   uploaderId: string;
   formData: FormData;
 }): Promise<UploadDocumentResult> {
-  const parsedMetadata = createDocumentSchema.safeParse({
+  const parsedMetadata = uploadDocumentSchema.safeParse({
     title: getFormString(input.formData, "title"),
     description: getFormString(input.formData, "description") || undefined,
-    subject: getFormString(input.formData, "subject"),
-    documentType: getFormString(input.formData, "documentType"),
     academicYear: getFormString(input.formData, "academicYear"),
+    gradeId: getFormString(input.formData, "gradeId"),
+    subjectId: getFormString(input.formData, "subjectId"),
+    lessonId: getFormString(input.formData, "lessonId"),
+    documentType: getFormString(input.formData, "documentType"),
   });
 
   if (!parsedMetadata.success) {
@@ -45,6 +53,17 @@ export async function uploadDocument(input: {
       error: parsedMetadata.error.issues[0]?.message ?? "Invalid document data",
       status: 400,
     };
+  }
+
+  // Never trust that gradeId/subjectId/lessonId are consistent just because
+  // they came from cascading dropdowns — always re-verify against the DB.
+  const taxonomy = await validateTaxonomySelection({
+    gradeId: parsedMetadata.data.gradeId,
+    subjectId: parsedMetadata.data.subjectId,
+    lessonId: parsedMetadata.data.lessonId,
+  });
+  if (!taxonomy.valid) {
+    return { success: false, error: taxonomy.error, status: 400 };
   }
 
   const file = input.formData.get("file");
@@ -77,7 +96,17 @@ export async function uploadDocument(input: {
   try {
     const document = await prisma.document.create({
       data: {
-        ...parsedMetadata.data,
+        title: parsedMetadata.data.title,
+        description: parsedMetadata.data.description,
+        academicYear: parsedMetadata.data.academicYear,
+        documentType: parsedMetadata.data.documentType,
+        // Legacy free-text field, auto-derived from the taxonomy Subject's
+        // name so homepage/search grouping (which still reads this field)
+        // keeps working unchanged for taxonomy-backed uploads too.
+        subject: taxonomy.subject.name,
+        gradeId: taxonomy.grade.id,
+        subjectId: taxonomy.subject.id,
+        lessonId: taxonomy.lesson.id,
         fileKey,
         fileName: file.name.trim().slice(0, 200) || `document${format.extension}`,
         fileSize: file.size,
@@ -85,7 +114,12 @@ export async function uploadDocument(input: {
         fileCategory: format.category,
         uploadedById: input.uploaderId,
       },
-      include: { uploadedBy: { select: { id: true, name: true } } },
+      include: {
+        uploadedBy: { select: { id: true, name: true } },
+        grade: true,
+        subjectRef: true,
+        lesson: true,
+      },
     });
 
     return { success: true, document };

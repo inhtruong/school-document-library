@@ -5,6 +5,7 @@ import { DownloadButton } from "@/components/DownloadButton";
 import { FilePreview } from "@/components/FilePreview";
 import { Badge } from "@/components/ui/badge";
 import { fetchDocumentById } from "@/lib/api-client";
+import { DOCUMENT_TYPE_LABELS } from "@/lib/documents/document-type";
 import { subjectAccent } from "@/lib/subjects";
 
 type DocumentDetailPageProps = {
@@ -57,8 +58,10 @@ export default async function DocumentDetailPage({ params }: DocumentDetailPageP
           </h1>
 
           <div className="mt-3 flex flex-wrap items-center gap-2">
-            <span className="text-sm text-ink">{doc.subject}</span>
-            <Badge>{doc.documentType}</Badge>
+            {doc.grade ? <Badge variant="soft">{doc.grade.name}</Badge> : null}
+            <span className="text-sm text-ink">{doc.subjectRef ? doc.subjectRef.name : doc.subject}</span>
+            {doc.lesson ? <span className="text-sm text-muted">· {doc.lesson.name}</span> : null}
+            <Badge>{DOCUMENT_TYPE_LABELS[doc.documentType]}</Badge>
             <span className="text-sm text-muted">{doc.academicYear}</span>
           </div>
 

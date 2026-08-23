@@ -5,6 +5,7 @@ import { CommentSection } from "@/components/CommentSection";
 import { DocumentRatingSection } from "@/components/DocumentRatingSection";
 import { DownloadButton } from "@/components/DownloadButton";
 import { FilePreview } from "@/components/FilePreview";
+import { ReportDocumentAction } from "@/components/ReportDocumentAction";
 import { Badge } from "@/components/ui/badge";
 import { fetchComments, fetchDocumentById } from "@/lib/api-client";
 import { DOCUMENT_TYPE_LABELS } from "@/lib/documents/document-type";
@@ -125,6 +126,10 @@ export default async function DocumentDetailPage({ params }: DocumentDetailPageP
           hasFile={Boolean(doc.fileName)}
           isAuthenticated={Boolean(session?.user)}
         />
+      </div>
+
+      <div className="mt-3">
+        <ReportDocumentAction documentId={doc.id} isAuthenticated={Boolean(session?.user)} />
       </div>
 
       <div className="mt-10 border-t border-line pt-8">

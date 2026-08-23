@@ -1,6 +1,6 @@
 # Tính năng hiện tại — Stacks (School Document Library)
 
-Tài liệu này mô tả các tính năng đã hoàn thiện tính đến thời điểm hiện tại. Đây là bản MVP tập trung vào quản lý/tìm kiếm tài liệu, xác thực, upload theo học liệu phân loại (Grade → Subject → Lesson → Document Type), tìm kiếm có bộ lọc/sắp xếp/phân trang theo taxonomy, xem trước tài liệu công khai (PDF/ảnh/video/Word hiện đại .docx), tải tài liệu có bảo vệ đăng nhập, đánh giá tài liệu 1-5 sao, và bình luận tài liệu — **chưa có** preview Word cũ (.doc)/Excel, trang quản trị, báo cáo (report), hay tìm kiếm AI.
+Tài liệu này mô tả các tính năng đã hoàn thiện tính đến thời điểm hiện tại. Đây là bản MVP tập trung vào quản lý/tìm kiếm tài liệu, xác thực, upload theo học liệu phân loại (Grade → Subject → Lesson → Document Type), tìm kiếm có bộ lọc/sắp xếp/phân trang theo taxonomy, xem trước tài liệu công khai (PDF/ảnh/video/Word hiện đại .docx), tải tài liệu có bảo vệ đăng nhập, đánh giá tài liệu 1-5 sao, bình luận tài liệu, và báo cáo tài liệu (report) — **chưa có** preview Word cũ (.doc)/Excel, trang quản trị (bao gồm cả duyệt report), hay tìm kiếm AI.
 
 ## Stack công nghệ
 
@@ -9,7 +9,7 @@ Tài liệu này mô tả các tính năng đã hoàn thiện tính đến thờ
 - **Database:** PostgreSQL + Prisma ORM
 - **Auth:** Auth.js (Credentials provider, JWT session)
 - **File Storage:** Local filesystem (`storage_local/`, server-side only) — không cần dịch vụ lưu trữ ngoài
-- **Test:** Vitest (364 test, cover validation + API routes + api-client + auth/authorization + upload/local storage + preview/Range parsing + preview-kind classification + DOCX render integration boundary + protected download + safe callback URL + Content-Disposition filename safety + education taxonomy validation/APIs + search query parsing/taxonomy filter resolution/sort/pagination + rating validation/aggregation/API/ownership + comment validation/pagination/API/ownership/cross-Document isolation)
+- **Test:** Vitest (402 test, cover validation + API routes + api-client + auth/authorization + upload/local storage + preview/Range parsing + preview-kind classification + DOCX render integration boundary + protected download + safe callback URL + Content-Disposition filename safety + education taxonomy validation/APIs + search query parsing/taxonomy filter resolution/sort/pagination + rating validation/aggregation/API/ownership + comment validation/pagination/API/ownership/cross-Document isolation + report validation/duplicate-prevention/API/ownership)
 
 ## Luồng người dùng chính
 
@@ -46,6 +46,7 @@ Trang chủ ──▶ Tìm kiếm / Duyệt theo môn ──▶ Kết quả tìm
 - **Nút Download** (`DownloadButton`) — xem chi tiết ở mục [11. Tải tài liệu có bảo vệ đăng nhập](#11-tải-tài-liệu-có-bảo-vệ-đăng-nhập--protected-download-step-5b-mới). Tài liệu không có file → nút vẫn disable cho mọi đối tượng.
 - **Đánh giá 1-5 sao** (`DocumentRatingSection`) — xem chi tiết ở mục [13. Đánh giá tài liệu](#13-đánh-giá-tài-liệu--document-rating-step-7a-mới)
 - **Bình luận** (`CommentSection`) — xem chi tiết ở mục [14. Bình luận tài liệu](#14-bình-luận-tài-liệu--document-comments-step-7b-mới)
+- **Báo cáo tài liệu** (`ReportDocumentAction`) — xem chi tiết ở mục [15. Báo cáo tài liệu](#15-báo-cáo-tài-liệu--document-reporting-step-7c-mới)
 - **ID không tồn tại/không hợp lệ** → hiển thị trang "Document not found" thân thiện (qua `notFound()` của Next.js), có nút quay lại trang tìm kiếm
 - Lỗi backend/DB (nếu có) sẽ rơi vào error boundary chung của app (`error.tsx`)
 
@@ -198,6 +199,19 @@ updatedAt     DateTime
 - **UI trên `/documents/[id]`** (`CommentSection` + `CommentForm` + `CommentItem`, đặt sau nút Download): tiêu đề `Comments (N)`, textarea thường + nút gửi cho người đã đăng nhập (đếm ký tự, disable khi rỗng/đang gửi — không có rich-text editor), link "Log in to leave a comment" (dùng chung `documentLoginHref()` với Download/Rating) cho guest. Mỗi bình luận hiện tên tác giả, badge role, ngày định dạng, và Edit/Delete inline khi có quyền — Edit chuyển thành textarea kèm Save/Cancel; Delete hiện xác nhận inline nhẹ "Delete this comment?" thay vì `window.confirm()` của trình duyệt.
 - **Toast** (Sonner có sẵn): "Comment posted successfully" / "Comment updated successfully" / "Comment deleted successfully" khi thành công; "Unable to save comment" / "Unable to delete comment" khi lỗi (không lộ chi tiết Prisma/database).
 
+## 15. Báo cáo tài liệu — Document Reporting (Step 7C, *mới*)
+
+- **Bất kỳ người dùng đã đăng nhập nào cũng báo cáo được, không giới hạn quyền sở hữu:** `STUDENT`, `TEACHER`, `ADMIN` đều báo cáo được, kể cả báo cáo tài liệu do chính mình upload. Guest thấy nút "Report document" nhưng bấm vào sẽ chuyển sang `/login?callbackUrl=/documents/{id}` (dùng chung `documentLoginHref()` với Download/Rating/Comments) — không gửi báo cáo trước khi đăng nhập.
+- **Lý do báo cáo kiểm soát chặt (enum `ReportReason`):** Broken file, Wrong content, Wrong grade/subject/lesson, Preview issue, Duplicate document, Copyright issue, Other — không nhận free-text tuỳ ý.
+- **Mô tả (description) tuỳ chọn, trừ khi lý do là Other thì bắt buộc:** trim, giới hạn `REPORT_DESCRIPTION_MAX_LENGTH` (1000 ký tự, `src/lib/documents/report-config.ts`), từ chối mô tả toàn khoảng trắng khi lý do là Other. Plain text, không parse HTML.
+- **Chống báo cáo trùng lặp:** mỗi user chỉ có tối đa 1 báo cáo `OPEN` cho mỗi tổ hợp (Document, lý do) — kiểm tra 2 lớp: API tự tra trước để trả `409` thân thiện ("You have already reported this issue."), và một partial unique index viết tay trong migration (`DocumentReport(documentId, userId, reason) WHERE status = 'OPEN'`, vì Prisma schema DSL không hỗ trợ mệnh đề `WHERE` trên `@@unique`) chặn race condition nếu 2 request trùng thời điểm. Báo cáo cũ đã `RESOLVED`/`DISMISSED` **không** chặn báo cáo `OPEN` mới cho cùng lý do. Cùng 1 user vẫn báo cáo được lý do khác bất kỳ lúc nào.
+- **API:**
+  - `POST /api/documents/:id/reports` — bắt buộc đăng nhập (mọi role), body `{ reason, description? }`. `documentId` luôn lấy từ route, `userId` luôn từ session, `status` luôn là `OPEN` khi tạo — client không thể tự set các trường này. Báo cáo tài liệu không tồn tại → `404`.
+  - `GET /api/documents/:id/reports/mine` — bắt buộc đăng nhập, chỉ trả về danh sách lý do mà chính người gọi đang có báo cáo `OPEN` — **không** lộ báo cáo của người khác.
+- **Nền tảng trạng thái, chưa có kiểm duyệt:** enum `ReportStatus` (`OPEN` mặc định, `RESOLVED`, `DISMISSED`) đã có trên model, nhưng bước này chỉ tạo báo cáo `OPEN`. **Chưa có** hành động resolve/dismiss, ghi chú admin, trang `/admin/reports`, hay email thông báo — báo cáo chỉ được lưu lại để chờ bước Admin moderation sau này.
+- **UI trên `/documents/[id]`** (`ReportDocumentAction`, đặt sau nút Download): hiển thị như 1 link phụ nhỏ, không cạnh tranh thị giác với Preview/Download. Bấm vào mở form mở rộng inline (select lý do + textarea mô tả tuỳ chọn/bắt buộc) thay vì dùng dialog/modal — nhất quán với các primitive tự viết theo phong cách shadcn sẵn có, không thêm dependency mới. Danh sách lý do gợi ý "(already reported)" cho lý do đã có báo cáo `OPEN`, lấy từ `GET .../reports/mine`.
+- **Toast** (Sonner có sẵn): "Report submitted successfully" khi thành công; "You have already reported this issue" khi trùng lặp (`409`); "Unable to submit report" khi lỗi khác — không lộ chi tiết Prisma/database. Nút Report không bao giờ bị vô hiệu hoá vĩnh viễn — vẫn báo cáo được lý do khác.
+
 ---
 
 ## Chưa làm (ngoài phạm vi hiện tại)
@@ -211,4 +225,5 @@ updatedAt     DateTime
 - Upload nhiều file cùng lúc, drag & drop, thanh tiến trình upload
 - Sắp xếp tìm kiếm theo rating (rating-based search sort), rating analytics/moderation
 - Trả lời bình luận / thread lồng nhau (comment replies, nested threads), mention, rich text/hình ảnh trong bình luận, thích bình luận (comment likes)
-- Báo cáo tài liệu (report), yêu thích (bookmark), theo dõi giáo viên/bài học (follow), thông báo (notifications)
+- Kiểm duyệt báo cáo (admin report moderation), resolve/dismiss report, ghi chú admin, `/admin/reports`, email thông báo
+- Yêu thích (bookmark), theo dõi giáo viên/bài học (follow), thông báo (notifications)

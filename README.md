@@ -82,7 +82,7 @@ npm test              run the Vitest suite
 ```
 storage_local/                    uploaded files, auto-created (gitignored) — see Uploads below
 prisma/
-  schema.prisma                   Document, User, Grade, Subject, Lesson, DocumentRating, DocumentComment models + Role/FileCategory/DocumentType enums
+  schema.prisma                   Document, User, Grade, Subject, Lesson, DocumentRating, DocumentComment, DocumentReport models + Role/FileCategory/DocumentType/ReportReason/ReportStatus enums
   seed.ts                         taxonomy (grades/subjects/lessons) + sample documents + dev accounts
 src/
   auth.ts                         Auth.js config: Credentials provider, JWT callbacks
@@ -106,6 +106,8 @@ src/
       documents/[id]/rating/route.ts    PUT — any signed-in user, create-or-update one's own rating (see Rating below)
       documents/[id]/comments/route.ts             GET — public list, POST — any signed-in user (see Comments below)
       documents/[id]/comments/[commentId]/route.ts PUT/DELETE — owner only to edit, owner or ADMIN to delete (see Comments below)
+      documents/[id]/reports/route.ts               POST — any signed-in user, create a report (see Reporting below)
+      documents/[id]/reports/mine/route.ts          GET — any signed-in user, own OPEN report reasons only (see Reporting below)
       subjects/route.ts                 GET — no ?gradeId=: legacy subject grouping (homepage); with ?gradeId=: taxonomy Subjects for that Grade
       grades/route.ts                   GET — all Grades ordered by sortOrder (see Education Taxonomy below)
       lessons/route.ts                  GET ?subjectId=... — Lessons/Topics for one Subject
@@ -129,6 +131,7 @@ src/
     CommentSection.tsx                  client component on /documents/[id]: list/count/pagination, guest login prompt, post form (see Comments below)
     CommentForm.tsx                     plain textarea + submit, char count, disabled while empty/submitting (see Comments below)
     CommentItem.tsx                     one comment — inline Edit (textarea) and inline delete confirmation, owner/ADMIN-gated (see Comments below)
+    ReportDocumentAction.tsx            small secondary link + inline expandable form; guest login link, reason select + optional/required description (see Reporting below)
   lib/
     prisma.ts                       Prisma client singleton
     api-client.ts                   server-side fetch helpers used by the pages
@@ -137,6 +140,7 @@ src/
     validation/auth.ts              zod schemas for register/login
     validation/rating.ts            zod schema for a 1-5 star rating value
     validation/comment.ts           zod schema for comment content (trim, 1-COMMENT_MAX_LENGTH, plain text)
+    validation/report.ts            zod schema for { reason, description? } — description required only when reason is OTHER
     auth/
       password.ts                   bcrypt hash/verify
       authenticate.ts               Credentials provider authorize() logic
@@ -144,7 +148,7 @@ src/
       register.ts                   registerStudent() — role always STUDENT
       authorize.ts                  requireAuth(), requireRole(), hasRole()
       callback-url.ts               isSafeCallbackUrl()/resolveCallbackUrl() — open-redirect guard for ?callbackUrl=
-      document-login-href.ts        documentLoginHref() — shared /login?callbackUrl= builder (Download, Rating, Comments)
+      document-login-href.ts        documentLoginHref() — shared /login?callbackUrl= builder (Download, Rating, Comments, Reporting)
     documents/
       upload.ts                     uploadDocument() — validate taxonomy + file, store, create Document
       upload-config.ts              MAX_UPLOAD_SIZE_MB / MAX_UPLOAD_SIZE_BYTES (central config)
@@ -159,6 +163,9 @@ src/
       rating.ts                     getRatingSummary() — average/count via Prisma aggregate() + the caller's own rating (see Rating below)
       comment.ts                    listComments()/createComment()/toCommentPayload() — newest-first, paginated, author select limited to id/name/role (see Comments below)
       comment-config.ts             COMMENT_MAX_LENGTH / COMMENTS_PAGE_SIZE (central config)
+      report.ts                     createReport()/getMyOpenReportReasons() — duplicate-OPEN-report check + creation (see Reporting below)
+      report-reason.ts              REPORT_REASON_VALUES / REPORT_REASON_LABELS — controlled Report Reason
+      report-config.ts              REPORT_DESCRIPTION_MAX_LENGTH (central config)
     storage/
       local-storage.ts              format/category rules, safe keys, fs read/write/delete, plus statLocalFile/createLocalFileReadStream reused by both preview and download
 ```
@@ -186,6 +193,8 @@ src/
 | POST   | `/api/documents/:id/comments` | Requires any signed-in user. Body `{ content: string }`. See [Comments](#comments) |
 | PUT    | `/api/documents/:id/comments/:commentId` | Requires being the comment's own author. Body `{ content: string }`. See [Comments](#comments) |
 | DELETE | `/api/documents/:id/comments/:commentId` | Requires being the comment's own author, or ADMIN. See [Comments](#comments) |
+| POST   | `/api/documents/:id/reports` | Requires any signed-in user. Body `{ reason, description? }`. `409` on a duplicate OPEN report. See [Reporting](#reporting) |
+| GET    | `/api/documents/:id/reports/mine` | Requires any signed-in user. Returns only the caller's own OPEN report reasons. See [Reporting](#reporting) |
 
 All responses use `{ success, data, error }` (plus `meta` for list pagination),
 except `/api/documents/:id/preview` and `/api/documents/:id/download`, which
@@ -524,4 +533,56 @@ See [Search](#search) for the search/filter/sort/pagination contract.
   "Unable to delete comment" on failure, without exposing any
   Prisma/database detail.
 - **Not built yet:** replies/nested threads, mentions, rich text, images,
-  likes, and reports — see `FEATURES.md`.
+  and likes — see `FEATURES.md`.
+
+## Reporting
+
+- **Any signed-in user may report any Document** — STUDENT, TEACHER, and
+  ADMIN, with no ownership restriction (a TEACHER/ADMIN may report a
+  Document they uploaded themselves). Guests see the Report action but
+  can't submit: clicking it goes to `/login?callbackUrl=/documents/:id`
+  (`documentLoginHref()`, the same helper Download/Rating/Comments use) —
+  nothing is ever submitted before login.
+- **Controlled reasons only** (`ReportReason` enum,
+  `src/lib/documents/report-reason.ts`): Broken file, Wrong content, Wrong
+  grade/subject/lesson, Preview issue, Duplicate document, Copyright
+  issue, Other — never arbitrary free text.
+- **Description is optional, except required for Other** — trimmed,
+  capped at `REPORT_DESCRIPTION_MAX_LENGTH` (1000,
+  `src/lib/documents/report-config.ts`), rejected if whitespace-only when
+  the reason is Other. Plain text only, same as Comments — never parsed
+  as HTML.
+- **At most one OPEN report per (Document, user, reason)** — enforced two
+  ways: the API pre-checks for an existing OPEN match and returns a
+  friendly `409` ("You have already reported this issue."), and a
+  hand-written partial unique index on `DocumentReport(documentId,
+  userId, reason) WHERE status = 'OPEN'` (Prisma's schema DSL can't
+  express a `WHERE` clause on `@@unique`, so this one migration statement
+  is raw SQL) catches the same case if two submissions race. A report
+  that's later `RESOLVED`/`DISMISSED` never blocks a new `OPEN` one for
+  the same reason — the index only covers `OPEN` rows. The same user may
+  still report a *different* reason on the same Document at any time.
+- **Report status foundation only** — `ReportStatus` (`OPEN` default,
+  `RESOLVED`, `DISMISSED`) exists on the model, but this step only ever
+  creates `OPEN` reports. There is no resolve/dismiss action, no admin
+  notes, no `/admin/reports` moderation UI, and no email notifications
+  yet — reports are stored for a future Admin moderation step.
+- **Ownership is server-controlled** — `documentId` always comes from the
+  route, `userId` always from the session, and `status` is always `OPEN`
+  on create; the client body may only contain `reason`/`description`.
+  Reporting a nonexistent Document returns `404`.
+- **UI on Document Detail** (`ReportDocumentAction.tsx`), placed after
+  Download and styled as a small secondary text link — never competing
+  visually with Preview/Download. Clicking it expands an inline form
+  (reason `<select>` + optional/required description textarea) rather
+  than opening a modal, matching this app's existing hand-rolled
+  shadcn-style primitives (no new dialog dependency). The reason list
+  optionally hints "(already reported)" next to a reason the user already
+  has an OPEN report for, via a small authenticated
+  `GET /api/documents/:id/reports/mine` endpoint that only ever returns
+  the caller's own report reasons.
+- **Feedback via the existing Sonner system** — "Report submitted
+  successfully" on success, "You have already reported this issue" on a
+  `409`, "Unable to submit report" on any other failure — without
+  exposing any Prisma/database detail. The Report action itself is never
+  permanently disabled after one submission.

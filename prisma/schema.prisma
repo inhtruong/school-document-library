@@ -47,6 +47,7 @@ model Document {
 
   ratings  DocumentRating[]
   comments DocumentComment[]
+  reports  DocumentReport[]
 
   @@index([subject])
   @@index([documentType])
@@ -104,6 +105,54 @@ model DocumentComment {
 
   @@index([documentId])
   @@index([userId])
+}
+
+/**
+ * A user-submitted report flagging a problem with a Document — Step 7C.
+ * Only ever created as OPEN here; resolving/dismissing is a future Admin
+ * moderation step. A partial unique index — added by hand in this model's
+ * migration, since Prisma's schema DSL can't express a `WHERE` clause on
+ * `@@unique` — enforces at most one OPEN report per
+ * (documentId, userId, reason) at the database level; the API also
+ * pre-checks this for a friendly 409 rather than relying on the raw
+ * constraint violation alone. Deleting a Document or User cascades to
+ * their reports so none are left orphaned.
+ */
+model DocumentReport {
+  id String @id @default(cuid())
+
+  documentId String
+  document   Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  reason ReportReason
+  /** Optional except when reason is OTHER — enforced at the application layer (zod), see src/lib/validation/report.ts. */
+  description String?
+  status      ReportStatus @default(OPEN)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([documentId])
+  @@index([userId])
+  @@index([status])
+}
+
+enum ReportReason {
+  BROKEN_FILE
+  WRONG_CONTENT
+  WRONG_TAXONOMY
+  PREVIEW_ISSUE
+  DUPLICATE_DOCUMENT
+  COPYRIGHT
+  OTHER
+}
+
+enum ReportStatus {
+  OPEN
+  RESOLVED
+  DISMISSED
 }
 
 enum Role {
@@ -192,6 +241,7 @@ model User {
   uploadedDocuments Document[]
   ratings           DocumentRating[]
   comments          DocumentComment[]
+  reports           DocumentReport[]
 
   @@index([role])
 }

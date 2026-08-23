@@ -45,9 +45,10 @@ model Document {
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
-  ratings  DocumentRating[]
-  comments DocumentComment[]
-  reports  DocumentReport[]
+  ratings   DocumentRating[]
+  comments  DocumentComment[]
+  reports   DocumentReport[]
+  bookmarks DocumentBookmark[]
 
   @@index([subject])
   @@index([documentType])
@@ -103,6 +104,29 @@ model DocumentComment {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  @@index([documentId])
+  @@index([userId])
+}
+
+/**
+ * A user's personal bookmark/favorite on a Document — Step 8A. Purely
+ * private to each user (no global bookmark count, no popularity ranking).
+ * `@@unique([documentId, userId])` guarantees one bookmark per user per
+ * document; adding is implemented as an idempotent `upsert` on this key
+ * rather than relying on catching a constraint violation. Deleting a
+ * Document or User cascades to their bookmarks so none are left orphaned.
+ */
+model DocumentBookmark {
+  id String @id @default(cuid())
+
+  documentId String
+  document   Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@unique([documentId, userId])
   @@index([documentId])
   @@index([userId])
 }
@@ -242,6 +266,7 @@ model User {
   ratings           DocumentRating[]
   comments          DocumentComment[]
   reports           DocumentReport[]
+  bookmarks         DocumentBookmark[]
 
   @@index([role])
 }

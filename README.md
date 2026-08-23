@@ -82,7 +82,7 @@ npm test              run the Vitest suite
 ```
 storage_local/                    uploaded files, auto-created (gitignored) — see Uploads below
 prisma/
-  schema.prisma                   Document, User, Grade, Subject, Lesson, DocumentRating, DocumentComment, DocumentReport models + Role/FileCategory/DocumentType/ReportReason/ReportStatus enums
+  schema.prisma                   Document, User, Grade, Subject, Lesson, DocumentRating, DocumentComment, DocumentReport, DocumentBookmark models + Role/FileCategory/DocumentType/ReportReason/ReportStatus enums
   seed.ts                         taxonomy (grades/subjects/lessons) + sample documents + dev accounts
 src/
   auth.ts                         Auth.js config: Credentials provider, JWT callbacks
@@ -91,6 +91,7 @@ src/
     page.tsx                      homepage: hero search, subjects, popular documents
     search/page.tsx               results page — filters/sort/pagination, URL is the source of truth (see Search below)
     documents/[id]/               document detail page (renders FilePreview) + not-found state
+    saved/page.tsx                 requires auth; paginated list of the current user's bookmarked documents (see Bookmarks below)
     login/page.tsx                email/password login (server action)
     register/page.tsx             registration — always creates STUDENT
     profile/page.tsx              requires auth; shows name/email/role
@@ -108,6 +109,7 @@ src/
       documents/[id]/comments/[commentId]/route.ts PUT/DELETE — owner only to edit, owner or ADMIN to delete (see Comments below)
       documents/[id]/reports/route.ts               POST — any signed-in user, create a report (see Reporting below)
       documents/[id]/reports/mine/route.ts          GET — any signed-in user, own OPEN report reasons only (see Reporting below)
+      documents/[id]/bookmark/route.ts               GET/POST/DELETE — any signed-in user, own saved state only (see Bookmarks below)
       subjects/route.ts                 GET — no ?gradeId=: legacy subject grouping (homepage); with ?gradeId=: taxonomy Subjects for that Grade
       grades/route.ts                   GET — all Grades ordered by sortOrder (see Education Taxonomy below)
       lessons/route.ts                  GET ?subjectId=... — Lessons/Topics for one Subject
@@ -119,7 +121,7 @@ src/
     SearchFilters.tsx                   client component: Grade → Subject → Lesson/Topic + Document Type + Sort, URL-driven (see Search below)
     DocumentCard.tsx                    title, taxonomy/subject, type, academic year, description
     SubjectCard.tsx                     subject + live document count
-    SiteHeader.tsx                      logo, nav, session-aware login/profile/logout/upload
+    SiteHeader.tsx                      logo, nav, session-aware login/profile/logout/upload/saved
     FilePreview.tsx                     PDF/image/video/docx preview, unsupported/unavailable placeholders
     DocxPreview.tsx                     client-only .docx renderer (docx-preview), loading/error states
     docx-preview-render.ts              fetch + render orchestration used by DocxPreview (unit-testable)
@@ -132,6 +134,7 @@ src/
     CommentForm.tsx                     plain textarea + submit, char count, disabled while empty/submitting (see Comments below)
     CommentItem.tsx                     one comment — inline Edit (textarea) and inline delete confirmation, owner/ADMIN-gated (see Comments below)
     ReportDocumentAction.tsx            small secondary link + inline expandable form; guest login link, reason select + optional/required description (see Reporting below)
+    BookmarkAction.tsx                   heart-icon toggle (♡ Save document / ♥ Saved); guest login link (see Bookmarks below)
   lib/
     prisma.ts                       Prisma client singleton
     api-client.ts                   server-side fetch helpers used by the pages
@@ -148,7 +151,7 @@ src/
       register.ts                   registerStudent() — role always STUDENT
       authorize.ts                  requireAuth(), requireRole(), hasRole()
       callback-url.ts               isSafeCallbackUrl()/resolveCallbackUrl() — open-redirect guard for ?callbackUrl=
-      document-login-href.ts        documentLoginHref() — shared /login?callbackUrl= builder (Download, Rating, Comments, Reporting)
+      document-login-href.ts        documentLoginHref() / loginHrefFor() — shared /login?callbackUrl= builder (Download, Rating, Comments, Reporting, Bookmarks/Saved)
     documents/
       upload.ts                     uploadDocument() — validate taxonomy + file, store, create Document
       upload-config.ts              MAX_UPLOAD_SIZE_MB / MAX_UPLOAD_SIZE_BYTES (central config)
@@ -166,6 +169,8 @@ src/
       report.ts                     createReport()/getMyOpenReportReasons() — duplicate-OPEN-report check + creation (see Reporting below)
       report-reason.ts              REPORT_REASON_VALUES / REPORT_REASON_LABELS — controlled Report Reason
       report-config.ts              REPORT_DESCRIPTION_MAX_LENGTH (central config)
+      bookmark.ts                    isBookmarked()/addBookmark()/removeBookmark()/listUserBookmarks() — private per user, no global counts (see Bookmarks below)
+      bookmark-config.ts             SAVED_PAGE_SIZE (central config)
     storage/
       local-storage.ts              format/category rules, safe keys, fs read/write/delete, plus statLocalFile/createLocalFileReadStream reused by both preview and download
 ```
@@ -195,6 +200,9 @@ src/
 | DELETE | `/api/documents/:id/comments/:commentId` | Requires being the comment's own author, or ADMIN. See [Comments](#comments) |
 | POST   | `/api/documents/:id/reports` | Requires any signed-in user. Body `{ reason, description? }`. `409` on a duplicate OPEN report. See [Reporting](#reporting) |
 | GET    | `/api/documents/:id/reports/mine` | Requires any signed-in user. Returns only the caller's own OPEN report reasons. See [Reporting](#reporting) |
+| GET    | `/api/documents/:id/bookmark` | Requires any signed-in user. Returns `{ bookmarked }` for the caller only. See [Bookmarks](#bookmarks) |
+| POST   | `/api/documents/:id/bookmark` | Requires any signed-in user. Idempotent — adds (or confirms) the caller's own bookmark. See [Bookmarks](#bookmarks) |
+| DELETE | `/api/documents/:id/bookmark` | Requires any signed-in user. Removes the caller's own bookmark; safe if none exists. See [Bookmarks](#bookmarks) |
 
 All responses use `{ success, data, error }` (plus `meta` for list pagination),
 except `/api/documents/:id/preview` and `/api/documents/:id/download`, which
@@ -590,3 +598,45 @@ See [Search](#search) for the search/filter/sort/pagination contract.
   `409`, "Unable to submit report" on any other failure — without
   exposing any Prisma/database detail. The Report action itself is never
   permanently disabled after one submission.
+
+## Bookmarks
+
+- **Any signed-in user may save (bookmark) any Document** — STUDENT,
+  TEACHER, and ADMIN, one bookmark per user per Document
+  (`@@unique([documentId, userId])` on `DocumentBookmark`). Guests see
+  the Save action but can't use it: clicking it goes to
+  `/login?callbackUrl=/documents/:id` (same `documentLoginHref()` helper
+  Download/Rating/Comments/Reporting use) — nothing is ever saved before
+  login.
+- **Adding is idempotent** — `POST /api/documents/:id/bookmark` does a
+  Prisma `upsert` on the `(documentId, userId)` key, so a duplicate
+  request is a safe no-op, never a second row or an error. Removing
+  (`DELETE`) uses `deleteMany`, which matches zero rows without throwing
+  if there's nothing to remove.
+- **Ownership is server-controlled** — `documentId` always comes from the
+  route, `userId` always from the session; neither endpoint reads a
+  request body at all, so there's no field for a client to spoof.
+  Bookmarking a nonexistent Document returns `404`.
+- **Bookmarks are completely private per user** — `GET
+  /api/documents/:id/bookmark` returns only the caller's own `{
+  bookmarked }` state, and `/saved` only ever queries the signed-in
+  user's own bookmarks. There is no global bookmark count, no popularity
+  ranking, and no bookmark-based trending — see `FEATURES.md`.
+- **Document Detail UI** (`BookmarkAction.tsx`) — a small heart-icon
+  toggle next to the rating control: outline "Save document" when not
+  saved, filled "Saved" once it is. Clicking toggles state, calls the
+  API, and shows a toast — no optimistic UI.
+- **`/saved`** — requires auth (`/login?callbackUrl=/saved` for guests,
+  via the same `loginHrefFor()` helper `documentLoginHref()` is built
+  from). Lists the current user's saved documents newest-saved-first
+  (`Bookmark.createdAt`, not `Document.createdAt`), reusing `DocumentCard`
+  and the same pagination pattern as `/search`. Server-side pagination is
+  capped at `SAVED_PAGE_SIZE` (12,
+  `src/lib/documents/bookmark-config.ts`) — never an unbounded query. A
+  "Saved" link appears in the header for any signed-in user.
+- **Feedback via the existing Sonner system** — "Document saved" /
+  "Document removed from saved items" on success, "Unable to update
+  saved document" on failure.
+- **Not built yet:** Follow Teacher, Follow Lesson, Notifications, bookmark
+  counts, trending-by-bookmark, collections/folders, and social sharing —
+  see `FEATURES.md`.

@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { auth } from "@/auth";
+import { BookmarkAction } from "@/components/BookmarkAction";
 import { CommentSection } from "@/components/CommentSection";
 import { DocumentRatingSection } from "@/components/DocumentRatingSection";
 import { DownloadButton } from "@/components/DownloadButton";
@@ -8,6 +9,7 @@ import { FilePreview } from "@/components/FilePreview";
 import { ReportDocumentAction } from "@/components/ReportDocumentAction";
 import { Badge } from "@/components/ui/badge";
 import { fetchComments, fetchDocumentById } from "@/lib/api-client";
+import { isBookmarked } from "@/lib/documents/bookmark";
 import { DOCUMENT_TYPE_LABELS } from "@/lib/documents/document-type";
 import { getRatingSummary } from "@/lib/documents/rating";
 import { subjectAccent } from "@/lib/documents/subject-accent";
@@ -41,9 +43,10 @@ export default async function DocumentDetailPage({ params }: DocumentDetailPageP
 
   if (!doc) notFound();
 
-  const [ratingSummary, commentsPage] = await Promise.all([
+  const [ratingSummary, commentsPage, bookmarked] = await Promise.all([
     getRatingSummary(doc.id, session?.user?.id ?? null),
     fetchComments(doc.id),
+    isBookmarked(doc.id, session?.user?.id ?? null),
   ]);
   const createdLabel = formatDate(doc.createdAt);
 
@@ -75,11 +78,16 @@ export default async function DocumentDetailPage({ params }: DocumentDetailPageP
 
           {createdLabel ? <p className="mt-2 text-xs text-muted">Added {createdLabel}</p> : null}
 
-          <div className="mt-3">
+          <div className="mt-3 flex flex-wrap items-center gap-4">
             <DocumentRatingSection
               documentId={doc.id}
               isAuthenticated={Boolean(session?.user)}
               initialSummary={ratingSummary}
+            />
+            <BookmarkAction
+              documentId={doc.id}
+              isAuthenticated={Boolean(session?.user)}
+              initialBookmarked={bookmarked}
             />
           </div>
         </div>

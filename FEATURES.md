@@ -1,6 +1,6 @@
 # Tính năng hiện tại — Stacks (School Document Library)
 
-Tài liệu này mô tả các tính năng đã hoàn thiện tính đến thời điểm hiện tại. Đây là bản MVP tập trung vào quản lý/tìm kiếm tài liệu, xác thực, upload theo học liệu phân loại (Grade → Subject → Lesson → Document Type), tìm kiếm có bộ lọc/sắp xếp/phân trang theo taxonomy, xem trước tài liệu công khai (PDF/ảnh/video/Word hiện đại .docx), tải tài liệu có bảo vệ đăng nhập, đánh giá tài liệu 1-5 sao, bình luận tài liệu, và báo cáo tài liệu (report) — **chưa có** preview Word cũ (.doc)/Excel, trang quản trị (bao gồm cả duyệt report), hay tìm kiếm AI.
+Tài liệu này mô tả các tính năng đã hoàn thiện tính đến thời điểm hiện tại. Đây là bản MVP tập trung vào quản lý/tìm kiếm tài liệu, xác thực, upload theo học liệu phân loại (Grade → Subject → Lesson → Document Type), tìm kiếm có bộ lọc/sắp xếp/phân trang theo taxonomy, xem trước tài liệu công khai (PDF/ảnh/video/Word hiện đại .docx), tải tài liệu có bảo vệ đăng nhập, đánh giá tài liệu 1-5 sao, bình luận tài liệu, báo cáo tài liệu (report), và lưu tài liệu yêu thích (bookmark) — **chưa có** preview Word cũ (.doc)/Excel, trang quản trị (bao gồm cả duyệt report), theo dõi Giáo viên/Bài học (follow), thông báo (notifications), hay tìm kiếm AI.
 
 ## Stack công nghệ
 
@@ -9,7 +9,7 @@ Tài liệu này mô tả các tính năng đã hoàn thiện tính đến thờ
 - **Database:** PostgreSQL + Prisma ORM
 - **Auth:** Auth.js (Credentials provider, JWT session)
 - **File Storage:** Local filesystem (`storage_local/`, server-side only) — không cần dịch vụ lưu trữ ngoài
-- **Test:** Vitest (402 test, cover validation + API routes + api-client + auth/authorization + upload/local storage + preview/Range parsing + preview-kind classification + DOCX render integration boundary + protected download + safe callback URL + Content-Disposition filename safety + education taxonomy validation/APIs + search query parsing/taxonomy filter resolution/sort/pagination + rating validation/aggregation/API/ownership + comment validation/pagination/API/ownership/cross-Document isolation + report validation/duplicate-prevention/API/ownership)
+- **Test:** Vitest (439 test, cover validation + API routes + api-client + auth/authorization + upload/local storage + preview/Range parsing + preview-kind classification + DOCX render integration boundary + protected download + safe callback URL + Content-Disposition filename safety + education taxonomy validation/APIs + search query parsing/taxonomy filter resolution/sort/pagination + rating validation/aggregation/API/ownership + comment validation/pagination/API/ownership/cross-Document isolation + report validation/duplicate-prevention/API/ownership + bookmark idempotency/pagination/API/ownership)
 
 ## Luồng người dùng chính
 
@@ -47,6 +47,7 @@ Trang chủ ──▶ Tìm kiếm / Duyệt theo môn ──▶ Kết quả tìm
 - **Đánh giá 1-5 sao** (`DocumentRatingSection`) — xem chi tiết ở mục [13. Đánh giá tài liệu](#13-đánh-giá-tài-liệu--document-rating-step-7a-mới)
 - **Bình luận** (`CommentSection`) — xem chi tiết ở mục [14. Bình luận tài liệu](#14-bình-luận-tài-liệu--document-comments-step-7b-mới)
 - **Báo cáo tài liệu** (`ReportDocumentAction`) — xem chi tiết ở mục [15. Báo cáo tài liệu](#15-báo-cáo-tài-liệu--document-reporting-step-7c-mới)
+- **Lưu tài liệu yêu thích** (`BookmarkAction`) — xem chi tiết ở mục [16. Lưu tài liệu yêu thích](#16-lưu-tài-liệu-yêu-thích--bookmarksfavorites-step-8a-mới)
 - **ID không tồn tại/không hợp lệ** → hiển thị trang "Document not found" thân thiện (qua `notFound()` của Next.js), có nút quay lại trang tìm kiếm
 - Lỗi backend/DB (nếu có) sẽ rơi vào error boundary chung của app (`error.tsx`)
 
@@ -212,6 +213,19 @@ updatedAt     DateTime
 - **UI trên `/documents/[id]`** (`ReportDocumentAction`, đặt sau nút Download): hiển thị như 1 link phụ nhỏ, không cạnh tranh thị giác với Preview/Download. Bấm vào mở form mở rộng inline (select lý do + textarea mô tả tuỳ chọn/bắt buộc) thay vì dùng dialog/modal — nhất quán với các primitive tự viết theo phong cách shadcn sẵn có, không thêm dependency mới. Danh sách lý do gợi ý "(already reported)" cho lý do đã có báo cáo `OPEN`, lấy từ `GET .../reports/mine`.
 - **Toast** (Sonner có sẵn): "Report submitted successfully" khi thành công; "You have already reported this issue" khi trùng lặp (`409`); "Unable to submit report" khi lỗi khác — không lộ chi tiết Prisma/database. Nút Report không bao giờ bị vô hiệu hoá vĩnh viễn — vẫn báo cáo được lý do khác.
 
+## 16. Lưu tài liệu yêu thích — Bookmarks/Favorites (Step 8A, *mới*)
+
+- **Bất kỳ người dùng đã đăng nhập nào cũng lưu được, mỗi user chỉ 1 lưu cho mỗi tài liệu:** model `DocumentBookmark` (`prisma/schema.prisma`) với `@@unique([documentId, userId])`. `STUDENT`, `TEACHER`, `ADMIN` đều lưu được. Guest thấy nút "Save document" nhưng bấm vào sẽ chuyển sang `/login?callbackUrl=/documents/{id}` (dùng chung `documentLoginHref()` với Download/Rating/Comments/Report) — không lưu trước khi đăng nhập.
+- **Thêm là idempotent:** `POST /api/documents/:id/bookmark` dùng Prisma `upsert` trên khoá `(documentId, userId)` — gửi lại nhiều lần không tạo dòng trùng, không lỗi. Xoá (`DELETE`) dùng `deleteMany`, khớp 0 dòng vẫn không lỗi nếu chưa từng lưu.
+- **API:**
+  - `GET /api/documents/:id/bookmark` — bắt buộc đăng nhập, trả `{ bookmarked: true/false }` chỉ cho chính người gọi.
+  - `POST /api/documents/:id/bookmark` — bắt buộc đăng nhập. `documentId` luôn lấy từ route, `userId` luôn từ session — cả 2 endpoint đều không đọc body nên client không có trường nào để giả mạo. Lưu tài liệu không tồn tại → `404`.
+  - `DELETE /api/documents/:id/bookmark` — bắt buộc đăng nhập, xoá bookmark của chính người gọi.
+- **Riêng tư hoàn toàn theo từng user:** không có tổng số lượt lưu công khai, không xếp hạng phổ biến theo bookmark, không trending — `/saved` chỉ bao giờ query bookmark của chính user đang đăng nhập.
+- **UI trên `/documents/[id]`** (`BookmarkAction`, cạnh khối đánh giá sao): nút toggle icon trái tim — viền rỗng "Save document" khi chưa lưu, tô đặc "Saved" khi đã lưu.
+- **Trang `/saved`** — bắt buộc đăng nhập (guest → `/login?callbackUrl=/saved`, dùng chung cơ chế `loginHrefFor()`/`documentLoginHref()`). Hiển thị danh sách tài liệu đã lưu của user, sắp theo **ngày lưu mới nhất trước** (`Bookmark.createdAt`, không phải `Document.createdAt`), tái dùng `DocumentCard` và cùng kiểu phân trang với `/search`. Phân trang phía server, giới hạn `SAVED_PAGE_SIZE` (12, `src/lib/documents/bookmark-config.ts`) — không query không giới hạn. Link "Saved" xuất hiện trên header cho user đã đăng nhập.
+- **Toast** (Sonner có sẵn): "Document saved" / "Document removed from saved items" khi thành công; "Unable to update saved document" khi lỗi.
+
 ---
 
 ## Chưa làm (ngoài phạm vi hiện tại)
@@ -226,4 +240,5 @@ updatedAt     DateTime
 - Sắp xếp tìm kiếm theo rating (rating-based search sort), rating analytics/moderation
 - Trả lời bình luận / thread lồng nhau (comment replies, nested threads), mention, rich text/hình ảnh trong bình luận, thích bình luận (comment likes)
 - Kiểm duyệt báo cáo (admin report moderation), resolve/dismiss report, ghi chú admin, `/admin/reports`, email thông báo
-- Yêu thích (bookmark), theo dõi giáo viên/bài học (follow), thông báo (notifications)
+- Tổng số lượt lưu công khai (bookmark count), xếp hạng phổ biến/trending theo bookmark, bộ sưu tập/thư mục (collections), chia sẻ mạng xã hội
+- Theo dõi giáo viên/bài học (follow), thông báo (notifications), bảng Notification, chuông thông báo, trạng thái chưa đọc, email/push notification

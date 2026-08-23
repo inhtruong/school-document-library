@@ -13,7 +13,7 @@ export async function GET(_request: NextRequest, { params }: RouteContext) {
       where: { id },
       omit: { fileKey: true },
       include: {
-        uploadedBy: { select: { id: true, name: true } },
+        uploadedBy: { select: { id: true, name: true, role: true } },
         grade: true,
         subjectRef: true,
         lesson: true,

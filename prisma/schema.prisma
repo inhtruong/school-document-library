@@ -248,6 +248,7 @@ model Lesson {
   updatedAt DateTime @updatedAt
 
   documents Document[]
+  follows   LessonFollow[]
 
   @@unique([subjectId, code])
   @@index([subjectId])
@@ -267,6 +268,56 @@ model User {
   comments          DocumentComment[]
   reports           DocumentReport[]
   bookmarks         DocumentBookmark[]
+  teacherFollowing  TeacherFollow[] @relation("TeacherFollowFollower")
+  followedByUsers   TeacherFollow[] @relation("TeacherFollowTeacher")
+  lessonFollows     LessonFollow[]
 
   @@index([role])
+}
+
+/**
+ * A user following a TEACHER user — Step 8B. Only a `role = TEACHER` User
+ * may be the `teacher` side (enforced at the application layer, see
+ * `src/lib/follow/teacher-follow.ts`; Prisma can't express a role
+ * constraint on a relation). Two distinct relations to `User` (follower
+ * and teacher) require named relations. Self-follow (`followerId ==
+ * teacherId`) is rejected at the application layer, not the schema.
+ * `@@unique([followerId, teacherId])` guarantees one follow per pair;
+ * deleting either User cascades to the follow row.
+ */
+model TeacherFollow {
+  id String @id @default(cuid())
+
+  followerId String
+  follower   User   @relation("TeacherFollowFollower", fields: [followerId], references: [id], onDelete: Cascade)
+  teacherId  String
+  teacher    User   @relation("TeacherFollowTeacher", fields: [teacherId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@unique([followerId, teacherId])
+  @@index([followerId])
+  @@index([teacherId])
+}
+
+/**
+ * A user following a Lesson/Topic — Step 8B. No follower counts are
+ * denormalized anywhere; Step 8C will later query this table directly to
+ * find who to notify about a new Document in a followed Lesson.
+ * `@@unique([userId, lessonId])` guarantees one follow per pair; deleting
+ * the User or Lesson cascades to the follow row.
+ */
+model LessonFollow {
+  id String @id @default(cuid())
+
+  userId   String
+  user     User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  lessonId String
+  lesson   Lesson @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@unique([userId, lessonId])
+  @@index([userId])
+  @@index([lessonId])
 }

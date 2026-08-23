@@ -1,6 +1,6 @@
 # Tính năng hiện tại — Stacks (School Document Library)
 
-Tài liệu này mô tả các tính năng đã hoàn thiện tính đến thời điểm hiện tại. Đây là bản MVP tập trung vào quản lý/tìm kiếm tài liệu, xác thực, upload theo học liệu phân loại (Grade → Subject → Lesson → Document Type), tìm kiếm có bộ lọc/sắp xếp/phân trang theo taxonomy, xem trước tài liệu công khai (PDF/ảnh/video/Word hiện đại .docx), tải tài liệu có bảo vệ đăng nhập, đánh giá tài liệu 1-5 sao, bình luận tài liệu, báo cáo tài liệu (report), và lưu tài liệu yêu thích (bookmark) — **chưa có** preview Word cũ (.doc)/Excel, trang quản trị (bao gồm cả duyệt report), theo dõi Giáo viên/Bài học (follow), thông báo (notifications), hay tìm kiếm AI.
+Tài liệu này mô tả các tính năng đã hoàn thiện tính đến thời điểm hiện tại. Đây là bản MVP tập trung vào quản lý/tìm kiếm tài liệu, xác thực, upload theo học liệu phân loại (Grade → Subject → Lesson → Document Type), tìm kiếm có bộ lọc/sắp xếp/phân trang theo taxonomy, xem trước tài liệu công khai (PDF/ảnh/video/Word hiện đại .docx), tải tài liệu có bảo vệ đăng nhập, đánh giá tài liệu 1-5 sao, bình luận tài liệu, báo cáo tài liệu (report), lưu tài liệu yêu thích (bookmark), và theo dõi Giáo viên/Bài học (follow) — **chưa có** preview Word cũ (.doc)/Excel, trang quản trị (bao gồm cả duyệt report), thông báo (notifications), hay tìm kiếm AI.
 
 ## Stack công nghệ
 
@@ -9,7 +9,7 @@ Tài liệu này mô tả các tính năng đã hoàn thiện tính đến thờ
 - **Database:** PostgreSQL + Prisma ORM
 - **Auth:** Auth.js (Credentials provider, JWT session)
 - **File Storage:** Local filesystem (`storage_local/`, server-side only) — không cần dịch vụ lưu trữ ngoài
-- **Test:** Vitest (439 test, cover validation + API routes + api-client + auth/authorization + upload/local storage + preview/Range parsing + preview-kind classification + DOCX render integration boundary + protected download + safe callback URL + Content-Disposition filename safety + education taxonomy validation/APIs + search query parsing/taxonomy filter resolution/sort/pagination + rating validation/aggregation/API/ownership + comment validation/pagination/API/ownership/cross-Document isolation + report validation/duplicate-prevention/API/ownership + bookmark idempotency/pagination/API/ownership)
+- **Test:** Vitest (501 test, cover validation + API routes + api-client + auth/authorization + upload/local storage + preview/Range parsing + preview-kind classification + DOCX render integration boundary + protected download + safe callback URL + Content-Disposition filename safety + education taxonomy validation/APIs + search query parsing/taxonomy filter resolution/sort/pagination + rating validation/aggregation/API/ownership + comment validation/pagination/API/ownership/cross-Document isolation + report validation/duplicate-prevention/API/ownership + bookmark idempotency/pagination/API/ownership + Teacher/Lesson follow target-validation/self-follow/idempotency/pagination/isolation)
 
 ## Luồng người dùng chính
 
@@ -48,6 +48,7 @@ Trang chủ ──▶ Tìm kiếm / Duyệt theo môn ──▶ Kết quả tìm
 - **Bình luận** (`CommentSection`) — xem chi tiết ở mục [14. Bình luận tài liệu](#14-bình-luận-tài-liệu--document-comments-step-7b-mới)
 - **Báo cáo tài liệu** (`ReportDocumentAction`) — xem chi tiết ở mục [15. Báo cáo tài liệu](#15-báo-cáo-tài-liệu--document-reporting-step-7c-mới)
 - **Lưu tài liệu yêu thích** (`BookmarkAction`) — xem chi tiết ở mục [16. Lưu tài liệu yêu thích](#16-lưu-tài-liệu-yêu-thích--bookmarksfavorites-step-8a-mới)
+- **Theo dõi Giáo viên/Bài học** (`TeacherFollowAction`, `LessonFollowAction`) — xem chi tiết ở mục [17. Theo dõi Giáo viên/Bài học](#17-theo-dõi-giáo-viênbài-học--follow-teacherlesson-step-8b-mới)
 - **ID không tồn tại/không hợp lệ** → hiển thị trang "Document not found" thân thiện (qua `notFound()` của Next.js), có nút quay lại trang tìm kiếm
 - Lỗi backend/DB (nếu có) sẽ rơi vào error boundary chung của app (`error.tsx`)
 
@@ -226,6 +227,21 @@ updatedAt     DateTime
 - **Trang `/saved`** — bắt buộc đăng nhập (guest → `/login?callbackUrl=/saved`, dùng chung cơ chế `loginHrefFor()`/`documentLoginHref()`). Hiển thị danh sách tài liệu đã lưu của user, sắp theo **ngày lưu mới nhất trước** (`Bookmark.createdAt`, không phải `Document.createdAt`), tái dùng `DocumentCard` và cùng kiểu phân trang với `/search`. Phân trang phía server, giới hạn `SAVED_PAGE_SIZE` (12, `src/lib/documents/bookmark-config.ts`) — không query không giới hạn. Link "Saved" xuất hiện trên header cho user đã đăng nhập.
 - **Toast** (Sonner có sẵn): "Document saved" / "Document removed from saved items" khi thành công; "Unable to update saved document" khi lỗi.
 
+## 17. Theo dõi Giáo viên/Bài học — Follow Teacher/Lesson (Step 8B, *mới*)
+
+- **2 quan hệ follow độc lập:** model `TeacherFollow` (`@@unique([followerId, teacherId])`) và `LessonFollow` (`@@unique([userId, lessonId])`) trong `prisma/schema.prisma`. `STUDENT`, `TEACHER`, `ADMIN` đều theo dõi được cả 2 loại. Guest thấy nút Follow nhưng bấm vào sẽ chuyển sang `/login?callbackUrl=...` (dùng chung `loginHrefFor()`/`documentLoginHref()` với Download/Rating/Comments/Report/Bookmark) — không tự động follow sau khi đăng nhập, phải bấm lại.
+- **Chỉ user có `role = TEACHER` mới được follow như 1 giáo viên:** `POST /api/teachers/:teacherId/follow` tra role của user đích — `STUDENT`/`ADMIN` hoặc user không tồn tại đều trả `404` giống hệt nhau (không lộ user đích có tồn tại hay không). Một `TEACHER` được phép theo dõi `TEACHER` khác bình thường.
+- **Chặn tự theo dõi chính mình:** nếu `followerId === teacherId` → từ chối với `400` thân thiện ("You cannot follow yourself"), kiểm tra trước cả khi tra DB. UI cũng ẩn hẳn nút Follow khi tài liệu do chính người xem upload.
+- **Thêm là idempotent, xoá luôn an toàn:** cả 2 API `POST` đều `upsert` trên khoá unique — gọi lại nhiều lần không tạo dòng trùng; cả 2 API `DELETE` đều `deleteMany` — khớp 0 dòng vẫn không lỗi. Cả 4 endpoint (`GET`/`POST`/`DELETE` cho cả Teacher và Lesson) đều không đọc body — `teacherId`/`lessonId` luôn từ route, `followerId`/`userId` luôn từ session.
+- **API:**
+  - `GET/POST/DELETE /api/teachers/:teacherId/follow` — bắt buộc đăng nhập, chỉ trả/thao tác trạng thái follow của chính người gọi.
+  - `GET/POST/DELETE /api/lessons/:lessonId/follow` — tương tự, validate Lesson tồn tại trước khi tạo.
+- **UI trên `/documents/[id]`:** `TeacherFollowAction` hiện cạnh tên người upload trong khối "Uploaded by" — chỉ khi `uploadedBy.role === "TEACHER"` (ẩn hoàn toàn nếu người upload không phải giáo viên hoặc tài liệu không có `uploadedBy`). `LessonFollowAction` hiện cạnh tên Lesson trong khối taxonomy — chỉ khi tài liệu có Lesson cấu trúc (ẩn với tài liệu legacy không có Lesson).
+- **Trang `/following`** — bắt buộc đăng nhập (guest → `/login?callbackUrl=/following`). 2 mục: **Followed Teachers** (tên + số tài liệu đã upload, tính hiệu quả bằng Prisma `_count`, không lộ email) và **Followed Lessons** (Grade/Subject/Lesson), đều sắp theo **ngày follow mới nhất trước** (`createdAt` của dòng follow, không phải ngày tạo Teacher/Lesson). Phân trang độc lập qua `?teachersPage=`/`?lessonsPage=`, giới hạn `FOLLOWING_PAGE_SIZE` (12, `src/lib/follow/follow-config.ts`). Mỗi mục có nút Unfollow, bấm là xoá khỏi danh sách ngay. Chỉ hiển thị follow của chính user đang đăng nhập — không lộ danh sách follow của người khác.
+- **Không hiển thị số lượng follower công khai** ở đâu cả — không xếp hạng giáo viên/bài học phổ biến, không gợi ý follow. Các bảng follow tồn tại để bước Admin/notification sau này truy vấn "ai đang theo dõi Teacher/Lesson này", không phải để hiển thị số đếm ở bước này.
+- **Toast** (Sonner có sẵn): "Teacher followed" / "Teacher unfollowed" / "Lesson followed" / "Lesson unfollowed" khi thành công; "Unable to update follow status" khi lỗi.
+- **Chưa có notification:** bước này chỉ tạo và quản lý quan hệ follow — chưa có bảng Notification, chuông thông báo, trạng thái chưa đọc, hay email/push. Bước sau có thể truy vấn trực tiếp `TeacherFollow`/`LessonFollow` để biết cần thông báo cho ai khi có tài liệu mới.
+
 ---
 
 ## Chưa làm (ngoài phạm vi hiện tại)
@@ -241,4 +257,5 @@ updatedAt     DateTime
 - Trả lời bình luận / thread lồng nhau (comment replies, nested threads), mention, rich text/hình ảnh trong bình luận, thích bình luận (comment likes)
 - Kiểm duyệt báo cáo (admin report moderation), resolve/dismiss report, ghi chú admin, `/admin/reports`, email thông báo
 - Tổng số lượt lưu công khai (bookmark count), xếp hạng phổ biến/trending theo bookmark, bộ sưu tập/thư mục (collections), chia sẻ mạng xã hội
-- Theo dõi giáo viên/bài học (follow), thông báo (notifications), bảng Notification, chuông thông báo, trạng thái chưa đọc, email/push notification
+- Số lượt follower công khai, gợi ý follow, trang hồ sơ giáo viên (teacher public profile), trang chi tiết bài học (lesson detail page)
+- Thông báo (notifications), bảng Notification, chuông thông báo, trạng thái chưa đọc, email/push notification

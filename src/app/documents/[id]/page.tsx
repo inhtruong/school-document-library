@@ -6,13 +6,17 @@ import { CommentSection } from "@/components/CommentSection";
 import { DocumentRatingSection } from "@/components/DocumentRatingSection";
 import { DownloadButton } from "@/components/DownloadButton";
 import { FilePreview } from "@/components/FilePreview";
+import { LessonFollowAction } from "@/components/LessonFollowAction";
 import { ReportDocumentAction } from "@/components/ReportDocumentAction";
+import { TeacherFollowAction } from "@/components/TeacherFollowAction";
 import { Badge } from "@/components/ui/badge";
 import { fetchComments, fetchDocumentById } from "@/lib/api-client";
 import { isBookmarked } from "@/lib/documents/bookmark";
 import { DOCUMENT_TYPE_LABELS } from "@/lib/documents/document-type";
 import { getRatingSummary } from "@/lib/documents/rating";
 import { subjectAccent } from "@/lib/documents/subject-accent";
+import { isFollowingLesson } from "@/lib/follow/lesson-follow";
+import { isFollowingTeacher } from "@/lib/follow/teacher-follow";
 
 type DocumentDetailPageProps = {
   params: Promise<{ id: string }>;
@@ -43,12 +47,18 @@ export default async function DocumentDetailPage({ params }: DocumentDetailPageP
 
   if (!doc) notFound();
 
-  const [ratingSummary, commentsPage, bookmarked] = await Promise.all([
-    getRatingSummary(doc.id, session?.user?.id ?? null),
+  const currentUserId = session?.user?.id ?? null;
+  const isUploaderTeacher = doc.uploadedBy?.role === "TEACHER";
+
+  const [ratingSummary, commentsPage, bookmarked, teacherFollowing, lessonFollowing] = await Promise.all([
+    getRatingSummary(doc.id, currentUserId),
     fetchComments(doc.id),
-    isBookmarked(doc.id, session?.user?.id ?? null),
+    isBookmarked(doc.id, currentUserId),
+    isUploaderTeacher && doc.uploadedBy ? isFollowingTeacher(currentUserId, doc.uploadedBy.id) : Promise.resolve(false),
+    doc.lessonId ? isFollowingLesson(currentUserId, doc.lessonId) : Promise.resolve(false),
   ]);
   const createdLabel = formatDate(doc.createdAt);
+  const documentPagePath = `/documents/${doc.id}`;
 
   return (
     <div className="mx-auto max-w-3xl px-5 py-8 sm:py-10">
@@ -74,6 +84,14 @@ export default async function DocumentDetailPage({ params }: DocumentDetailPageP
             {doc.lesson ? <span className="text-sm text-muted">· {doc.lesson.name}</span> : null}
             <Badge>{DOCUMENT_TYPE_LABELS[doc.documentType]}</Badge>
             <span className="text-sm text-muted">{doc.academicYear}</span>
+            {doc.lesson ? (
+              <LessonFollowAction
+                lessonId={doc.lesson.id}
+                isAuthenticated={Boolean(session?.user)}
+                initialFollowing={lessonFollowing}
+                callbackPath={documentPagePath}
+              />
+            ) : null}
           </div>
 
           {createdLabel ? <p className="mt-2 text-xs text-muted">Added {createdLabel}</p> : null}
@@ -113,7 +131,18 @@ export default async function DocumentDetailPage({ params }: DocumentDetailPageP
           {doc.uploadedBy ? (
             <>
               <dt>Uploaded by</dt>
-              <dd className="text-ink">{doc.uploadedBy.name}</dd>
+              <dd className="flex flex-wrap items-center gap-3 text-ink">
+                {doc.uploadedBy.name}
+                {isUploaderTeacher ? (
+                  <TeacherFollowAction
+                    teacherId={doc.uploadedBy.id}
+                    isAuthenticated={Boolean(session?.user)}
+                    isSelf={currentUserId === doc.uploadedBy.id}
+                    initialFollowing={teacherFollowing}
+                    callbackPath={documentPagePath}
+                  />
+                ) : null}
+              </dd>
             </>
           ) : null}
         </dl>

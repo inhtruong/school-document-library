@@ -25,7 +25,7 @@ export type DocumentRecord = {
   fileCategory: "PDF" | "WORD" | "EXCEL" | "IMAGE" | "VIDEO" | null;
   uploadedById: string | null;
   /** Only populated by the document-detail endpoint, which includes the relation. */
-  uploadedBy?: { id: string; name: string } | null;
+  uploadedBy?: { id: string; name: string; role: "STUDENT" | "TEACHER" | "ADMIN" } | null;
   createdAt: string;
   updatedAt: string;
 };

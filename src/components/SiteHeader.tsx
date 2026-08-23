@@ -51,6 +51,13 @@ export default async function SiteHeader() {
               </Link>
 
               <Link
+                href="/following"
+                className="rounded-full border border-line px-3 py-1.5 text-sm text-muted transition-colors hover:border-ink/25 hover:text-ink"
+              >
+                Following
+              </Link>
+
+              <Link
                 href="/profile"
                 className="flex items-center gap-2 text-sm text-ink transition-colors hover:text-accent"
               >

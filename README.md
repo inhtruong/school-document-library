@@ -82,7 +82,7 @@ npm test              run the Vitest suite
 ```
 storage_local/                    uploaded files, auto-created (gitignored) — see Uploads below
 prisma/
-  schema.prisma                   Document, User, Grade, Subject, Lesson, DocumentRating, DocumentComment, DocumentReport, DocumentBookmark models + Role/FileCategory/DocumentType/ReportReason/ReportStatus enums
+  schema.prisma                   Document, User, Grade, Subject, Lesson, DocumentRating, DocumentComment, DocumentReport, DocumentBookmark, TeacherFollow, LessonFollow models + Role/FileCategory/DocumentType/ReportReason/ReportStatus enums
   seed.ts                         taxonomy (grades/subjects/lessons) + sample documents + dev accounts
 src/
   auth.ts                         Auth.js config: Credentials provider, JWT callbacks
@@ -92,6 +92,7 @@ src/
     search/page.tsx               results page — filters/sort/pagination, URL is the source of truth (see Search below)
     documents/[id]/               document detail page (renders FilePreview) + not-found state
     saved/page.tsx                 requires auth; paginated list of the current user's bookmarked documents (see Bookmarks below)
+    following/page.tsx             requires auth; paginated Followed Teachers + Followed Lessons, independent ?teachersPage=/?lessonsPage= (see Follow below)
     login/page.tsx                email/password login (server action)
     register/page.tsx             registration — always creates STUDENT
     profile/page.tsx              requires auth; shows name/email/role
@@ -110,6 +111,8 @@ src/
       documents/[id]/reports/route.ts               POST — any signed-in user, create a report (see Reporting below)
       documents/[id]/reports/mine/route.ts          GET — any signed-in user, own OPEN report reasons only (see Reporting below)
       documents/[id]/bookmark/route.ts               GET/POST/DELETE — any signed-in user, own saved state only (see Bookmarks below)
+      teachers/[teacherId]/follow/route.ts          GET/POST/DELETE — any signed-in user, own follow state only; target must be role=TEACHER (see Follow below)
+      lessons/[lessonId]/follow/route.ts            GET/POST/DELETE — any signed-in user, own follow state only (see Follow below)
       subjects/route.ts                 GET — no ?gradeId=: legacy subject grouping (homepage); with ?gradeId=: taxonomy Subjects for that Grade
       grades/route.ts                   GET — all Grades ordered by sortOrder (see Education Taxonomy below)
       lessons/route.ts                  GET ?subjectId=... — Lessons/Topics for one Subject
@@ -121,7 +124,7 @@ src/
     SearchFilters.tsx                   client component: Grade → Subject → Lesson/Topic + Document Type + Sort, URL-driven (see Search below)
     DocumentCard.tsx                    title, taxonomy/subject, type, academic year, description
     SubjectCard.tsx                     subject + live document count
-    SiteHeader.tsx                      logo, nav, session-aware login/profile/logout/upload/saved
+    SiteHeader.tsx                      logo, nav, session-aware login/profile/logout/upload/saved/following
     FilePreview.tsx                     PDF/image/video/docx preview, unsupported/unavailable placeholders
     DocxPreview.tsx                     client-only .docx renderer (docx-preview), loading/error states
     docx-preview-render.ts              fetch + render orchestration used by DocxPreview (unit-testable)
@@ -135,6 +138,10 @@ src/
     CommentItem.tsx                     one comment — inline Edit (textarea) and inline delete confirmation, owner/ADMIN-gated (see Comments below)
     ReportDocumentAction.tsx            small secondary link + inline expandable form; guest login link, reason select + optional/required description (see Reporting below)
     BookmarkAction.tsx                   heart-icon toggle (♡ Save document / ♥ Saved); guest login link (see Bookmarks below)
+    TeacherFollowAction.tsx             follow/unfollow toggle shown next to the uploader on /documents/[id] when they're a TEACHER; hidden for self (see Follow below)
+    LessonFollowAction.tsx              follow/unfollow toggle shown next to the Lesson on /documents/[id] when the Document has one (see Follow below)
+    FollowedTeachersList.tsx            client list on /following — Unfollow removes the item from the current page immediately (see Follow below)
+    FollowedLessonsList.tsx             client list on /following — same Unfollow pattern as FollowedTeachersList (see Follow below)
   lib/
     prisma.ts                       Prisma client singleton
     api-client.ts                   server-side fetch helpers used by the pages
@@ -151,7 +158,7 @@ src/
       register.ts                   registerStudent() — role always STUDENT
       authorize.ts                  requireAuth(), requireRole(), hasRole()
       callback-url.ts               isSafeCallbackUrl()/resolveCallbackUrl() — open-redirect guard for ?callbackUrl=
-      document-login-href.ts        documentLoginHref() / loginHrefFor() — shared /login?callbackUrl= builder (Download, Rating, Comments, Reporting, Bookmarks/Saved)
+      document-login-href.ts        documentLoginHref() / loginHrefFor() — shared /login?callbackUrl= builder (Download, Rating, Comments, Reporting, Bookmarks/Saved, Follow/Following)
     documents/
       upload.ts                     uploadDocument() — validate taxonomy + file, store, create Document
       upload-config.ts              MAX_UPLOAD_SIZE_MB / MAX_UPLOAD_SIZE_BYTES (central config)
@@ -173,6 +180,10 @@ src/
       bookmark-config.ts             SAVED_PAGE_SIZE (central config)
     storage/
       local-storage.ts              format/category rules, safe keys, fs read/write/delete, plus statLocalFile/createLocalFileReadStream reused by both preview and download
+    follow/
+      teacher-follow.ts             isFollowingTeacher()/followTeacher()/unfollowTeacher()/listFollowedTeachers() — TEACHER-only target, self-follow rejected (see Follow below)
+      lesson-follow.ts              isFollowingLesson()/followLesson()/unfollowLesson()/listFollowedLessons() (see Follow below)
+      follow-config.ts              FOLLOWING_PAGE_SIZE (central config, shared by Teachers/Lessons lists)
 ```
 
 ## API
@@ -203,6 +214,12 @@ src/
 | GET    | `/api/documents/:id/bookmark` | Requires any signed-in user. Returns `{ bookmarked }` for the caller only. See [Bookmarks](#bookmarks) |
 | POST   | `/api/documents/:id/bookmark` | Requires any signed-in user. Idempotent — adds (or confirms) the caller's own bookmark. See [Bookmarks](#bookmarks) |
 | DELETE | `/api/documents/:id/bookmark` | Requires any signed-in user. Removes the caller's own bookmark; safe if none exists. See [Bookmarks](#bookmarks) |
+| GET    | `/api/teachers/:teacherId/follow` | Requires any signed-in user. Returns `{ following }` for the caller only. See [Follow](#follow) |
+| POST   | `/api/teachers/:teacherId/follow` | Requires any signed-in user. Idempotent. `404` unless the target has role `TEACHER`; `400` on self-follow. See [Follow](#follow) |
+| DELETE | `/api/teachers/:teacherId/follow` | Requires any signed-in user. Removes the caller's own follow; safe if none exists. See [Follow](#follow) |
+| GET    | `/api/lessons/:lessonId/follow` | Requires any signed-in user. Returns `{ following }` for the caller only. See [Follow](#follow) |
+| POST   | `/api/lessons/:lessonId/follow` | Requires any signed-in user. Idempotent. `404` if the Lesson doesn't exist. See [Follow](#follow) |
+| DELETE | `/api/lessons/:lessonId/follow` | Requires any signed-in user. Removes the caller's own follow; safe if none exists. See [Follow](#follow) |
 
 All responses use `{ success, data, error }` (plus `meta` for list pagination),
 except `/api/documents/:id/preview` and `/api/documents/:id/download`, which
@@ -637,6 +654,64 @@ See [Search](#search) for the search/filter/sort/pagination contract.
 - **Feedback via the existing Sonner system** — "Document saved" /
   "Document removed from saved items" on success, "Unable to update
   saved document" on failure.
-- **Not built yet:** Follow Teacher, Follow Lesson, Notifications, bookmark
-  counts, trending-by-bookmark, collections/folders, and social sharing —
-  see `FEATURES.md`.
+- **Not built yet:** Notifications, bookmark counts, trending-by-bookmark,
+  collections/folders, and social sharing — see `FEATURES.md`.
+
+## Follow
+
+- **Two independent follow relationships** — Follow Teacher
+  (`TeacherFollow`, unique on `(followerId, teacherId)`) and Follow Lesson
+  (`LessonFollow`, unique on `(userId, lessonId)`). Any signed-in user —
+  STUDENT, TEACHER, or ADMIN — can follow either kind; guests see the
+  action but clicking it goes to `/login?callbackUrl=...` (same
+  `loginHrefFor()`/`documentLoginHref()` helper every other guest-facing
+  action uses) — nothing is ever followed before login, and login never
+  auto-follows afterward.
+- **Only a `role = TEACHER` User can be a Teacher-follow target** —
+  `POST /api/teachers/:teacherId/follow` looks the target up and checks
+  its role; a STUDENT/ADMIN id and a nonexistent id both return `404`
+  identically, so the endpoint never confirms whether an arbitrary user
+  id exists. One TEACHER may freely follow a different TEACHER.
+- **Self-follow is blocked** — a TEACHER cannot follow themselves
+  (`followerId === teacherId` is rejected with a friendly `400` before
+  any database lookup); the UI hides the Follow action entirely on a
+  Document uploaded by the viewer.
+- **Adding is idempotent, removing is safe** — both `POST` endpoints
+  `upsert` on their compound unique key (a repeat follow never creates a
+  second row); both `DELETE` endpoints use `deleteMany` (matches zero
+  rows without throwing if there's nothing to remove). Neither endpoint
+  reads a request body — `teacherId`/`lessonId` come from the route,
+  `followerId`/`userId` from the session, so there's no field for a
+  client to spoof.
+- **Document Detail UI** — `TeacherFollowAction.tsx` appears next to the
+  uploader's name in the file metadata block, but only when
+  `uploadedBy.role === "TEACHER"` (never for a legacy/STUDENT-uploaded
+  Document). `LessonFollowAction.tsx` appears next to the Lesson name in
+  the taxonomy metadata row, but only when the Document has a structured
+  Lesson (never for legacy Documents with no Lesson relation). Both are
+  small secondary text links, not buttons — they never compete visually
+  with Preview/Download.
+- **`/following`** — requires auth (`/login?callbackUrl=/following` for
+  guests). Two sections, **Followed Teachers** and **Followed Lessons**,
+  each ordered newest-followed-first (the follow row's own `createdAt`,
+  not the Teacher/Lesson's creation date) and paginated independently via
+  `?teachersPage=`/`?lessonsPage=`, capped at `FOLLOWING_PAGE_SIZE` (12,
+  `src/lib/follow/follow-config.ts`) — never an unbounded query. Each
+  list only ever queries the signed-in user's own follows — no other
+  user's Following list is ever exposed. Teachers show name + document
+  count (an efficient Prisma `_count`, no N+1) — never email. Lessons
+  show Grade/Subject/Lesson name. Clicking "Unfollow" removes the item
+  from the current page instantly. A "Following" link appears in the
+  header for any signed-in user.
+- **No follower counts anywhere** — neither Teacher nor Lesson exposes a
+  public follower count, popularity ranking, or recommendation surface;
+  the follow tables exist so a future Admin/notification step can query
+  "who follows this Teacher/Lesson," not to display counts now.
+- **Feedback via the existing Sonner system** — "Teacher followed" /
+  "Teacher unfollowed" / "Lesson followed" / "Lesson unfollowed" on
+  success, "Unable to update follow status" on failure.
+- **Not built yet:** any notification generation, a notification table,
+  a notification bell, unread state, or email/push delivery — this step
+  only creates and manages the follow relationships themselves. A future
+  step can query `TeacherFollow`/`LessonFollow` directly to decide who to
+  notify when a new Document is uploaded. See `FEATURES.md`.

@@ -58,6 +58,14 @@ model Document {
   @@index([gradeId])
   @@index([subjectId])
   @@index([lessonId])
+  // GIN/trigram indexes backing the `ILIKE '%term%'` search in
+  // src/app/api/documents/route.ts — without these, that query is a full
+  // sequential scan (confirmed via EXPLAIN) that gets linearly slower as
+  // the Document table grows. Requires the `pg_trgm` extension, enabled in
+  // this model's migration.
+  @@index([title(ops: raw("gin_trgm_ops"))], type: Gin, map: "Document_title_trgm_idx")
+  @@index([description(ops: raw("gin_trgm_ops"))], type: Gin, map: "Document_description_trgm_idx")
+  @@index([subject(ops: raw("gin_trgm_ops"))], type: Gin, map: "Document_subject_trgm_idx")
 }
 
 /**
@@ -235,6 +243,8 @@ model Subject {
 
   @@unique([gradeId, code])
   @@index([gradeId])
+  /// GIN/trigram index backing the `subjectRef.name` ILIKE search — see Document's title/description/subject indexes above.
+  @@index([name(ops: raw("gin_trgm_ops"))], type: Gin, map: "Subject_name_trgm_idx")
 }
 
 /** A Lesson/Topic belongs to exactly one Subject. */
@@ -253,6 +263,8 @@ model Lesson {
 
   @@unique([subjectId, code])
   @@index([subjectId])
+  /// GIN/trigram index backing the `lesson.name` ILIKE search — see Document's title/description/subject indexes above.
+  @@index([name(ops: raw("gin_trgm_ops"))], type: Gin, map: "Lesson_name_trgm_idx")
 }
 
 model User {

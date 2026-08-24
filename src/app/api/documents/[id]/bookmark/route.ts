@@ -1,6 +1,6 @@
 import type { NextRequest } from "next/server";
 import { auth } from "@/auth";
-import { apiError, apiSuccess } from "@/lib/api-response";
+import { apiError, apiSuccess, PRIVATE_NO_STORE_HEADERS } from "@/lib/api-response";
 import { addBookmark, isBookmarked, removeBookmark } from "@/lib/documents/bookmark";
 import { prisma } from "@/lib/prisma";
 
@@ -18,7 +18,7 @@ export async function GET(_request: NextRequest, { params }: RouteContext) {
     if (!document) return apiError("Document not found", 404);
 
     const bookmarked = await isBookmarked(id, session.user.id);
-    return apiSuccess({ bookmarked });
+    return apiSuccess({ bookmarked }, { headers: PRIVATE_NO_STORE_HEADERS });
   } catch (error) {
     console.error(`GET /api/documents/${id}/bookmark failed`, error);
     return apiError("Failed to load saved state", 500);

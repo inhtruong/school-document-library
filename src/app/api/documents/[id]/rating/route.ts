@@ -2,6 +2,8 @@ import type { NextRequest } from "next/server";
 import { auth } from "@/auth";
 import { apiError, apiSuccess } from "@/lib/api-response";
 import { prisma } from "@/lib/prisma";
+import { RATING_RATE_LIMIT } from "@/lib/security/rate-limit-config";
+import { checkRateLimit, tooManyRequestsResponse } from "@/lib/security/rate-limit";
 import { rateDocumentSchema } from "@/lib/validation/rating";
 
 type RouteContext = { params: Promise<{ id: string }> };
@@ -18,6 +20,9 @@ export async function PUT(request: NextRequest, { params }: RouteContext) {
 
   const session = await auth();
   if (!session?.user) return apiError("Authentication required", 401);
+
+  const rateLimit = checkRateLimit({ scope: "rating", identity: session.user.id, ...RATING_RATE_LIMIT });
+  if (rateLimit.limited) return tooManyRequestsResponse(rateLimit.retryAfterSeconds);
 
   let body: unknown;
   try {

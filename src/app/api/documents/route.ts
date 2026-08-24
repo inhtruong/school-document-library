@@ -1,5 +1,7 @@
 import type { NextRequest } from "next/server";
+import { auth } from "@/auth";
 import { apiError, apiSuccess, type ApiMeta } from "@/lib/api-response";
+import { hasRole } from "@/lib/auth/authorize";
 import { parseSearchQuery } from "@/lib/documents/search-query";
 import { searchDocuments } from "@/lib/documents/search";
 import { prisma } from "@/lib/prisma";
@@ -62,7 +64,22 @@ export async function GET(request: NextRequest) {
   }
 }
 
+/**
+ * Legacy metadata-only creation path (predates the taxonomy-aware upload
+ * flow in @/lib/documents/upload.ts — Step 6A). Kept for API compatibility,
+ * but must enforce the same TEACHER/ADMIN boundary as document upload; it
+ * had no authorization check at all until Step 13C, which is a bug, not
+ * intended behavior — the UI never called this route unauthenticated.
+ */
 export async function POST(request: NextRequest) {
+  const session = await auth();
+  if (!session?.user) {
+    return apiError("You must be signed in to create documents", 401);
+  }
+  if (!hasRole(session, ["TEACHER", "ADMIN"])) {
+    return apiError("Only teachers and admins can create documents", 403);
+  }
+
   let body: unknown;
   try {
     body = await request.json();

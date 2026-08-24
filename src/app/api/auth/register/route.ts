@@ -1,8 +1,17 @@
 import type { NextRequest } from "next/server";
 import { apiError, apiSuccess } from "@/lib/api-response";
 import { registerStudent } from "@/lib/auth/register";
+import { REGISTER_RATE_LIMIT } from "@/lib/security/rate-limit-config";
+import { checkRateLimit, getClientIp, tooManyRequestsResponse } from "@/lib/security/rate-limit";
 
 export async function POST(request: NextRequest) {
+  const rateLimit = checkRateLimit({
+    scope: "register",
+    identity: getClientIp(request),
+    ...REGISTER_RATE_LIMIT,
+  });
+  if (rateLimit.limited) return tooManyRequestsResponse(rateLimit.retryAfterSeconds);
+
   let body: unknown;
   try {
     body = await request.json();

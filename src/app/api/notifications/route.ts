@@ -1,6 +1,6 @@
 import type { NextRequest } from "next/server";
 import { auth } from "@/auth";
-import { apiError, apiSuccess } from "@/lib/api-response";
+import { apiError, apiSuccess, PRIVATE_NO_STORE_HEADERS } from "@/lib/api-response";
 import { listNotifications } from "@/lib/notifications/notification";
 
 function parsePage(value: string | null): number {
@@ -29,6 +29,7 @@ export async function GET(request: NextRequest) {
         totalPages: result.totalPages,
         unreadCount: result.unreadCount,
       },
+      headers: PRIVATE_NO_STORE_HEADERS,
     });
   } catch (error) {
     console.error("GET /api/notifications failed", error);

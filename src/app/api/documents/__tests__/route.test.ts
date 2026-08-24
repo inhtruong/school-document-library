@@ -1,4 +1,5 @@
 import { NextRequest } from "next/server";
+import type { Session } from "next-auth";
 import { beforeEach, describe, expect, test, vi } from "vitest";
 
 vi.mock("@/lib/prisma", () => ({
@@ -14,8 +15,23 @@ vi.mock("@/lib/prisma", () => ({
   },
 }));
 
+vi.mock("@/auth", () => ({ auth: vi.fn() }));
+
+import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { GET, POST } from "@/app/api/documents/route";
+
+const TEACHER_SESSION: Session = {
+  user: { id: "teacher_1", role: "TEACHER", name: "Ms. Teacher", email: "teacher@example.com" },
+  expires: "2099-01-01T00:00:00.000Z",
+};
+const STUDENT_SESSION: Session = {
+  user: { id: "student_1", role: "STUDENT", name: "A Student", email: "student@example.com" },
+  expires: "2099-01-01T00:00:00.000Z",
+};
+
+// `auth` is polymorphic (plain call vs. middleware signature); pin the overload we use.
+const mockAuth = vi.mocked(auth as unknown as () => Promise<Session | null>);
 
 const createdAt = new Date("2025-01-01T00:00:00.000Z");
 const updatedAt = new Date("2025-01-02T00:00:00.000Z");
@@ -66,6 +82,7 @@ beforeEach(() => {
   vi.mocked(prisma.grade.findUnique).mockResolvedValue(null);
   vi.mocked(prisma.subject.findUnique).mockResolvedValue(null);
   vi.mocked(prisma.lesson.findUnique).mockResolvedValue(null);
+  mockAuth.mockResolvedValue(TEACHER_SESSION);
 });
 
 function lastFindManyArgs() {
@@ -360,5 +377,41 @@ describe("POST /api/documents", () => {
     const response = await POST(request);
 
     expect(response.status).toBe(400);
+  });
+
+  test("rejects an unauthenticated caller with 401 and never touches the database", async () => {
+    mockAuth.mockResolvedValue(null);
+    const request = new NextRequest("http://localhost/api/documents", {
+      method: "POST",
+      body: JSON.stringify({
+        title: "Database Final Exam 2025",
+        subject: "Database",
+        documentType: "EXAM",
+        academicYear: "2024-2025",
+      }),
+    });
+
+    const response = await POST(request);
+
+    expect(response.status).toBe(401);
+    expect(prisma.document.create).not.toHaveBeenCalled();
+  });
+
+  test("rejects a STUDENT caller with 403 and never touches the database", async () => {
+    mockAuth.mockResolvedValue(STUDENT_SESSION);
+    const request = new NextRequest("http://localhost/api/documents", {
+      method: "POST",
+      body: JSON.stringify({
+        title: "Database Final Exam 2025",
+        subject: "Database",
+        documentType: "EXAM",
+        academicYear: "2024-2025",
+      }),
+    });
+
+    const response = await POST(request);
+
+    expect(response.status).toBe(403);
+    expect(prisma.document.create).not.toHaveBeenCalled();
   });
 });

@@ -27,7 +27,7 @@ type ErrorBody = {
 
 export function apiSuccess<T>(
   data: T,
-  options?: { status?: number; meta?: ApiMeta }
+  options?: { status?: number; meta?: ApiMeta; headers?: HeadersInit }
 ) {
   const body: SuccessBody<T> = {
     success: true,
@@ -35,8 +35,11 @@ export function apiSuccess<T>(
     error: null,
     ...(options?.meta ? { meta: options.meta } : {}),
   };
-  return NextResponse.json(body, { status: options?.status ?? 200 });
+  return NextResponse.json(body, { status: options?.status ?? 200, headers: options?.headers });
 }
+
+/** Response headers for a private, per-user GET result — never cacheable by a shared/proxy cache. */
+export const PRIVATE_NO_STORE_HEADERS: HeadersInit = { "Cache-Control": "private, no-store" };
 
 export function apiError(message: string, status = 400) {
   const body: ErrorBody = { success: false, data: null, error: message };

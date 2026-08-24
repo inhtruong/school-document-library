@@ -4,6 +4,8 @@ import { apiError, apiSuccess } from "@/lib/api-response";
 import { COMMENTS_PAGE_SIZE } from "@/lib/documents/comment-config";
 import { createComment, listComments } from "@/lib/documents/comment";
 import { prisma } from "@/lib/prisma";
+import { COMMENT_RATE_LIMIT } from "@/lib/security/rate-limit-config";
+import { checkRateLimit, tooManyRequestsResponse } from "@/lib/security/rate-limit";
 import { commentContentSchema } from "@/lib/validation/comment";
 
 type RouteContext = { params: Promise<{ id: string }> };
@@ -48,6 +50,9 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
 
   const session = await auth();
   if (!session?.user) return apiError("Authentication required", 401);
+
+  const rateLimit = checkRateLimit({ scope: "comment", identity: session.user.id, ...COMMENT_RATE_LIMIT });
+  if (rateLimit.limited) return tooManyRequestsResponse(rateLimit.retryAfterSeconds);
 
   let body: unknown;
   try {

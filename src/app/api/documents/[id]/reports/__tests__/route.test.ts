@@ -13,6 +13,7 @@ vi.mock("@/lib/prisma", () => ({
 import type { Session } from "next-auth";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
+import { resetRateLimitsForTests } from "@/lib/security/rate-limit";
 import { POST } from "@/app/api/documents/[id]/reports/route";
 
 const mockAuth = vi.mocked(auth as unknown as () => Promise<Session | null>);
@@ -34,6 +35,7 @@ function postRequest(body: unknown) {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  resetRateLimitsForTests();
   vi.mocked(prisma.document.findUnique).mockResolvedValue({ id: "doc_1" } as never);
   vi.mocked(prisma.documentReport.findFirst).mockResolvedValue(null);
   vi.mocked(prisma.documentReport.create).mockResolvedValue(

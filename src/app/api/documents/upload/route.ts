@@ -3,6 +3,8 @@ import { auth } from "@/auth";
 import { apiError, apiSuccess } from "@/lib/api-response";
 import { hasRole } from "@/lib/auth/authorize";
 import { uploadDocument } from "@/lib/documents/upload";
+import { UPLOAD_RATE_LIMIT } from "@/lib/security/rate-limit-config";
+import { checkRateLimit, tooManyRequestsResponse } from "@/lib/security/rate-limit";
 
 export async function POST(request: NextRequest) {
   const session = await auth();
@@ -12,6 +14,9 @@ export async function POST(request: NextRequest) {
   if (!hasRole(session, ["TEACHER", "ADMIN"])) {
     return apiError("Only teachers and admins can upload documents", 403);
   }
+
+  const rateLimit = checkRateLimit({ scope: "upload", identity: session.user.id, ...UPLOAD_RATE_LIMIT });
+  if (rateLimit.limited) return tooManyRequestsResponse(rateLimit.retryAfterSeconds);
 
   let formData: FormData;
   try {

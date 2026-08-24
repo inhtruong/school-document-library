@@ -6,6 +6,7 @@ vi.mock("@/lib/prisma", () => ({
 }));
 
 import { prisma } from "@/lib/prisma";
+import { resetRateLimitsForTests } from "@/lib/security/rate-limit";
 import { POST } from "@/app/api/auth/register/route";
 
 const mockUser = {
@@ -17,6 +18,7 @@ const mockUser = {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  resetRateLimitsForTests();
   vi.mocked(prisma.user.findUnique).mockResolvedValue(null);
 });
 

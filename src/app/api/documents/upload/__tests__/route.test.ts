@@ -7,6 +7,7 @@ vi.mock("@/lib/documents/upload", () => ({ uploadDocument: vi.fn() }));
 import type { Session } from "next-auth";
 import { auth } from "@/auth";
 import { uploadDocument } from "@/lib/documents/upload";
+import { resetRateLimitsForTests } from "@/lib/security/rate-limit";
 import { POST } from "@/app/api/documents/upload/route";
 
 // `auth` is polymorphic (plain call vs. middleware signature); pin the overload we use.
@@ -27,6 +28,7 @@ const mockDocument = { id: "doc_1", title: "Midterm Exam" };
 
 beforeEach(() => {
   vi.clearAllMocks();
+  resetRateLimitsForTests();
 });
 
 describe("POST /api/documents/upload", () => {

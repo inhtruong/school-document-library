@@ -1,6 +1,6 @@
 import type { NextRequest } from "next/server";
 import { auth } from "@/auth";
-import { apiError, apiSuccess } from "@/lib/api-response";
+import { apiError, apiSuccess, PRIVATE_NO_STORE_HEADERS } from "@/lib/api-response";
 import { followLesson, isFollowingLesson, unfollowLesson } from "@/lib/follow/lesson-follow";
 
 type RouteContext = { params: Promise<{ lessonId: string }> };
@@ -14,7 +14,7 @@ export async function GET(_request: NextRequest, { params }: RouteContext) {
 
   try {
     const following = await isFollowingLesson(session.user.id, lessonId);
-    return apiSuccess({ following });
+    return apiSuccess({ following }, { headers: PRIVATE_NO_STORE_HEADERS });
   } catch (error) {
     console.error(`GET /api/lessons/${lessonId}/follow failed`, error);
     return apiError("Failed to load follow state", 500);

@@ -15,6 +15,7 @@ import type { Session } from "next-auth";
 import { auth } from "@/auth";
 import { COMMENTS_PAGE_SIZE } from "@/lib/documents/comment-config";
 import { prisma } from "@/lib/prisma";
+import { resetRateLimitsForTests } from "@/lib/security/rate-limit";
 import { GET, POST } from "@/app/api/documents/[id]/comments/route";
 
 const mockAuth = vi.mocked(auth as unknown as () => Promise<Session | null>);
@@ -42,6 +43,7 @@ function postRequest(body: unknown) {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  resetRateLimitsForTests();
   vi.mocked(prisma.document.findUnique).mockResolvedValue({ id: "doc_1" } as never);
   vi.mocked(prisma.documentComment.findMany).mockResolvedValue([]);
   vi.mocked(prisma.documentComment.count).mockResolvedValue(0);

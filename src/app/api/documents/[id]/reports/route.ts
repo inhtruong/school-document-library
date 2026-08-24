@@ -3,6 +3,8 @@ import { auth } from "@/auth";
 import { apiError, apiSuccess } from "@/lib/api-response";
 import { createReport } from "@/lib/documents/report";
 import { prisma } from "@/lib/prisma";
+import { REPORT_RATE_LIMIT } from "@/lib/security/rate-limit-config";
+import { checkRateLimit, tooManyRequestsResponse } from "@/lib/security/rate-limit";
 import { createReportSchema } from "@/lib/validation/report";
 
 type RouteContext = { params: Promise<{ id: string }> };
@@ -19,6 +21,9 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
 
   const session = await auth();
   if (!session?.user) return apiError("Authentication required", 401);
+
+  const rateLimit = checkRateLimit({ scope: "report", identity: session.user.id, ...REPORT_RATE_LIMIT });
+  if (rateLimit.limited) return tooManyRequestsResponse(rateLimit.retryAfterSeconds);
 
   let body: unknown;
   try {

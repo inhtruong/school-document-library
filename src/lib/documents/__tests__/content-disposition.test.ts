@@ -42,4 +42,21 @@ describe("buildContentDisposition", () => {
     const header = buildContentDisposition("Lecture Notes.docx");
     expect(header).not.toContain("storage_local");
   });
+
+  test("path-traversal-shaped filenames produce a well-formed header (Step 13C regression)", () => {
+    // This function only formats a header value — it never touches the
+    // filesystem (see resolveStoragePath in local-storage.ts, which is the
+    // actual traversal guard, and never derives a path from this filename).
+    // Still worth pinning: no header-injection or malformed output results.
+    const header = buildContentDisposition("../../secret.pdf");
+    expect(header.startsWith("attachment;")).toBe(true);
+    expect(header).not.toMatch(/\r|\n/);
+  });
+
+  test("a very long filename still produces a single well-formed header line", () => {
+    const longName = `${"a".repeat(500)}.pdf`;
+    const header = buildContentDisposition(longName);
+    expect(header.startsWith("attachment;")).toBe(true);
+    expect(header).not.toMatch(/\r|\n/);
+  });
 });

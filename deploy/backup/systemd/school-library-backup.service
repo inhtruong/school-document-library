@@ -1,0 +1,40 @@
+# school-library-backup.service — backup-all.sh systemd unit template (Step 13D)
+#
+# Repository template only — NOT installed on any server by this task, and
+# NOT wired up to run automatically anywhere. To use on the real VPS (a
+# later, manual, separate step):
+#   sudo cp deploy/backup/systemd/school-library-backup.service /etc/systemd/system/
+#   sudo cp deploy/backup/systemd/school-library-backup.timer /etc/systemd/system/
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable --now school-library-backup.timer
+#
+# Runs as a one-shot Type=oneshot unit, triggered by the paired .timer
+# (see that file) — this unit itself does nothing on its own until the
+# timer (or a manual `systemctl start`) fires it.
+#
+# Assumes VPS-09's prerequisites already exist: a "schoolapp" system user
+# with read access to /etc/school-library/production.env and write access
+# to /var/lib/school-library/backups, and the repo checked out somewhere
+# this ExecStart path can reach (adjust WorkingDirectory/ExecStart to match
+# the real deploy layout — this is a template, not a working default).
+
+[Unit]
+Description=School Library — full backup (PostgreSQL + storage)
+After=network.target postgresql.service
+
+[Service]
+Type=oneshot
+User=schoolapp
+Group=schoolapp
+# Adjust to the real deployed repo path — see deploy/scripts/deploy.sh's
+# own REPO_DIR/current symlink for the equivalent convention.
+WorkingDirectory=/var/www/school-library/current
+ExecStart=/var/www/school-library/current/deploy/backup/backup-all.sh
+
+# Light hardening — same reasoning as school-library.service (Step 13B):
+# kept deliberately light, not a full lockdown.
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=true
+ProtectSystem=strict
+ReadWritePaths=/var/lib/school-library/backups

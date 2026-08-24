@@ -1,0 +1,24 @@
+# school-library-backup.timer — daily trigger for school-library-backup.service (Step 13D)
+#
+# Repository template only — NOT installed on any server by this task.
+# See school-library-backup.service's header for install instructions.
+#
+# Fires backup-all.sh once daily. This is a PREPARATION artifact — no
+# schedule is active until an operator installs and enables this on the
+# real VPS, in a later, separate step. Off-site sync (sync-backups.sh) and
+# periodic restore-drill verification are NOT triggered by this timer —
+# see the Step 13D final report for the recommended future schedule.
+
+[Unit]
+Description=Daily trigger for School Library backup
+
+[Timer]
+OnCalendar=daily
+# Spreads the actual run a little after midnight rather than exactly at
+# it, and catches up on the next boot if the VPS was down at the scheduled
+# time — reasonable defaults, not load-bearing.
+RandomizedDelaySec=1800
+Persistent=true
+
+[Install]
+WantedBy=timers.target

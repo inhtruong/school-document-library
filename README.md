@@ -68,13 +68,16 @@ log in and returned to the same document. No AI yet.
 ## Scripts
 
 ```
-npm run dev           start the Next.js dev server
-npm run build         production build
-npm run db:generate   regenerate the Prisma client
-npm run db:migrate    create/apply a migration (dev)
-npm run db:seed       reset and reseed sample documents
-npm run db:studio     open Prisma Studio to browse the database
-npm test              run the Vitest suite
+npm run dev                start the Next.js dev server
+npm run build              production build
+npm start                  run a production build (npm run build first) — binds 127.0.0.1:3000 only, see Production below
+npm run db:generate        regenerate the Prisma client
+npm run db:migrate         create/apply a migration (dev)
+npm run db:migrate:deploy  apply pending migrations without prompting (production — see Production below)
+npm run db:seed            reset and reseed sample documents (refuses to run when NODE_ENV=production)
+npm run create-admin       interactively create the first production ADMIN account (see Production below)
+npm run db:studio          open Prisma Studio to browse the database
+npm test                   run the Vitest suite
 ```
 
 ## What's here
@@ -83,7 +86,8 @@ npm test              run the Vitest suite
 storage_local/                    uploaded files, auto-created (gitignored) — see Uploads below
 prisma/
   schema.prisma                   Document, User, Grade, Subject, Lesson, DocumentRating, DocumentComment, DocumentReport, DocumentBookmark, TeacherFollow, LessonFollow, Notification models + Role/FileCategory/DocumentType/ReportReason/ReportStatus/NotificationType enums
-  seed.ts                         taxonomy (grades/subjects/lessons) + sample documents + dev accounts
+  seed.ts                         taxonomy (grades/subjects/lessons) + sample documents + dev accounts — refuses to run when NODE_ENV=production (see Production below)
+  create-admin.ts                 npm run create-admin — interactive CLI to create the first production ADMIN account (see Production below)
 src/
   auth.ts                         Auth.js config: Credentials provider, JWT callbacks
   app/
@@ -123,6 +127,7 @@ src/
       lessons/route.ts                  GET ?subjectId=... — Lessons/Topics for one Subject
       auth/[...nextauth]/route.ts       Auth.js handlers (session, sign-in/out)
       auth/register/route.ts            POST — always creates STUDENT
+      health/route.ts                   GET — public, { status, checks: { database } } for VPS monitoring/deploy verification (see Production below)
   components/
     ui/                                 Button, Input, Badge, Card primitives
     SearchBar.tsx                       client component; pushes ?q=..., preserving any active filters/sort from the URL
@@ -151,7 +156,8 @@ src/
     NotificationItem.tsx                one notification — click marks it read and navigates to the Document (see Notifications below)
   lib/
     prisma.ts                       Prisma client singleton
-    api-client.ts                   server-side fetch helpers used by the pages
+    env.ts                          "server-only"-guarded re-export of env-core.ts — real app code imports this (see Production below)
+    env-core.ts                     unguarded env config logic: STORAGE_ROOT/MAX_UPLOAD_SIZE_MB/APP_URL readers + validateProductionEnv() — only next.config.ts/prisma/*.ts import this directly (see Production below)
     api-response.ts                 { success, data, error, meta } response envelope
     validation/document.ts          zod schemas for create/update
     validation/auth.ts              zod schemas for register/login
@@ -163,6 +169,7 @@ src/
       authenticate.ts               Credentials provider authorize() logic
       session.ts                    jwt/session callback logic
       register.ts                   registerStudent() — role always STUDENT
+      create-admin.ts                createAdminUser() — role always ADMIN, used only by prisma/create-admin.ts (see Production below)
       authorize.ts                  requireAuth(), requireRole(), hasRole()
       callback-url.ts               isSafeCallbackUrl()/resolveCallbackUrl() — open-redirect guard for ?callbackUrl=
       document-login-href.ts        documentLoginHref() / loginHrefFor() — shared /login?callbackUrl= builder (Download, Rating, Comments, Reporting, Bookmarks/Saved, Follow/Following, Notifications)
@@ -251,7 +258,8 @@ See [Search](#search) for the search/filter/sort/pagination contract.
 - Server-side authorization helpers in `src/lib/auth/authorize.ts`:
   `requireAuth()` and `requireRole("TEACHER")` / `requireRole(["TEACHER", "ADMIN"])`.
   Authorization is enforced server-side, never by hiding UI elements.
-- Development seed accounts (created by `npm run db:seed`):
+- Development seed accounts (created by `npm run db:seed`; this script
+  refuses to run when `NODE_ENV=production` — see [Production](#production)):
 
   | Email | Password | Role |
   | --- | --- | --- |
@@ -400,11 +408,12 @@ See [Search](#search) for the search/filter/sort/pagination contract.
   containment check that rejects anything (e.g. `../..`) that would escape
   `storage_local/`.
 - **Known MVP limitation:** files live on the app server's local disk. This
-  is fine for a single-instance/local setup, but does **not** survive
-  redeploys on most serverless/ephemeral-filesystem hosts and won't be shared
-  across multiple app instances — swapping in a real storage backend later
-  only requires changing `src/lib/storage/local-storage.ts`, since nothing
-  else in the app talks to the filesystem directly.
+  is fine for a single-instance VPS setup — see [Production](#production) for
+  keeping that disk persistent and outside the release directory — but does
+  **not** survive redeploys on serverless/ephemeral-filesystem hosts and
+  won't be shared across multiple app instances — swapping in a real storage
+  backend later only requires changing `src/lib/storage/local-storage.ts`,
+  since nothing else in the app talks to the filesystem directly.
 
 ## Preview
 
@@ -793,3 +802,152 @@ See [Search](#search) for the search/filter/sort/pagination contract.
 - **Not built yet:** email notifications, push notifications, notification
   preferences/subscriptions beyond Follow Teacher/Lesson, comment/rating/
   report notifications, and any AI — see `FEATURES.md`.
+
+## Production
+
+Step 13A — production-readiness configuration for a single Ubuntu VPS
+(Nginx → `127.0.0.1:3000` → Next.js → local PostgreSQL). This step only
+changes configuration/operations, not product behavior — see
+`FEATURES.md`. Later sub-steps (systemd/deploy scripts, Nginx config itself,
+security hardening, backups) are explicitly out of scope here.
+
+### Production start sequence
+
+```bash
+npm ci
+npm test
+npx tsc --noEmit
+npx prisma generate
+npm run db:migrate:deploy
+npm run build
+npm start
+```
+
+Build and runtime should use the **same** production `.env` — see
+`MAX_UPLOAD_SIZE_MB` below for why a mismatch between the env used at
+`npm run build` time and at `npm start` time can silently produce an
+inconsistent upload-size ceiling.
+
+### Binds to `127.0.0.1:3000` only
+
+`npm start` runs `next start -H 127.0.0.1`, not plain `next start`. Plain
+`next start` binds to all interfaces (`*:3000`/`0.0.0.0:3000`) by
+default — verified directly: starting it without the flag showed
+`TCP *:3002 (LISTEN)` in the socket table, while `npm start` shows only
+`TCP 127.0.0.1:3000 (LISTEN)`. Nginx (Step 13B) will proxy to
+`127.0.0.1:3000`; the app itself never listens publicly, so a firewall
+misconfiguration alone can't expose it directly. `npm run dev` is
+unaffected — development keeps its normal bind behavior. The port stays
+configurable via the standard `PORT` env var (only the hostname is forced).
+
+### Centralized env config, split for client/server safety
+
+`src/lib/env-core.ts` holds all the actual `process.env` reading/validation
+logic and has **no** `"server-only"` guard, because `next.config.ts` and the
+CLI scripts under `prisma/` (run via `tsx`) both need it directly, and
+neither loading context tolerates the `server-only` package (confirmed via
+real `next build`/`tsx` failures otherwise). `src/lib/env.ts` re-exports
+everything from `env-core.ts` behind a `"server-only"` guard — real Next.js
+app code (Server Components, API routes, other server-only lib modules)
+imports from `@/lib/env`, so an accidental import from a Client Component
+still fails loudly at build time. No function here returns or logs a
+secret value — `getStorageRoot()`/`getMaxUploadSizeMB()`/`getAppUrl()`
+return infrastructure config, not credentials, and `validateProductionEnv()`
+only ever reports *which* variable is missing/invalid, never the value of
+`DATABASE_URL`/`AUTH_SECRET`.
+
+`validateProductionEnv()` runs once from `next.config.ts` — which Next.js
+loads before anything else for `next build` and `next dev`/`next start`
+alike — and throws a single combined error listing everything missing or
+invalid when `NODE_ENV=production`. A no-op outside production; dev/test
+are never affected.
+
+- **`STORAGE_ROOT`** — an absolute path for persistent upload storage,
+  required when `NODE_ENV=production` (a relative path is also rejected).
+  Development keeps using `./storage_local` (unchanged) when this is unset.
+  Intended VPS layout: source at `/var/www/school-library/current`, storage
+  at `/var/lib/school-library/storage` — kept outside the release directory
+  so a new deploy can never delete uploaded files. Nothing else about
+  upload/download/preview behavior changes — see [Uploads](#uploads).
+- **`MAX_UPLOAD_SIZE_MB`** — optional; unset intentionally defaults to 10
+  (unchanged). If set, it's parsed by one shared function used by both the
+  runtime getter and `validateProductionEnv()`, so "unset" (→ default 10,
+  never an error) and "set but invalid" are never confused: zero, negative,
+  and non-numeric values are all rejected with a clear
+  `next build`/`next start` failure in production, never silently coerced
+  to 10. Consumed in two places with two different timings — read by
+  `src/lib/documents/upload-config.ts` at server **start** (a restart alone
+  picks up a new value there) and baked into `next.config.ts`'s Server
+  Action body-size ceiling at **build** time (raising the limit only takes
+  effect there after a full `next build`, not just a restart) — this is why
+  the build-time and runtime `.env` must match; a build done with a lower
+  value than the one used at start time leaves the framework's hard ceiling
+  below the app's own limit for the Server Action upload path.
+- **`APP_URL`** — optional, and not required in production. Audited: no
+  request path in the app currently reads it (the self-fetch pattern that
+  used to need an absolute base URL was removed for performance — see
+  [Uploads](#uploads)/api-client.ts history). Kept only as documented,
+  *validated-if-set* config for ops (what Nginx's `server_name`/proxy target
+  should match) and any future absolute-URL need. When set, it must be a
+  valid `http://` or `https://` URL — anything else fails
+  `validateProductionEnv()` with a clear message; production should
+  normally use `https://` once Step 13B/HTTPS is in place, though that's
+  not yet enforced since the app doesn't consume the value at all.
+- **Production migrations** — `npm run db:migrate:deploy` (`prisma migrate
+  deploy`) applies pending migrations non-interactively; use this on the
+  VPS instead of `npm run db:migrate` (`prisma migrate dev`), which is
+  dev-only and can prompt/reset.
+- **Seed is production-blocked** — `prisma/seed.ts` refuses to run (exits
+  non-zero, touches the database not at all — the check runs before any
+  query) when `NODE_ENV=production`, since it deletes all Documents/Users
+  and recreates demo accounts with the public, well-known passwords
+  documented in [Auth](#auth) above. This is a hard fail, not a warning or
+  a confirmation prompt — there is no "continue anyway". Local development
+  is unaffected.
+- **First production ADMIN** — `npm run create-admin`
+  (`prisma/create-admin.ts`) interactively prompts for name/email/password
+  (password not echoed when run at a real terminal; falls back to a visible
+  prompt only for piped/non-TTY input) and creates one `ADMIN` user, reusing
+  the same validation as public registration. Never prints the password or
+  its hash back, at any point. There is no Admin registration page and no
+  API route for this — it's a one-time CLI step only. Refuses a duplicate
+  email; exits non-zero on any failure. Requires `tsx`, a devDependency —
+  keep dev dependencies installed for this one command even in an otherwise
+  production-pruned install.
+- **`GET /api/health`** — public, for VPS monitoring/deploy verification.
+  Checks the process is up and PostgreSQL is reachable (`SELECT 1`). Returns
+  `{ status: "ok" | "error", checks: { database: "ok" | "error" } }` with
+  `200`/`503`. Never includes `DATABASE_URL`, filesystem paths, secrets, or
+  stack traces — failures are logged in full server-side only. Intentionally
+  minimal — no dependency/monitoring-integration checks beyond the database.
+- **Logging** — audited every `console.error`/`console.log` call in `src/`
+  and `prisma/`: server-side logs include full error objects (useful for
+  troubleshooting via journald in Step 13B), but never a password,
+  `AUTH_SECRET`, session token, or `Authorization` header — the credentials
+  `authorize()` path (`src/lib/auth/authenticate.ts`) logs nothing at all.
+  User-facing API responses stay generic, as in every other step.
+- **Node.js 24 LTS** — `package.json`'s `engines.node` is `">=24 <25"` (not
+  the previously-broad `>=22`, which would also silently accept a future
+  major), matched by `.nvmrc` (`24`). Both were verified: the full Vitest
+  suite, `tsc --noEmit`, and `next build`/`npm start` all genuinely ran
+  under a real Node 24.19.0 install (not just checked against Next.js's
+  declared `engines` range), alongside this environment's own Node 26.0.0 —
+  both pass identically.
+- **Verified (all live, not just described):** full Vitest suite,
+  `tsc --noEmit`, and `next build` pass on both Node 24 and Node 26 with
+  `STORAGE_ROOT`/`AUTH_TRUST_HOST` set; `next build` correctly **fails**
+  with a clear, specific error for each of: missing `STORAGE_ROOT`, a
+  relative `STORAGE_ROOT`, `MAX_UPLOAD_SIZE_MB` set to `0`/negative/
+  non-numeric, and an invalid `APP_URL` — each checked individually.
+  `npm start` was run against a real Postgres with a temporary
+  `STORAGE_ROOT`: the socket table confirmed `127.0.0.1:3000` only (no
+  `0.0.0.0`/wildcard), `curl http://127.0.0.1:3000` and `/api/health` both
+  returned `200`, login worked, an uploaded file landed in the configured
+  `STORAGE_ROOT` (confirmed on disk) and was readable via preview/download,
+  `NODE_ENV=production npm run db:seed` failed before touching the database
+  (row counts confirmed unchanged), and `create-admin` created a working
+  `ADMIN` account, allowed login, and correctly rejected a duplicate email.
+  All verification data was deleted afterward.
+- **Not built yet (later sub-steps):** systemd unit files, deployment
+  scripts, release-directory automation, Nginx config, security headers,
+  rate limiting, and backup/restore tooling — see `FEATURES.md`.

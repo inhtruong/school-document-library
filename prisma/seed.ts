@@ -1,5 +1,8 @@
 import { PrismaClient } from "@prisma/client";
 import { hashPassword } from "../src/lib/auth/password";
+// env-core.ts, not "../src/lib/env" — the guarded wrapper imports
+// "server-only", which a plain tsx script can't tolerate.
+import { isProductionSeedBlocked } from "../src/lib/env-core";
 
 const prisma = new PrismaClient();
 
@@ -286,6 +289,19 @@ async function seedTaxonomyDocuments(lessonIds: Map<string, string>) {
 }
 
 async function main() {
+  // Never let this run against production — it would wipe every Document/User
+  // row and recreate demo accounts with well-known, publicly-documented
+  // passwords. Use `npm run create-admin` for a production ADMIN account.
+  if (isProductionSeedBlocked()) {
+    console.error(
+      "Refusing to run the development seed in production (NODE_ENV=production).\n" +
+        "This seed deletes all Documents/Users and creates demo accounts with public, well-known passwords.\n" +
+        "Use `npm run create-admin` to create your first production ADMIN account instead."
+    );
+    process.exitCode = 1;
+    return;
+  }
+
   await prisma.document.deleteMany();
   await prisma.document.createMany({ data: documents });
   console.log(`Seeded ${documents.length} legacy documents.`);

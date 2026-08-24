@@ -18,11 +18,11 @@ let testRoot: string;
 
 beforeAll(async () => {
   testRoot = await mkdtemp(path.join(tmpdir(), "stacks-storage-test-"));
-  process.env.STORAGE_LOCAL_ROOT = testRoot;
+  process.env.STORAGE_ROOT = testRoot;
 });
 
 afterAll(async () => {
-  delete process.env.STORAGE_LOCAL_ROOT;
+  delete process.env.STORAGE_ROOT;
   await rm(testRoot, { recursive: true, force: true });
 });
 

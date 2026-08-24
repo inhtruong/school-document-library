@@ -3,6 +3,7 @@ import { randomUUID } from "node:crypto";
 import { createReadStream } from "node:fs";
 import { mkdir, stat, unlink, writeFile } from "node:fs/promises";
 import path from "node:path";
+import { getStorageRoot as getConfiguredStorageRoot } from "@/lib/env";
 
 export const FILE_CATEGORIES = ["PDF", "WORD", "EXCEL", "IMAGE", "VIDEO"] as const;
 export type FileCategory = (typeof FILE_CATEGORIES)[number];
@@ -99,11 +100,14 @@ export function buildFileKey(category: FileCategory, extension: string): string 
   return path.posix.join(CATEGORY_FOLDERS[category], `${randomUUID()}${extension}`);
 }
 
+/**
+ * Resolves the storage root: `STORAGE_ROOT` (see `@/lib/env`) when set —
+ * required in production, see `validateProductionEnv()` — otherwise the
+ * dev-friendly default of `./storage_local` inside the project directory.
+ */
 function getStorageRoot(): string {
-  // Override hook for tests only; real usage always uses the project-root default.
-  return process.env.STORAGE_LOCAL_ROOT
-    ? path.resolve(process.env.STORAGE_LOCAL_ROOT)
-    : path.resolve(process.cwd(), "storage_local");
+  const configured = getConfiguredStorageRoot();
+  return configured ? path.resolve(configured) : path.resolve(process.cwd(), "storage_local");
 }
 
 /** Resolves a fileKey to an absolute path, rejecting anything that would escape the storage root. */

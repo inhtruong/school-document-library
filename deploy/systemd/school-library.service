@@ -1,0 +1,56 @@
+# school-library.service — systemd unit template (Step 13B)
+#
+# Repository template only — NOT installed on any server by this step.
+# To use on the real VPS (a later, manual step):
+#   sudo cp deploy/systemd/school-library.service /etc/systemd/system/
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable --now school-library
+#
+# Assumes the VPS prerequisites already exist (per VPS-09, out of scope
+# here): a "schoolapp" system user, /var/www/school-library/current (the
+# release symlink — see deploy/scripts/deploy.sh), and
+# /etc/school-library/production.env (see README's Production section for
+# required/optional variables).
+
+[Unit]
+Description=School Library — Next.js application
+After=network.target postgresql.service
+Wants=postgresql.service
+
+[Service]
+Type=simple
+User=schoolapp
+Group=schoolapp
+WorkingDirectory=/var/www/school-library/current
+
+# All production config (DATABASE_URL, AUTH_SECRET, AUTH_TRUST_HOST,
+# STORAGE_ROOT, MAX_UPLOAD_SIZE_MB, APP_URL, NODE_ENV=production, ...) comes
+# from this file — see src/lib/env-core.ts / README's Production section
+# for what's required. Never edit secrets into this unit file itself.
+EnvironmentFile=/etc/school-library/production.env
+
+# `npm start` runs `next start -H 127.0.0.1` (see package.json) — binds
+# 127.0.0.1:3000 only, never a public interface. Adjust the npm path below
+# to match the schoolapp user's actual Node 24 install (run
+# `sudo -u schoolapp which npm` on the VPS to confirm) — this placeholder
+# assumes a system-wide install, not a per-user nvm shim, since systemd
+# services don't reliably see shell-profile-managed PATHs.
+ExecStart=/usr/bin/npm start
+
+Restart=on-failure
+RestartSec=5
+
+# Hardening — kept light deliberately (Step 13C will review further).
+# Every directive below was chosen to NOT break: reading application files
+# under WorkingDirectory, writing STORAGE_ROOT, reading the env file above,
+# or connecting to PostgreSQL over the network.
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=true
+ProtectSystem=strict
+# Must match STORAGE_ROOT in production.env — the one path this service
+# needs write access to outside its read-only WorkingDirectory tree.
+ReadWritePaths=/var/lib/school-library/storage
+
+[Install]
+WantedBy=multi-user.target

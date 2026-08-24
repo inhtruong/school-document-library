@@ -948,6 +948,140 @@ are never affected.
   (row counts confirmed unchanged), and `create-admin` created a working
   `ADMIN` account, allowed login, and correctly rejected a duplicate email.
   All verification data was deleted afterward.
-- **Not built yet (later sub-steps):** systemd unit files, deployment
-  scripts, release-directory automation, Nginx config, security headers,
-  rate limiting, and backup/restore tooling — see `FEATURES.md`.
+- **Not built yet in Step 13A:** systemd unit files, deployment scripts,
+  release-directory automation, and Nginx config — all now added in
+  **Step 13B, below**. Security headers, rate limiting, and backup/restore
+  tooling remain for later sub-steps — see `FEATURES.md`.
+
+## Deployment (Step 13B)
+
+Repository-side deployment/runtime preparation — templates and a deploy
+script that make a VPS rollout predictable, **not** an actual deployment.
+Nothing in this section has been run against a real server; see the
+"Explicitly not done" note at the end.
+
+### Deployment architecture
+
+```text
+/var/www/school-library/
+├── repo/                       persistent git checkout — deploy.sh's source
+├── releases/
+│   ├── 20260101T000000Z-abc123/    one directory per deploy, never edited in place
+│   └── 20260824T090000Z-def456/
+└── current -> releases/20260824T090000Z-def456/   atomically-switched symlink; this is what systemd/Nginx point at
+
+/var/lib/school-library/storage/    STORAGE_ROOT — persistent, OUTSIDE every release
+/etc/school-library/production.env  production config — OUTSIDE every release, OUTSIDE git
+```
+
+Releases are immutable exports of one git commit (via `git archive`, so no
+`.git` history or stray untracked files ride along) — never a `git pull`
+inside a live directory. Persistent uploads (`STORAGE_ROOT`) and secrets
+(`production.env`) live outside every release, so deploying a new release,
+or deleting an old one, can never delete uploaded documents or config —
+see [Uploads](#uploads) and the Production section above for why that
+separation exists in the first place.
+
+### systemd
+
+Template: `deploy/systemd/school-library.service` (not installed anywhere
+by this step — copy to `/etc/systemd/system/` manually, later). Runs as a
+dedicated `schoolapp` user (never root) from `$CURRENT_LINK`, loads
+`/etc/school-library/production.env` via `EnvironmentFile`, starts the
+real `npm start` (which binds `127.0.0.1:3000` only — see the Production
+section above), and restarts on failure. Light hardening
+(`NoNewPrivileges`, `PrivateTmp`, `ProtectSystem=strict` with an explicit
+`ReadWritePaths` for `STORAGE_ROOT`) — deliberately not more than that;
+further hardening is Step 13C. Logs are whatever `npm start` writes to
+stdout/stderr, viewable via `journalctl -u school-library` — no separate
+logging platform, and nothing is written into the release directory.
+
+### Nginx
+
+Template: `deploy/nginx/school-library.conf` (not installed anywhere by
+this step). Reverse-proxies `YOUR_DOMAIN` (a placeholder — replace before
+use) on port 80 to `127.0.0.1:3000`, forwarding `Host`/`X-Real-IP`/
+`X-Forwarded-For`/`X-Forwarded-Proto`. `client_max_body_size 12M` — kept
+slightly above the app's `MAX_UPLOAD_SIZE_MB` (10 by default); **if
+`MAX_UPLOAD_SIZE_MB` changes, this value must be updated by hand and Nginx
+reloaded**, since Nginx can't read the app's env file directly. No
+`location` block serves `/var/lib/school-library/storage` — every
+preview/download still goes through Next.js's own auth-checked,
+containment-checked routes (see [Preview](#preview)/[Download](#download)),
+never a raw static file. HTTPS is **not** configured — the template has a
+commented placeholder block for where Certbot (a later step) adds it; do
+not treat this as HTTPS-complete.
+
+### Production deploy flow
+
+`deploy/scripts/deploy.sh <git-ref>` (bash, `set -euo pipefail`, no
+`set -x` — production.env is sourced mid-script and tracing would leak its
+values into the log):
+
+```text
+resolve ref → new release dir → git archive export → npm ci
+  → verify Node version (.nvmrc) → prisma generate → npm test
+  → tsc --noEmit → npm run db:migrate:deploy → npm run build
+  → switch current symlink → systemctl restart → GET 127.0.0.1:3000/api/health
+  → prune old releases (keep 5 + the active one)
+```
+
+Every step through `npm run build` uses `bash`'s `set -e`: if `npm test`,
+`tsc`, the migration, or the build fails, the script exits immediately —
+**before** the symlink is ever touched and **before** the running service
+is restarted. The previous release stays live throughout. A partially
+built release directory is removed automatically in that case; nothing
+about the currently-serving release changes.
+
+Migration failures are never silently ignored or treated as "close enough"
+— `npm run db:migrate:deploy` (`prisma migrate deploy`, never
+`prisma migrate dev`) is the only migration command the script runs, and
+its exit code is not caught.
+
+The health check talks to `127.0.0.1:3000` directly — independent of
+Nginx/DNS/HTTPS, so deploy verification doesn't depend on the reverse
+proxy being configured correctly.
+
+`npm run create-admin` and `npm run db:seed` are never invoked by
+`deploy.sh` — `create-admin` is a separate, one-time, manual production
+setup action (see the Production section above), and the dev seed is
+hard-blocked in production regardless (see `prisma/seed.ts`).
+
+Release retention: keeps the 5 most recent release directories plus
+whichever one `current` points to (even if that one is otherwise "too
+old" — e.g. right after a rollback), and never touches `current` itself,
+persistent storage, or the env file.
+
+### Rollback
+
+**Source rollback ≠ database rollback.** If the new release fails its
+health check after being switched in and restarted, `deploy.sh`
+automatically switches `current` back to the previous release and
+restarts again — this is safe because it's a pure source-directory change.
+Manual source rollback is the same two commands:
+
+```bash
+ln -sfn /var/www/school-library/releases/<previous-release-id> /var/www/school-library/current
+sudo systemctl restart school-library
+```
+
+What this does **not** do: undo a database migration. If a deploy included
+a schema migration that isn't backward-compatible with the previous
+release's code, reverting only the source can leave the app talking to a
+schema it doesn't expect. Step 13B does not implement automatic database
+rollback — production migrations should be written to be backward-compatible
+where practical, and a genuinely bad migration needs a deliberate, manual
+recovery plan, not an automated one.
+
+### First admin
+
+`npm run create-admin` (see the Production section above) is a one-time
+setup action, run manually once per environment — **not** part of
+`deploy.sh` and not run on every deploy.
+
+### Explicitly not done in Step 13B
+
+No VPS was accessed, modified, or deployed to while building this step —
+`deploy/` contains templates and a script only. Also out of scope here:
+actual HTTPS/Certbot, security-header/rate-limiting hardening, and backup/
+restore automation — see `FEATURES.md`.

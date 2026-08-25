@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Suspense } from "react";
 import { Inter, JetBrains_Mono, Space_Grotesk } from "next/font/google";
+import SiteFooter from "@/components/SiteFooter";
 import SiteHeader from "@/components/SiteHeader";
 import ToastListener from "@/components/ToastListener";
 import { Toaster } from "@/components/ui/sonner";
@@ -42,14 +43,7 @@ export default function RootLayout({
         </Suspense>
         <SiteHeader />
         <main className="flex-1">{children}</main>
-        <footer className="border-t border-line">
-          <div className="mx-auto flex max-w-5xl flex-col gap-1 px-5 py-8 text-sm text-muted sm:flex-row sm:items-center sm:justify-between">
-            <p>Stacks — school document library</p>
-            <p className="font-mono text-xs uppercase tracking-widest">
-              Demo build · PostgreSQL backend
-            </p>
-          </div>
-        </footer>
+        <SiteFooter />
         <Toaster />
       </body>
     </html>

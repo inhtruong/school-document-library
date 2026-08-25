@@ -39,7 +39,7 @@ export default async function SiteHeader() {
           </span>
           <span className="flex flex-col leading-tight">
             <span className="font-display text-base font-semibold tracking-tight">Stacks</span>
-            <span className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted">
+            <span className="text-[10px] font-medium uppercase tracking-[0.18em] text-muted">
               School library
             </span>
           </span>

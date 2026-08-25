@@ -32,7 +32,7 @@ export default function SiteFooter() {
       </div>
 
       {process.env.NODE_ENV === "development" ? (
-        <div className="border-t border-line bg-surface px-5 py-2 text-center font-mono text-[10px] uppercase tracking-[0.18em] text-muted">
+        <div className="border-t border-line bg-surface px-5 py-2 text-center text-[10px] font-medium uppercase tracking-[0.18em] text-muted">
           Development build · PostgreSQL backend
         </div>
       ) : null}

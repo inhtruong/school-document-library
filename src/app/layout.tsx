@@ -1,21 +1,20 @@
 import type { Metadata } from "next";
 import { Suspense } from "react";
-import { Inter, JetBrains_Mono, Space_Grotesk } from "next/font/google";
+import { Be_Vietnam_Pro, JetBrains_Mono } from "next/font/google";
 import SiteFooter from "@/components/SiteFooter";
 import SiteHeader from "@/components/SiteHeader";
 import ToastListener from "@/components/ToastListener";
 import { Toaster } from "@/components/ui/sonner";
 import "./globals.css";
 
-const display = Space_Grotesk({
-  subsets: ["latin"],
-  variable: "--font-display-face",
-  display: "swap",
-});
-
-const body = Inter({
-  subsets: ["latin"],
-  variable: "--font-body-face",
+// One loader for both display and body — `--font-display`/`--font-body` in
+// globals.css both point at this same face (see comment there). Weights
+// limited to 400/500/600: that's the full set of font-normal/font-medium/
+// font-semibold classes actually used anywhere in the app (no font-bold).
+const beVietnamPro = Be_Vietnam_Pro({
+  subsets: ["latin", "vietnamese"],
+  weight: ["400", "500", "600"],
+  variable: "--font-sans-face",
   display: "swap",
 });
 
@@ -36,7 +35,7 @@ export default function RootLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="en" className={`${display.variable} ${body.variable} ${mono.variable}`}>
+    <html lang="en" className={`${beVietnamPro.variable} ${mono.variable}`}>
       <body className="flex min-h-screen flex-col">
         <Suspense fallback={null}>
           <ToastListener />

@@ -41,8 +41,12 @@
   --color-destructive: #b91c1c;
   --color-destructive-soft: #fef2f2;
 
-  --font-display: var(--font-display-face), ui-sans-serif, system-ui, sans-serif;
-  --font-body: var(--font-body-face), ui-sans-serif, system-ui, sans-serif;
+  /* UI-5: display and body intentionally share one face (Be Vietnam Pro,
+     loaded once in layout.tsx as --font-sans-face) — kept as two token
+     names since `font-display` is still an explicit class on ~20+ heading
+     elements, not because they're different fonts. */
+  --font-display: var(--font-sans-face), ui-sans-serif, system-ui, sans-serif;
+  --font-body: var(--font-sans-face), ui-sans-serif, system-ui, sans-serif;
   --font-mono: var(--font-mono-face), ui-monospace, monospace;
 }
 

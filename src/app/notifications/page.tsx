@@ -59,7 +59,7 @@ export default async function NotificationsPage({ searchParams }: NotificationsP
               aria-current={pageNumber === page ? "page" : undefined}
               className={`rounded-lg border px-3 py-1.5 text-sm transition-colors ${
                 pageNumber === page
-                  ? "border-ink bg-ink text-paper"
+                  ? "border-accent bg-accent text-paper"
                   : "border-line text-ink hover:border-ink/25"
               }`}
             >

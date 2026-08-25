@@ -91,7 +91,8 @@ export function CommentSection({
 
   return (
     <div>
-      <h2 className="font-display text-lg font-semibold tracking-tight">Comments ({total})</h2>
+      <h2 className="font-display text-lg font-semibold tracking-tight text-ink">Comments</h2>
+      <p className="mt-0.5 text-sm text-muted">{total === 0 ? "No comments yet" : `${total} ${total === 1 ? "comment" : "comments"}`}</p>
 
       <div className="mt-4">
         {isAuthenticated ? (
@@ -109,7 +110,7 @@ export function CommentSection({
         )}
       </div>
 
-      <div className="mt-4">
+      <div className="mt-2 border-t border-line">
         {comments.length > 0 ? (
           comments.map((comment) => (
             <CommentItem
@@ -123,7 +124,7 @@ export function CommentSection({
             />
           ))
         ) : (
-          <p className="py-4 text-sm text-muted">No comments yet. Be the first to comment.</p>
+          <p className="py-4 text-sm text-muted">Be the first to comment.</p>
         )}
       </div>
 

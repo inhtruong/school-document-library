@@ -4,6 +4,7 @@ import { useState } from "react";
 import { UserCheck, UserPlus } from "lucide-react";
 import { toast } from "sonner";
 import { loginHrefFor } from "@/lib/auth/document-login-href";
+import { cn } from "@/lib/utils";
 
 type TeacherFollowActionProps = {
   teacherId: string;
@@ -15,8 +16,17 @@ type TeacherFollowActionProps = {
   callbackPath: string;
 };
 
-const actionClassName =
-  "inline-flex items-center gap-1.5 text-sm text-muted transition-colors hover:text-ink disabled:cursor-not-allowed disabled:opacity-50";
+// A compact pill — contextual, so lighter than the outline-Button pill
+// BookmarkAction uses, but still never just a bare color change: text
+// switches Follow/Following and the fill toggles between outline/solid icon.
+function actionClassName(active: boolean): string {
+  return cn(
+    "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50",
+    active
+      ? "border-accent bg-accent-soft text-accent"
+      : "border-line text-muted hover:border-ink/20 hover:text-ink"
+  );
+}
 
 /**
  * Guests get a plain link to `/login?callbackUrl=...` — nothing is ever
@@ -38,8 +48,8 @@ export function TeacherFollowAction({
 
   if (!isAuthenticated) {
     return (
-      <a href={loginHrefFor(callbackPath)} className={actionClassName}>
-        <UserPlus className="h-4 w-4" aria-hidden />
+      <a href={loginHrefFor(callbackPath)} className={actionClassName(false)}>
+        <UserPlus className="h-3.5 w-3.5" aria-hidden />
         Follow
       </a>
     );
@@ -72,9 +82,9 @@ export function TeacherFollowAction({
       onClick={handleToggle}
       disabled={submitting}
       aria-pressed={following}
-      className={actionClassName}
+      className={actionClassName(following)}
     >
-      {following ? <UserCheck className="h-4 w-4" aria-hidden /> : <UserPlus className="h-4 w-4" aria-hidden />}
+      {following ? <UserCheck className="h-3.5 w-3.5" aria-hidden /> : <UserPlus className="h-3.5 w-3.5" aria-hidden />}
       {following ? "Following" : "Follow"}
     </button>
   );

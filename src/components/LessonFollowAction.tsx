@@ -4,6 +4,7 @@ import { useState } from "react";
 import { Bell, BellPlus } from "lucide-react";
 import { toast } from "sonner";
 import { loginHrefFor } from "@/lib/auth/document-login-href";
+import { cn } from "@/lib/utils";
 
 type LessonFollowActionProps = {
   lessonId: string;
@@ -13,8 +14,16 @@ type LessonFollowActionProps = {
   callbackPath: string;
 };
 
-const actionClassName =
-  "inline-flex items-center gap-1.5 text-sm text-muted transition-colors hover:text-ink disabled:cursor-not-allowed disabled:opacity-50";
+// Same compact-pill language as TeacherFollowAction (both are "contextual"
+// weight in the action hierarchy — lighter than Save/Rate/Download).
+function actionClassName(active: boolean): string {
+  return cn(
+    "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50",
+    active
+      ? "border-accent bg-accent-soft text-accent"
+      : "border-line text-muted hover:border-ink/20 hover:text-ink"
+  );
+}
 
 /**
  * Same guest-link / authenticated-toggle pattern as
@@ -28,8 +37,8 @@ export function LessonFollowAction({ lessonId, isAuthenticated, initialFollowing
 
   if (!isAuthenticated) {
     return (
-      <a href={loginHrefFor(callbackPath)} className={actionClassName}>
-        <BellPlus className="h-4 w-4" aria-hidden />
+      <a href={loginHrefFor(callbackPath)} className={actionClassName(false)}>
+        <BellPlus className="h-3.5 w-3.5" aria-hidden />
         Follow lesson
       </a>
     );
@@ -62,9 +71,13 @@ export function LessonFollowAction({ lessonId, isAuthenticated, initialFollowing
       onClick={handleToggle}
       disabled={submitting}
       aria-pressed={following}
-      className={actionClassName}
+      className={actionClassName(following)}
     >
-      {following ? <Bell className="h-4 w-4 fill-current" aria-hidden /> : <BellPlus className="h-4 w-4" aria-hidden />}
+      {following ? (
+        <Bell className="h-3.5 w-3.5 fill-current" aria-hidden />
+      ) : (
+        <BellPlus className="h-3.5 w-3.5" aria-hidden />
+      )}
       {following ? "Following" : "Follow lesson"}
     </button>
   );

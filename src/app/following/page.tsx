@@ -47,7 +47,10 @@ export default async function FollowingPage({ searchParams }: FollowingPageProps
       <h1 className="font-display text-xl font-semibold tracking-tight sm:text-2xl">Following</h1>
 
       <section className="mt-8">
-        <h2 className="font-display text-lg font-semibold tracking-tight">Teachers ({teachersResult.total})</h2>
+        <h2 className="font-display text-lg font-semibold tracking-tight">Teachers</h2>
+        <p className="mt-0.5 text-sm text-muted">
+          {teachersResult.total} {teachersResult.total === 1 ? "teacher" : "teachers"}
+        </p>
         <div className="mt-4">
           <FollowedTeachersList initialTeachers={teachersResult.teachers} />
         </div>
@@ -79,7 +82,10 @@ export default async function FollowingPage({ searchParams }: FollowingPageProps
       </section>
 
       <section className="mt-10 border-t border-line pt-8">
-        <h2 className="font-display text-lg font-semibold tracking-tight">Lessons ({lessonsResult.total})</h2>
+        <h2 className="font-display text-lg font-semibold tracking-tight">Lessons</h2>
+        <p className="mt-0.5 text-sm text-muted">
+          {lessonsResult.total} {lessonsResult.total === 1 ? "lesson" : "lessons"}
+        </p>
         <div className="mt-4">
           <FollowedLessonsList initialLessons={lessonsResult.lessons} />
         </div>

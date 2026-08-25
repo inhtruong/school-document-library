@@ -10,6 +10,7 @@ import { LessonFollowAction } from "@/components/LessonFollowAction";
 import { ReportDocumentAction } from "@/components/ReportDocumentAction";
 import { TeacherFollowAction } from "@/components/TeacherFollowAction";
 import { Badge } from "@/components/ui/badge";
+import { Separator } from "@/components/ui/separator";
 import { isBookmarked } from "@/lib/documents/bookmark";
 import { listComments } from "@/lib/documents/comment";
 import { DOCUMENT_TYPE_LABELS } from "@/lib/documents/document-type";
@@ -30,18 +31,14 @@ function formatDate(value: string): string | null {
   return date.toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" });
 }
 
-function formatFileSize(bytes: number): string {
-  if (bytes < 1024 * 1024) return `${Math.max(1, Math.round(bytes / 1024))} KB`;
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+/** Builds a `/search` href from real taxonomy ids only — never a hand-typed/hardcoded id. */
+function taxonomyHref(params: Record<string, string | undefined>): string {
+  const search = new URLSearchParams();
+  for (const [key, value] of Object.entries(params)) {
+    if (value) search.set(key, value);
+  }
+  return `/search?${search.toString()}`;
 }
-
-const CATEGORY_LABELS: Record<string, string> = {
-  PDF: "PDF",
-  WORD: "Word document",
-  EXCEL: "Excel spreadsheet",
-  IMAGE: "Image",
-  VIDEO: "Video",
-};
 
 export default async function DocumentDetailPage({ params }: DocumentDetailPageProps) {
   const { id } = await params;
@@ -50,6 +47,7 @@ export default async function DocumentDetailPage({ params }: DocumentDetailPageP
   if (!doc) notFound();
 
   const currentUserId = session?.user?.id ?? null;
+  const isAuthenticated = Boolean(session?.user);
   const isUploaderTeacher = doc.uploadedBy?.role === "TEACHER";
 
   const [ratingSummary, commentsPage, bookmarked, teacherFollowing, lessonFollowing] = await Promise.all([
@@ -59,6 +57,7 @@ export default async function DocumentDetailPage({ params }: DocumentDetailPageP
     isUploaderTeacher && doc.uploadedBy ? isFollowingTeacher(currentUserId, doc.uploadedBy.id) : Promise.resolve(false),
     doc.lessonId ? isFollowingLesson(currentUserId, doc.lessonId) : Promise.resolve(false),
   ]);
+
   const createdLabel = formatDate(doc.createdAt);
   const documentPagePath = `/documents/${doc.id}`;
   const initialComments: DocumentCommentRecord[] = commentsPage.comments.map((comment) => ({
@@ -67,125 +66,179 @@ export default async function DocumentDetailPage({ params }: DocumentDetailPageP
     updatedAt: comment.updatedAt.toISOString(),
   }));
 
+  // Taxonomy breadcrumb — only real, existing ids/names, never fabricated.
+  // A Lesson link must carry gradeId+subjectId too, since /search only
+  // honors lessonId alongside a resolved subjectId (see
+  // resolveSearchTaxonomyFilters). Legacy documents (no structured
+  // taxonomy) fall back to the free-text subject, linked the same way
+  // SubjectCard already does on the Homepage.
+  const breadcrumb: { label: string; href: string }[] = [];
+  if (doc.grade) {
+    breadcrumb.push({ label: doc.grade.name, href: taxonomyHref({ gradeId: doc.grade.id }) });
+  }
+  if (doc.subjectRef) {
+    breadcrumb.push({
+      label: doc.subjectRef.name,
+      href: taxonomyHref({ gradeId: doc.grade?.id, subjectId: doc.subjectRef.id }),
+    });
+  } else if (!doc.grade) {
+    breadcrumb.push({ label: doc.subject, href: `/search?subject=${encodeURIComponent(doc.subject)}` });
+  }
+  if (doc.lesson && doc.subjectRef) {
+    breadcrumb.push({
+      label: doc.lesson.name,
+      href: taxonomyHref({ gradeId: doc.grade?.id, subjectId: doc.subjectRef.id, lessonId: doc.lesson.id }),
+    });
+  }
+
   return (
-    <div className="mx-auto max-w-3xl px-5 py-8 sm:py-10">
+    <div className="mx-auto max-w-5xl px-5 py-8 sm:py-10">
       <Link href="/search" className="text-sm text-muted transition-colors hover:text-ink">
         ← Back to search
       </Link>
 
-      <div className="mt-6 flex gap-4">
-        <span
-          aria-hidden
-          className="w-1 shrink-0 self-stretch rounded-full"
-          style={{ backgroundColor: subjectAccent(doc.subject) }}
-        />
-
-        <div className="min-w-0 flex-1">
-          <h1 className="font-display text-2xl font-semibold leading-tight tracking-tight sm:text-3xl">
-            {doc.title}
-          </h1>
-
-          <div className="mt-3 flex flex-wrap items-center gap-2">
-            {doc.grade ? <Badge variant="soft">{doc.grade.name}</Badge> : null}
-            <span className="text-sm text-ink">{doc.subjectRef ? doc.subjectRef.name : doc.subject}</span>
-            {doc.lesson ? <span className="text-sm text-muted">· {doc.lesson.name}</span> : null}
-            <Badge>{DOCUMENT_TYPE_LABELS[doc.documentType]}</Badge>
-            <span className="text-sm text-muted">{doc.academicYear}</span>
-            {doc.lesson ? (
-              <LessonFollowAction
-                lessonId={doc.lesson.id}
-                isAuthenticated={Boolean(session?.user)}
-                initialFollowing={lessonFollowing}
-                callbackPath={documentPagePath}
-              />
-            ) : null}
-          </div>
-
-          {createdLabel ? <p className="mt-2 text-xs text-muted">Added {createdLabel}</p> : null}
-
-          <div className="mt-3 flex flex-wrap items-center gap-4">
-            <DocumentRatingSection
-              documentId={doc.id}
-              isAuthenticated={Boolean(session?.user)}
-              initialSummary={ratingSummary}
-            />
-            <BookmarkAction
-              documentId={doc.id}
-              isAuthenticated={Boolean(session?.user)}
-              initialBookmarked={bookmarked}
-            />
-          </div>
-        </div>
-      </div>
-
-      {doc.description ? (
-        <p className="mt-6 text-sm leading-relaxed text-ink/80 sm:text-base">{doc.description}</p>
+      {breadcrumb.length > 0 ? (
+        <nav aria-label="Breadcrumb" className="mt-3">
+          <ol className="flex flex-wrap items-center gap-x-1.5 gap-y-1 text-sm text-muted">
+            {breadcrumb.map((item, index) => (
+              <li key={item.href} className="flex items-center gap-1.5">
+                {index > 0 ? <span aria-hidden>/</span> : null}
+                <Link href={item.href} className="transition-colors hover:text-ink hover:underline">
+                  {item.label}
+                </Link>
+              </li>
+            ))}
+          </ol>
+        </nav>
       ) : null}
 
-      {doc.fileName ? (
-        <dl className="mt-6 grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-sm text-muted">
-          <dt>File</dt>
-          <dd className="text-ink">
-            {doc.fileName}
-            {doc.fileSize ? ` (${formatFileSize(doc.fileSize)})` : ""}
-          </dd>
-          {doc.fileCategory ? (
-            <>
-              <dt>Type</dt>
-              <dd className="text-ink">{CATEGORY_LABELS[doc.fileCategory] ?? doc.fileCategory}</dd>
-            </>
-          ) : null}
+      {doc.lesson ? (
+        <div className="mt-2">
+          <LessonFollowAction
+            lessonId={doc.lesson.id}
+            isAuthenticated={isAuthenticated}
+            initialFollowing={lessonFollowing}
+            callbackPath={documentPagePath}
+          />
+        </div>
+      ) : null}
+
+      <div className="mt-6 grid gap-8 lg:grid-cols-[1fr_280px] lg:items-start">
+        {/* Main column — identity, description, preview */}
+        <div className="min-w-0">
+          <div className="flex gap-4">
+            <span
+              aria-hidden
+              className="w-1 shrink-0 self-stretch rounded-full"
+              style={{ backgroundColor: subjectAccent(doc.subject) }}
+            />
+            <div className="min-w-0 flex-1">
+              <Badge variant="soft">{DOCUMENT_TYPE_LABELS[doc.documentType]}</Badge>
+
+              <h1 className="mt-2 font-display text-2xl font-semibold leading-tight tracking-tight text-ink sm:text-3xl">
+                {doc.title}
+              </h1>
+
+              <p className="mt-2 text-sm text-muted">
+                {doc.academicYear}
+                {createdLabel ? ` · Added ${createdLabel}` : ""}
+              </p>
+
+              {doc.description ? (
+                <p className="mt-4 text-sm leading-relaxed text-ink/80 sm:text-base">{doc.description}</p>
+              ) : null}
+            </div>
+          </div>
+
+          <div className="mt-8">
+            <h2 className="font-display text-lg font-semibold tracking-tight text-ink">Preview</h2>
+            <div className="mt-3">
+              <FilePreview
+                documentId={doc.id}
+                fileCategory={doc.fileCategory}
+                mimeType={doc.mimeType}
+                fileName={doc.fileName}
+              />
+            </div>
+          </div>
+        </div>
+
+        {/* Sidebar — uploader + primary actions. `lg:sticky` is CSS-only (no
+            scroll listeners); `self-start` keeps it from stretching to the
+            (taller) main column's height, which is what makes sticky work
+            inside a grid. Falls back to normal single-column flow below
+            `lg:`. */}
+        <aside className="flex flex-col gap-5 lg:sticky lg:top-20 lg:self-start">
           {doc.uploadedBy ? (
-            <>
-              <dt>Uploaded by</dt>
-              <dd className="flex flex-wrap items-center gap-3 text-ink">
-                {doc.uploadedBy.name}
-                {isUploaderTeacher ? (
+            <div>
+              <p className="text-xs font-medium uppercase tracking-wide text-muted">Uploaded by</p>
+              <div className="mt-2 flex items-center gap-2.5">
+                <span
+                  aria-hidden
+                  className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-accent-soft text-sm font-semibold text-accent"
+                >
+                  {doc.uploadedBy.name.slice(0, 1).toUpperCase()}
+                </span>
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-medium text-ink">{doc.uploadedBy.name}</p>
+                  <p className="text-xs text-muted">{doc.uploadedBy.role}</p>
+                </div>
+              </div>
+              {isUploaderTeacher ? (
+                <div className="mt-2.5">
                   <TeacherFollowAction
                     teacherId={doc.uploadedBy.id}
-                    isAuthenticated={Boolean(session?.user)}
+                    isAuthenticated={isAuthenticated}
                     isSelf={currentUserId === doc.uploadedBy.id}
                     initialFollowing={teacherFollowing}
                     callbackPath={documentPagePath}
                   />
-                ) : null}
-              </dd>
-            </>
+                </div>
+              ) : null}
+              <Separator className="mt-5" />
+            </div>
           ) : null}
-        </dl>
-      ) : null}
 
-      <div className="mt-8">
-        <FilePreview
-          documentId={doc.id}
-          fileCategory={doc.fileCategory}
-          mimeType={doc.mimeType}
-          fileName={doc.fileName}
-        />
+          <div className="flex flex-col gap-2.5">
+            <DownloadButton
+              documentId={doc.id}
+              hasFile={Boolean(doc.fileName)}
+              isAuthenticated={isAuthenticated}
+            />
+            <BookmarkAction
+              documentId={doc.id}
+              isAuthenticated={isAuthenticated}
+              initialBookmarked={bookmarked}
+            />
+          </div>
+        </aside>
       </div>
 
-      <div className="mt-6">
-        <DownloadButton
-          documentId={doc.id}
-          hasFile={Boolean(doc.fileName)}
-          isAuthenticated={Boolean(session?.user)}
-        />
-      </div>
-
-      <div className="mt-3">
-        <ReportDocumentAction documentId={doc.id} isAuthenticated={Boolean(session?.user)} />
+      <div className="mt-10 border-t border-line pt-8">
+        <h2 className="font-display text-lg font-semibold tracking-tight text-ink">Rating</h2>
+        <div className="mt-3">
+          <DocumentRatingSection
+            documentId={doc.id}
+            isAuthenticated={isAuthenticated}
+            initialSummary={ratingSummary}
+          />
+        </div>
       </div>
 
       <div className="mt-10 border-t border-line pt-8">
         <CommentSection
           documentId={doc.id}
-          isAuthenticated={Boolean(session?.user)}
-          currentUserId={session?.user?.id ?? null}
+          isAuthenticated={isAuthenticated}
+          currentUserId={currentUserId}
           isAdmin={session?.user?.role === "ADMIN"}
           initialComments={initialComments}
           initialTotal={commentsPage.total}
           initialTotalPages={commentsPage.totalPages}
         />
+      </div>
+
+      <div className="mt-8 border-t border-line pt-5">
+        <ReportDocumentAction documentId={doc.id} isAuthenticated={isAuthenticated} />
       </div>
     </div>
   );

@@ -3,7 +3,9 @@
 import { useState } from "react";
 import { Heart } from "lucide-react";
 import { toast } from "sonner";
+import { buttonVariants } from "@/components/ui/button";
 import { documentLoginHref } from "@/lib/auth/document-login-href";
+import { cn } from "@/lib/utils";
 
 type BookmarkActionProps = {
   documentId: string;
@@ -11,8 +13,17 @@ type BookmarkActionProps = {
   initialBookmarked: boolean;
 };
 
-const actionClassName =
-  "inline-flex items-center gap-1.5 text-sm text-muted transition-colors hover:text-ink disabled:cursor-not-allowed disabled:opacity-50";
+// Same visual weight as Button's "outline" variant (secondary action —
+// reuses the shared primitive's styling via buttonVariants rather than a
+// second hand-rolled button style) — a saved state additionally tints the
+// border/background so it's never signaled by icon fill color alone.
+function actionClassName(active: boolean): string {
+  return cn(
+    buttonVariants({ variant: "outline" }),
+    "w-full",
+    active && "border-accent bg-accent-soft text-accent hover:bg-accent-soft"
+  );
+}
 
 /**
  * Guests get a plain link to `/login?callbackUrl=...` (same
@@ -27,9 +38,9 @@ export function BookmarkAction({ documentId, isAuthenticated, initialBookmarked 
 
   if (!isAuthenticated) {
     return (
-      <a href={documentLoginHref(documentId)} className={actionClassName}>
+      <a href={documentLoginHref(documentId)} className={actionClassName(false)}>
         <Heart className="h-4 w-4" aria-hidden />
-        Save document
+        Save
       </a>
     );
   }
@@ -61,10 +72,10 @@ export function BookmarkAction({ documentId, isAuthenticated, initialBookmarked 
       onClick={handleToggle}
       disabled={submitting}
       aria-pressed={bookmarked}
-      className={actionClassName}
+      className={actionClassName(bookmarked)}
     >
-      <Heart className={`h-4 w-4 ${bookmarked ? "fill-red-500 text-red-500" : ""}`} aria-hidden />
-      {bookmarked ? "Saved" : "Save document"}
+      <Heart className={cn("h-4 w-4", bookmarked && "fill-accent text-accent")} aria-hidden />
+      {bookmarked ? "Saved" : "Save"}
     </button>
   );
 }

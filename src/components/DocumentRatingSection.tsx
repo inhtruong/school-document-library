@@ -62,23 +62,33 @@ export function DocumentRatingSection({ documentId, isAuthenticated, initialSumm
   }
 
   return (
-    <div className="flex flex-wrap items-center gap-3">
-      {isAuthenticated ? (
-        <StarRating value={summary.currentUserRating ?? 0} onRate={handleRate} disabled={submitting} />
-      ) : (
-        <a
-          href={documentLoginHref(documentId)}
-          aria-label="Log in to rate this document"
-          className="inline-block rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
-        >
-          <StarRating value={Math.round(summary.averageRating ?? 0)} />
-        </a>
-      )}
+    <div className="flex flex-col gap-5 sm:flex-row sm:gap-10">
+      <div>
+        <p className="text-xs font-medium uppercase tracking-wide text-muted">Rating summary</p>
+        <div className="mt-1.5 flex items-baseline gap-2">
+          <span className="font-display text-2xl font-semibold tracking-tight text-ink">
+            {formatAverage(summary.averageRating)}
+          </span>
+          <StarRating value={Math.round(summary.averageRating ?? 0)} size="sm" />
+        </div>
+        <p className="mt-1 text-sm text-muted">{formatCount(summary.ratingCount)}</p>
+      </div>
 
-      <span className="text-sm text-muted">
-        {formatAverage(summary.averageRating)}
-        {summary.averageRating !== null ? " ★" : ""} ({formatCount(summary.ratingCount)})
-      </span>
+      <div>
+        <p className="text-xs font-medium uppercase tracking-wide text-muted">Your rating</p>
+        <div className="mt-1.5">
+          {isAuthenticated ? (
+            <StarRating value={summary.currentUserRating ?? 0} onRate={handleRate} disabled={submitting} />
+          ) : (
+            <a
+              href={documentLoginHref(documentId)}
+              className="text-sm font-medium text-accent underline-offset-2 hover:underline"
+            >
+              Log in to rate
+            </a>
+          )}
+        </div>
+      </div>
     </div>
   );
 }

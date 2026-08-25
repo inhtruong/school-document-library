@@ -2,7 +2,7 @@ import "server-only";
 import type { Document, Grade, Lesson, Subject } from "@prisma/client";
 import type { DocumentTypeValue } from "@/lib/documents/document-type";
 import { prisma } from "@/lib/prisma";
-import { resolveSearchTaxonomyFilters } from "@/lib/documents/search-filters";
+import { resolveSearchTaxonomyFilters, type ResolvedTaxonomyFilters } from "@/lib/documents/search-filters";
 import { SEARCH_PAGE_SIZE, SORT_ORDER_BY, type SortValue } from "@/lib/documents/search-query";
 import type { DocumentRecord } from "@/types/document";
 
@@ -45,6 +45,13 @@ export type SearchDocumentsResult = {
   page?: number;
   pageSize?: number;
   totalPages?: number;
+  /**
+   * Display names for any active gradeId/subjectId/lessonId filter — for
+   * `/search`'s active-filter chips (UI-2), which need "Grade 11" not just
+   * an id. Comes free from the taxonomy resolution this function already
+   * does for the `where` clause; not a new query.
+   */
+  resolvedFilters: ResolvedTaxonomyFilters;
 };
 
 /**
@@ -101,7 +108,7 @@ export async function searchDocuments(params: SearchDocumentsParams): Promise<Se
   const documents = rows.map(toDocumentRecord);
 
   if (usesLegacyPagination) {
-    return { documents, total, take, skip };
+    return { documents, total, take, skip, resolvedFilters: taxonomy };
   }
 
   return {
@@ -112,5 +119,6 @@ export async function searchDocuments(params: SearchDocumentsParams): Promise<Se
     page: params.page ?? 1,
     pageSize: SEARCH_PAGE_SIZE,
     totalPages: Math.max(1, Math.ceil(total / SEARCH_PAGE_SIZE)),
+    resolvedFilters: taxonomy,
   };
 }

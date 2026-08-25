@@ -12,7 +12,8 @@ type SearchFiltersProps = {
 };
 
 const selectClassName =
-  "h-10 rounded-lg border border-line bg-paper px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-accent disabled:cursor-not-allowed disabled:opacity-50";
+  "h-10 rounded-xl border border-line bg-card px-3 text-sm text-ink outline-none transition-colors hover:border-ink/20 focus-visible:border-accent focus-visible:ring-2 focus-visible:ring-accent disabled:cursor-not-allowed disabled:opacity-50";
+const labelClassName = "flex flex-col gap-1.5 text-sm font-medium text-ink";
 
 /**
  * Grade → Subject → Lesson/Topic cascading filters, plus Document Type and
@@ -106,8 +107,8 @@ export function SearchFilters({ grades }: SearchFiltersProps) {
   }
 
   return (
-    <div className="grid flex-1 grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
-      <label className="flex flex-col gap-1.5 text-sm" htmlFor="filter-grade">
+    <div className="grid flex-1 grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5 lg:items-end">
+      <label className={labelClassName} htmlFor="filter-grade">
         Grade
         <select
           id="filter-grade"
@@ -126,7 +127,7 @@ export function SearchFilters({ grades }: SearchFiltersProps) {
         </select>
       </label>
 
-      <label className="flex flex-col gap-1.5 text-sm" htmlFor="filter-subject">
+      <label className={labelClassName} htmlFor="filter-subject">
         Subject
         <select
           id="filter-subject"
@@ -143,11 +144,11 @@ export function SearchFilters({ grades }: SearchFiltersProps) {
           ))}
         </select>
         {subjectsError ? (
-          <span className="text-xs text-red-600">Couldn&apos;t load subjects.</span>
+          <span className="text-xs text-destructive">Couldn&apos;t load subjects.</span>
         ) : null}
       </label>
 
-      <label className="flex flex-col gap-1.5 text-sm" htmlFor="filter-lesson">
+      <label className={labelClassName} htmlFor="filter-lesson">
         Lesson / Topic
         <select
           id="filter-lesson"
@@ -164,11 +165,11 @@ export function SearchFilters({ grades }: SearchFiltersProps) {
           ))}
         </select>
         {lessonsError ? (
-          <span className="text-xs text-red-600">Couldn&apos;t load lessons.</span>
+          <span className="text-xs text-destructive">Couldn&apos;t load lessons.</span>
         ) : null}
       </label>
 
-      <label className="flex flex-col gap-1.5 text-sm" htmlFor="filter-documentType">
+      <label className={labelClassName} htmlFor="filter-documentType">
         Document type
         <select
           id="filter-documentType"
@@ -185,7 +186,7 @@ export function SearchFilters({ grades }: SearchFiltersProps) {
         </select>
       </label>
 
-      <label className="flex flex-col gap-1.5 text-sm" htmlFor="filter-sort">
+      <label className={labelClassName} htmlFor="filter-sort">
         Sort
         <select
           id="filter-sort"

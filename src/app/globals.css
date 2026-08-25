@@ -1,16 +1,52 @@
 @import "tailwindcss";
 
+/*
+ * Design tokens (UI-1 — Frontend Foundation).
+ *
+ * `paper`, `ink`, `surface`, `line`, `muted`, `accent`, `accent-soft` are the
+ * ORIGINAL token names, kept unchanged on purpose — they're already used
+ * across ~20+ files this step does not touch (SubjectCard, FilePreview,
+ * NotificationItem, SearchFilters, search/saved/upload pages, ...). `surface`
+ * in particular is already established everywhere as a MUTED FILL color
+ * (empty-state boxes, hover backgrounds, file-input buttons) — repurposing
+ * it as a "card surface" would have silently changed the look of every one
+ * of those out-of-scope pages. Only VALUES were refined (see below), and
+ * only where verified safe; no existing token was renamed or repurposed.
+ *
+ * `card` is the one genuinely new background token: a crisp white surface
+ * for the Card primitive, distinct from the now slightly-off-white `paper`
+ * page background — this is what gives cards visible depth against the
+ * page instead of blending into it (the "too much flat white" issue).
+ *
+ * `accent-strong`, `success`, `warning`, `destructive` (+ `-soft` pairs) are
+ * new semantic additions for Badge's status variants and interactive hover/
+ * active states — used only by primitives this step edits, not retrofitted
+ * onto existing pages.
+ */
 @theme {
-  --color-paper: #ffffff;
+  --color-paper: #f7f8fb;
+  --color-card: #ffffff;
   --color-ink: #12161f;
-  --color-surface: #f4f6f9;
-  --color-line: #e3e7ee;
-  --color-muted: #6b7480;
+  --color-surface: #eef1f7;
+  --color-line: #d7dce5;
+  --color-muted: #5c6577;
   --color-accent: #2647cc;
   --color-accent-soft: #eaeeff;
+  --color-accent-strong: #1c37a3;
 
-  --font-display: var(--font-display-face), ui-sans-serif, system-ui, sans-serif;
-  --font-body: var(--font-body-face), ui-sans-serif, system-ui, sans-serif;
+  --color-success: #15803d;
+  --color-success-soft: #ecfdf3;
+  --color-warning: #b45309;
+  --color-warning-soft: #fffbeb;
+  --color-destructive: #b91c1c;
+  --color-destructive-soft: #fef2f2;
+
+  /* UI-5: display and body intentionally share one face (Be Vietnam Pro,
+     loaded once in layout.tsx as --font-sans-face) — kept as two token
+     names since `font-display` is still an explicit class on ~20+ heading
+     elements, not because they're different fonts. */
+  --font-display: var(--font-sans-face), ui-sans-serif, system-ui, sans-serif;
+  --font-body: var(--font-sans-face), ui-sans-serif, system-ui, sans-serif;
   --font-mono: var(--font-mono-face), ui-monospace, monospace;
 }
 
@@ -20,6 +56,16 @@
     color: var(--color-ink);
     font-family: var(--font-body);
     -webkit-font-smoothing: antialiased;
+  }
+
+  /* Sane defaults for un-styled headings — every existing page already sets
+     its own explicit heading classes (which always win, same specificity
+     tier), so this only helps future pages that don't. */
+  h1,
+  h2,
+  h3 {
+    font-family: var(--font-display);
+    letter-spacing: -0.01em;
   }
 
   ::selection {

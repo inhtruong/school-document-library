@@ -76,7 +76,14 @@ describe("resolveSearchTaxonomyFilters", () => {
       lessonId: DERIVATIVES.id,
     });
 
-    expect(result).toEqual({ gradeId: GRADE_12.id, subjectId: MATH_12.id, lessonId: DERIVATIVES.id });
+    expect(result).toEqual({
+      gradeId: GRADE_12.id,
+      gradeName: GRADE_12.name,
+      subjectId: MATH_12.id,
+      subjectName: MATH_12.name,
+      lessonId: DERIVATIVES.id,
+      lessonName: DERIVATIVES.name,
+    });
   });
 
   test("drops a Subject that belongs to a different Grade instead of erroring", async () => {
@@ -84,7 +91,7 @@ describe("resolveSearchTaxonomyFilters", () => {
 
     const result = await resolveSearchTaxonomyFilters({ gradeId: GRADE_12.id, subjectId: MATH_11.id });
 
-    expect(result).toEqual({ gradeId: GRADE_12.id });
+    expect(result).toEqual({ gradeId: GRADE_12.id, gradeName: GRADE_12.name });
   });
 
   test("drops a Lesson that belongs to a different Subject instead of erroring", async () => {
@@ -96,7 +103,12 @@ describe("resolveSearchTaxonomyFilters", () => {
       lessonId: ALGEBRA_11.id,
     });
 
-    expect(result).toEqual({ gradeId: GRADE_12.id, subjectId: MATH_12.id });
+    expect(result).toEqual({
+      gradeId: GRADE_12.id,
+      gradeName: GRADE_12.name,
+      subjectId: MATH_12.id,
+      subjectName: MATH_12.name,
+    });
   });
 
   test("drops a nonexistent gradeId", async () => {
@@ -120,7 +132,7 @@ describe("resolveSearchTaxonomyFilters", () => {
 
     const result = await resolveSearchTaxonomyFilters({ subjectId: MATH_12.id, lessonId: "does-not-exist" });
 
-    expect(result).toEqual({ subjectId: MATH_12.id });
+    expect(result).toEqual({ subjectId: MATH_12.id, subjectName: MATH_12.name });
   });
 
   test("allows subjectId alone (no gradeId given) when the subject exists", async () => {
@@ -128,7 +140,7 @@ describe("resolveSearchTaxonomyFilters", () => {
 
     const result = await resolveSearchTaxonomyFilters({ subjectId: MATH_12.id });
 
-    expect(result).toEqual({ subjectId: MATH_12.id });
+    expect(result).toEqual({ subjectId: MATH_12.id, subjectName: MATH_12.name });
   });
 
   test("drops lessonId when no subjectId is given (a lesson filter only applies alongside its subject)", async () => {

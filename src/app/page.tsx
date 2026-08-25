@@ -1,15 +1,24 @@
+import Link from "next/link";
+import { ArrowRight } from "lucide-react";
 import DocumentCard from "@/components/DocumentCard";
+import GradeCard from "@/components/GradeCard";
 import SearchBar from "@/components/SearchBar";
 import SubjectCard from "@/components/SubjectCard";
+import { getUploaderSummaries } from "@/lib/documents/document-uploaders";
+import { listGradeSummaries } from "@/lib/documents/grades";
 import { searchDocuments } from "@/lib/documents/search";
 import { DEFAULT_SORT } from "@/lib/documents/search-query";
 import { listSubjectSummaries } from "@/lib/documents/subject-summary";
 
+const LATEST_DOCUMENTS_COUNT = 6;
+
 export default async function HomePage() {
-  const [{ documents: popularDocuments, total }, subjects] = await Promise.all([
-    searchDocuments({ take: 4, sort: DEFAULT_SORT }),
+  const [{ documents: latestDocuments, total }, subjects, grades] = await Promise.all([
+    searchDocuments({ take: LATEST_DOCUMENTS_COUNT, sort: DEFAULT_SORT }),
     listSubjectSummaries(),
+    listGradeSummaries(),
   ]);
+  const uploaderByDocumentId = await getUploaderSummaries(latestDocuments.map((doc) => doc.id));
 
   return (
     <div className="mx-auto max-w-5xl px-5">
@@ -22,14 +31,33 @@ export default async function HomePage() {
           Find the notes, exams and cheatsheets from your courses.
         </h1>
 
+        <p className="mt-3 max-w-xl text-base text-muted">
+          Lecture notes, exercises, exams and reference material, organized by grade and subject.
+        </p>
+
         <div className="mt-8 max-w-2xl">
           <SearchBar />
         </div>
 
         <p className="mt-3 text-sm text-muted">
-          {total} documents across {subjects.length} subjects.
+          {total} {total === 1 ? "document" : "documents"} across {subjects.length}{" "}
+          {subjects.length === 1 ? "subject" : "subjects"}
         </p>
       </section>
+
+      {grades.length > 0 ? (
+        <section className="border-t border-line py-10 sm:py-12">
+          <h2 className="font-display text-lg font-semibold tracking-tight sm:text-xl">
+            Browse by grade
+          </h2>
+
+          <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-7">
+            {grades.map((grade) => (
+              <GradeCard key={grade.id} grade={grade} />
+            ))}
+          </div>
+        </section>
+      ) : null}
 
       <section className="border-t border-line py-10 sm:py-12">
         <h2 className="font-display text-lg font-semibold tracking-tight sm:text-xl">
@@ -48,14 +76,25 @@ export default async function HomePage() {
       </section>
 
       <section className="border-t border-line py-10 sm:py-12">
-        <h2 className="font-display text-lg font-semibold tracking-tight sm:text-xl">
-          Popular documents
-        </h2>
+        <div className="flex flex-wrap items-baseline justify-between gap-2">
+          <h2 className="font-display text-lg font-semibold tracking-tight sm:text-xl">
+            Latest documents
+          </h2>
+          {latestDocuments.length > 0 ? (
+            <Link
+              href="/search"
+              className="inline-flex items-center gap-1 text-sm font-medium text-accent transition-colors hover:text-accent-strong"
+            >
+              View all documents
+              <ArrowRight className="h-4 w-4" aria-hidden />
+            </Link>
+          ) : null}
+        </div>
 
-        {popularDocuments.length > 0 ? (
-          <div className="mt-5 grid gap-3 md:grid-cols-2">
-            {popularDocuments.map((doc) => (
-              <DocumentCard key={doc.id} doc={doc} />
+        {latestDocuments.length > 0 ? (
+          <div className="mt-5 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {latestDocuments.map((doc) => (
+              <DocumentCard key={doc.id} doc={doc} uploader={uploaderByDocumentId.get(doc.id)} />
             ))}
           </div>
         ) : (

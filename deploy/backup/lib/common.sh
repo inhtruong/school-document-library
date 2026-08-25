@@ -187,6 +187,86 @@ db_name_from_url() {
   ' "$url"
 }
 
+# Extracts just the username (role name) from a libpq URI — same reasoning
+# as db_name_from_url above.
+db_user_from_url() {
+  local url="$1"
+  node -e '
+    const u = new URL(process.argv[1]);
+    process.stdout.write(decodeURIComponent(u.username));
+  ' "$url"
+}
+
+# ---------------------------------------------------------------------------
+# PostgreSQL ADMIN context — the fix for the privilege-separation bug found
+# during the real VPS restore drill. Database lifecycle operations (CREATE
+# DATABASE / DROP DATABASE) require the CREATEDB role attribute, which the
+# application role (school_app, from DATABASE_URL) deliberately does NOT
+# have — granting it would have been the wrong fix (see restore-db.sh's
+# header). Instead, lifecycle operations run through a SEPARATE local
+# PostgreSQL administrative context: on the real VPS, `sudo -u postgres`
+# (OS-level peer authentication — no password, nothing in any env file,
+# nothing over the network). This is the ONLY code path anywhere in this
+# backup/restore tooling with database-lifecycle privileges; everything
+# else (pg_dump, pg_restore's actual data restore) continues to run as
+# school_app, over DATABASE_URL, exactly as before.
+#
+# PG_ADMIN_RUNNER is deployment-tooling-only — never exposed as an app
+# config, never added to .env.example. It exists so this same code path is
+# testable locally (macOS has no "postgres" OS user / peer-auth setup
+# matching the real Ubuntu target) without weakening the production
+# default, which always remains "sudo -u postgres" unless explicitly
+# overridden.
+# ---------------------------------------------------------------------------
+PG_ADMIN_RUNNER="${PG_ADMIN_RUNNER:-sudo -u postgres}"
+
+# Runs `psql` with the given arguments as the local PostgreSQL admin,
+# against the always-present "postgres" maintenance database, over the
+# Unix socket (no -h/--host, no password). Never touches DATABASE_URL.
+run_pg_admin() {
+  # shellcheck disable=SC2206
+  local admin_cmd=($PG_ADMIN_RUNNER)
+  [ "${#admin_cmd[@]}" -gt 0 ] || fail "PG_ADMIN_RUNNER is empty"
+  command -v "${admin_cmd[0]}" >/dev/null 2>&1 || \
+    fail "admin runner command not found: ${admin_cmd[0]} (from \$PG_ADMIN_RUNNER=\"$PG_ADMIN_RUNNER\") — on the real VPS this must be able to run \`sudo -u postgres\`; for local testing, override \$PG_ADMIN_RUNNER"
+  "${admin_cmd[@]}" psql -v ON_ERROR_STOP=1 -d postgres "$@"
+}
+
+# Executes one SQL statement via the admin context, discarding output.
+# Callers MUST validate any interpolated identifier with
+# validate_db_identifier first — this does not escape/parameterize SQL
+# (DDL identifiers cannot be parameterized), it only executes.
+run_pg_admin_sql() {
+  run_pg_admin -c "$1" >/dev/null
+}
+
+# Executes one SQL query via the admin context and returns its raw,
+# unaligned, header-less tuple output (`psql -tA`) — used for existence/
+# ownership/privilege checks, never for anything destructive.
+query_pg_admin() {
+  run_pg_admin -tA -c "$1"
+}
+
+pg_database_exists() {
+  local db_name="$1"
+  [ -n "$(query_pg_admin "SELECT 1 FROM pg_database WHERE datname = '$db_name';")" ]
+}
+
+pg_database_owner() {
+  local db_name="$1"
+  query_pg_admin "SELECT pg_catalog.pg_get_userbyid(datdba) FROM pg_database WHERE datname = '$db_name';"
+}
+
+pg_role_has_createdb() {
+  local role_name="$1"
+  [ "$(query_pg_admin "SELECT rolcreatedb FROM pg_roles WHERE rolname = '$role_name';")" = "t" ]
+}
+
+pg_role_is_superuser() {
+  local role_name="$1"
+  [ "$(query_pg_admin "SELECT rolsuper FROM pg_roles WHERE rolname = '$role_name';")" = "t" ]
+}
+
 # ---------------------------------------------------------------------------
 # Path-traversal protection for restoring an UNTRUSTED tar archive — a
 # backup artifact is data at rest, and from a restore perspective it must

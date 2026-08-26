@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import { Badge } from "@/components/ui/badge";
+import { ProfileForm } from "@/components/profile/ProfileForm";
 import { requireAuth } from "@/lib/auth/authorize";
 import { prisma } from "@/lib/prisma";
 import type { Role } from "@prisma/client";
@@ -14,12 +14,6 @@ function formatMemberSince(date: Date): string {
   return new Intl.DateTimeFormat("en-US", { year: "numeric", month: "long", day: "numeric" }).format(date);
 }
 
-/**
- * Reads the User row fresh from the database rather than the session — the
- * JWT's name/email claims are set once at sign-in and never refreshed (see
- * attachUserToToken/attachTokenToSession), so they'd go stale as soon as
- * profile fields become editable.
- */
 export default async function ProfilePage() {
   const session = await requireAuth();
 
@@ -36,26 +30,12 @@ export default async function ProfilePage() {
 
       <div className="mt-8 border-t border-line pt-8">
         <h2 className="font-display text-lg font-semibold tracking-tight">Profile information</h2>
-        <div className="mt-4 flex flex-col gap-4">
-          <div className="flex flex-col gap-1.5">
-            <span className="text-xs font-medium uppercase tracking-wide text-muted">Name</span>
-            <p className="text-sm text-ink">{user.name}</p>
-          </div>
-          <div className="flex flex-col gap-1.5">
-            <span className="text-xs font-medium uppercase tracking-wide text-muted">Email</span>
-            <p className="text-sm text-ink">{user.email}</p>
-          </div>
-          <div className="flex flex-col gap-1.5">
-            <span className="text-xs font-medium uppercase tracking-wide text-muted">Role</span>
-            <Badge variant="soft" className="w-fit">
-              {ROLE_LABELS[user.role]}
-            </Badge>
-          </div>
-          <div className="flex flex-col gap-1.5">
-            <span className="text-xs font-medium uppercase tracking-wide text-muted">Member since</span>
-            <p className="text-sm text-ink">{formatMemberSince(user.createdAt)}</p>
-          </div>
-        </div>
+        <ProfileForm
+          initialName={user.name}
+          email={user.email}
+          roleLabel={ROLE_LABELS[user.role]}
+          memberSince={formatMemberSince(user.createdAt)}
+        />
       </div>
     </div>
   );

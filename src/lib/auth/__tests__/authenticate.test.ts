@@ -24,6 +24,7 @@ describe("authenticateCredentials", () => {
       email: "student@example.com",
       passwordHash,
       role: "STUDENT",
+      sessionVersion: 0,
       createdAt,
       updatedAt,
     });
@@ -38,7 +39,29 @@ describe("authenticateCredentials", () => {
       name: "Sam Student",
       email: "student@example.com",
       role: "STUDENT",
+      sessionVersion: 0,
     });
+  });
+
+  test("reads sessionVersion from the DB user, not a fixed default", async () => {
+    const passwordHash = await hashPassword("student123");
+    vi.mocked(prisma.user.findUnique).mockResolvedValue({
+      id: "user_1",
+      name: "Sam Student",
+      email: "student@example.com",
+      passwordHash,
+      role: "STUDENT",
+      sessionVersion: 7,
+      createdAt,
+      updatedAt,
+    });
+
+    const result = await authenticateCredentials({
+      email: "student@example.com",
+      password: "student123",
+    });
+
+    expect(result?.sessionVersion).toBe(7);
   });
 
   test("rejects an incorrect password", async () => {
@@ -49,6 +72,7 @@ describe("authenticateCredentials", () => {
       email: "student@example.com",
       passwordHash,
       role: "STUDENT",
+      sessionVersion: 0,
       createdAt,
       updatedAt,
     });
@@ -87,6 +111,7 @@ describe("authenticateCredentials", () => {
       email: "teacher@example.com",
       passwordHash,
       role: "TEACHER",
+      sessionVersion: 0,
       createdAt,
       updatedAt,
     });
@@ -107,6 +132,7 @@ describe("authenticateCredentials", () => {
       email: "admin@example.com",
       passwordHash,
       role: "ADMIN",
+      sessionVersion: 0,
       createdAt,
       updatedAt,
     });

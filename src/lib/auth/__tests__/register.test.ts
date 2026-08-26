@@ -83,6 +83,7 @@ describe("registerStudent", () => {
       email: "existing@example.com",
       passwordHash: "hash",
       role: "STUDENT",
+      sessionVersion: 0,
       createdAt,
       updatedAt,
     });

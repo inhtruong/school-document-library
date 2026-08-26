@@ -30,8 +30,23 @@ describe("changePassword", () => {
     expect(result.success).toBe(true);
     expect(prisma.user.update).toHaveBeenCalledWith({
       where: { id: "user_1" },
-      data: { passwordHash: expect.any(String) },
+      data: { passwordHash: expect.any(String), sessionVersion: { increment: 1 } },
     });
+  });
+
+  test("increments sessionVersion and updates passwordHash in a single atomic call", async () => {
+    await changePassword("user_1", {
+      currentPassword: OLD_PASSWORD,
+      newPassword: NEW_PASSWORD,
+      confirmPassword: NEW_PASSWORD,
+    });
+
+    // Exactly one prisma.user.update call carries both fields together —
+    // not two separate loosely-coupled updates.
+    expect(prisma.user.update).toHaveBeenCalledTimes(1);
+    const call = vi.mocked(prisma.user.update).mock.calls[0][0];
+    expect(call.data).toHaveProperty("passwordHash");
+    expect(call.data).toHaveProperty("sessionVersion", { increment: 1 });
   });
 
   test("rejects an incorrect current password without updating anything", async () => {

@@ -64,6 +64,13 @@ describe("updateProfileName", () => {
     expect(call.data).toEqual({ name: "Valid Name" });
   });
 
+  test("does NOT touch sessionVersion — a name change alone must not invalidate any session", async () => {
+    await updateProfileName("user_1", { name: "Valid Name" });
+
+    const call = vi.mocked(prisma.user.update).mock.calls[0][0];
+    expect(call.data).not.toHaveProperty("sessionVersion");
+  });
+
   test("always targets the userId argument, ignoring any id/userId in the input", async () => {
     await updateProfileName("real-caller-id", {
       name: "Valid Name",

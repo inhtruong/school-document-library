@@ -12,6 +12,8 @@ import { TOAST_KEYS } from "@/lib/toast-messages";
  * standard supported pattern. Purely a location change: same `signOut()`
  * call, same redirect target, same toast key as before.
  */
-export async function signOutAction(): Promise<void> {
-  await signOut({ redirectTo: `/?toast=${TOAST_KEYS.loggedOut}` });
+export async function signOutAction(
+  redirectTo: string = `/?toast=${TOAST_KEYS.loggedOut}`
+): Promise<void> {
+  await signOut({ redirectTo });
 }

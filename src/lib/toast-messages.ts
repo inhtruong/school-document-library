@@ -9,6 +9,7 @@ export const TOAST_KEYS = {
   loggedIn: "logged-in",
   loggedOut: "logged-out",
   uploadSuccess: "upload-success",
+  passwordChanged: "password-changed",
 } as const;
 
 export type ToastKey = (typeof TOAST_KEYS)[keyof typeof TOAST_KEYS];
@@ -18,6 +19,7 @@ export const TOAST_MESSAGES: Record<ToastKey, string> = {
   [TOAST_KEYS.loggedIn]: "Logged in successfully",
   [TOAST_KEYS.loggedOut]: "Logged out successfully",
   [TOAST_KEYS.uploadSuccess]: "Document uploaded successfully",
+  [TOAST_KEYS.passwordChanged]: "Password changed successfully. Please sign in again.",
 };
 
 export function isToastKey(value: string | null): value is ToastKey {

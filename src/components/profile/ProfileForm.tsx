@@ -1,7 +1,9 @@
 "use client";
 
 import { useState, type FormEvent } from "react";
+import { Calendar, Mail, ShieldCheck, User } from "lucide-react";
 import { toast } from "sonner";
+import { SettingsRow, settingsGroupClassName } from "@/components/profile/settings-row";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -17,8 +19,8 @@ type ProfileFormProps = {
 
 /**
  * Name is the only editable field — Email/Role/Member since are read-only
- * display rows in the same form (matching the spec's single "Profile
- * information" block), submitted together but only `name` is ever sent.
+ * rows in the same settings group, submitted together but only `name` is
+ * ever sent.
  */
 export function ProfileForm({ initialName, email, roleLabel, memberSince }: ProfileFormProps) {
   const [name, setName] = useState(initialName);
@@ -56,9 +58,8 @@ export function ProfileForm({ initialName, email, roleLabel, memberSince }: Prof
   }
 
   return (
-    <form onSubmit={handleSubmit} className="mt-4 flex flex-col gap-4">
-      <label className="flex flex-col gap-1.5 text-sm" htmlFor="profile-name">
-        Name
+    <form onSubmit={handleSubmit} className={settingsGroupClassName}>
+      <SettingsRow icon={User} label="Name" htmlFor="profile-name">
         <Input
           id="profile-name"
           name="name"
@@ -74,31 +75,28 @@ export function ProfileForm({ initialName, email, roleLabel, memberSince }: Prof
           aria-invalid={inlineError ? true : undefined}
           aria-describedby={inlineError ? "profile-name-error" : undefined}
         />
-      </label>
-      {inlineError ? (
-        <p id="profile-name-error" role="alert" className="-mt-2 text-xs text-destructive">
-          {inlineError}
-        </p>
-      ) : null}
+        {inlineError ? (
+          <p id="profile-name-error" role="alert" className="mt-1.5 text-xs text-destructive">
+            {inlineError}
+          </p>
+        ) : null}
+      </SettingsRow>
 
-      <div className="flex flex-col gap-1.5">
-        <span className="text-xs font-medium uppercase tracking-wide text-muted">Email</span>
+      <SettingsRow icon={Mail} label="Email">
         <p className="text-sm text-ink">{email}</p>
-      </div>
+      </SettingsRow>
 
-      <div className="flex flex-col gap-1.5">
-        <span className="text-xs font-medium uppercase tracking-wide text-muted">Role</span>
+      <SettingsRow icon={ShieldCheck} label="Role">
         <Badge variant="soft" className="w-fit">
           {roleLabel}
         </Badge>
-      </div>
+      </SettingsRow>
 
-      <div className="flex flex-col gap-1.5">
-        <span className="text-xs font-medium uppercase tracking-wide text-muted">Member since</span>
+      <SettingsRow icon={Calendar} label="Member since">
         <p className="text-sm text-ink">{memberSince}</p>
-      </div>
+      </SettingsRow>
 
-      <div>
+      <div className="flex justify-end px-4 py-3.5">
         <Button type="submit" disabled={!canSubmit}>
           {submitting ? "Saving…" : "Save changes"}
         </Button>

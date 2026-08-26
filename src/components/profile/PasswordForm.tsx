@@ -1,7 +1,9 @@
 "use client";
 
 import { useState, type FormEvent } from "react";
+import { KeyRound, Lock } from "lucide-react";
 import { toast } from "sonner";
+import { SettingsRow, settingsGroupClassName } from "@/components/profile/settings-row";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 
@@ -59,9 +61,8 @@ export function PasswordForm() {
   }
 
   return (
-    <form onSubmit={handleSubmit} className="mt-4 flex flex-col gap-4">
-      <label className="flex flex-col gap-1.5 text-sm" htmlFor="current-password">
-        Current password
+    <form onSubmit={handleSubmit} className={settingsGroupClassName}>
+      <SettingsRow icon={Lock} label="Current password" htmlFor="current-password">
         <Input
           id="current-password"
           name="currentPassword"
@@ -75,9 +76,9 @@ export function PasswordForm() {
           disabled={submitting}
           aria-describedby={error ? "password-form-error" : undefined}
         />
-      </label>
-      <label className="flex flex-col gap-1.5 text-sm" htmlFor="new-password">
-        New password
+      </SettingsRow>
+
+      <SettingsRow icon={KeyRound} label="New password" htmlFor="new-password">
         <Input
           id="new-password"
           name="newPassword"
@@ -92,9 +93,9 @@ export function PasswordForm() {
           disabled={submitting}
           aria-describedby={error ? "password-form-error" : undefined}
         />
-      </label>
-      <label className="flex flex-col gap-1.5 text-sm" htmlFor="confirm-password">
-        Confirm new password
+      </SettingsRow>
+
+      <SettingsRow icon={KeyRound} label="Confirm new password" htmlFor="confirm-password">
         <Input
           id="confirm-password"
           name="confirmPassword"
@@ -108,15 +109,17 @@ export function PasswordForm() {
           disabled={submitting}
           aria-describedby={error ? "password-form-error" : undefined}
         />
-      </label>
+      </SettingsRow>
 
       {error ? (
-        <p id="password-form-error" role="alert" className="-mt-2 text-xs text-destructive">
-          {error}
-        </p>
+        <div className="px-4 py-3">
+          <p id="password-form-error" role="alert" className="text-xs text-destructive">
+            {error}
+          </p>
+        </div>
       ) : null}
 
-      <div>
+      <div className="flex justify-end px-4 py-3.5">
         <Button type="submit" disabled={!canSubmit}>
           {submitting ? "Changing…" : "Change password"}
         </Button>

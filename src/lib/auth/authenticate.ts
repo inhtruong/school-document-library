@@ -7,6 +7,7 @@ export type AuthenticatedUser = {
   name: string;
   email: string;
   role: "STUDENT" | "TEACHER" | "ADMIN";
+  sessionVersion: number;
 };
 
 /** Returns the matching user, or null for any invalid input/unknown email/wrong password — never throws for bad credentials. */
@@ -20,5 +21,5 @@ export async function authenticateCredentials(credentials: unknown): Promise<Aut
   const isValid = await verifyPassword(parsed.data.password, user.passwordHash);
   if (!isValid) return null;
 
-  return { id: user.id, name: user.name, email: user.email, role: user.role };
+  return { id: user.id, name: user.name, email: user.email, role: user.role, sessionVersion: user.sessionVersion };
 }

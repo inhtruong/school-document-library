@@ -71,6 +71,7 @@ describe("POST /api/auth/register", () => {
       email: "existing@example.com",
       passwordHash: "hash",
       role: "STUDENT",
+      sessionVersion: 0,
       createdAt: new Date(),
       updatedAt: new Date(),
     });

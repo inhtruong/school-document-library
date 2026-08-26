@@ -273,6 +273,9 @@ model User {
   email        String   @unique
   passwordHash String
   role         Role     @default(STUDENT)
+  /// CORE-1: incremented on password change to invalidate every JWT issued
+  /// before it (see src/lib/auth/session.ts) — never exposed to the client.
+  sessionVersion Int    @default(0)
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 

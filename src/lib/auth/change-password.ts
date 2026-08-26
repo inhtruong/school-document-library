@@ -31,7 +31,14 @@ export async function changePassword(userId: string, input: unknown): Promise<Ch
   }
 
   const passwordHash = await hashPassword(parsed.data.newPassword);
-  await prisma.user.update({ where: { id: userId }, data: { passwordHash } });
+  // Single atomic update — incrementing sessionVersion here immediately
+  // invalidates every JWT issued before this moment (including the one
+  // used to make this very request), since attachUserToToken's per-request
+  // DB check will see the new value on this token's next use.
+  await prisma.user.update({
+    where: { id: userId },
+    data: { passwordHash, sessionVersion: { increment: 1 } },
+  });
 
   return { success: true };
 }

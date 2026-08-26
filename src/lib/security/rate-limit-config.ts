@@ -12,3 +12,4 @@ export const UPLOAD_RATE_LIMIT = { limit: 20, windowMs: 60 * 60 * 1000 }; // 20 
 export const COMMENT_RATE_LIMIT = { limit: 20, windowMs: 10 * 60 * 1000 }; // 20 / 10 min / user
 export const REPORT_RATE_LIMIT = { limit: 10, windowMs: 60 * 60 * 1000 }; // 10 / hour / user
 export const RATING_RATE_LIMIT = { limit: 30, windowMs: 10 * 60 * 1000 }; // 30 / 10 min / user
+export const PASSWORD_CHANGE_RATE_LIMIT = { limit: 8, windowMs: 15 * 60 * 1000 }; // 8 / 15 min / user

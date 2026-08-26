@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import { PasswordForm } from "@/components/profile/PasswordForm";
 import { ProfileForm } from "@/components/profile/ProfileForm";
 import { requireAuth } from "@/lib/auth/authorize";
 import { prisma } from "@/lib/prisma";
@@ -36,6 +37,11 @@ export default async function ProfilePage() {
           roleLabel={ROLE_LABELS[user.role]}
           memberSince={formatMemberSince(user.createdAt)}
         />
+      </div>
+
+      <div className="mt-10 border-t border-line pt-8">
+        <h2 className="font-display text-lg font-semibold tracking-tight">Change password</h2>
+        <PasswordForm />
       </div>
     </div>
   );

@@ -46,9 +46,21 @@
  * app function at all, with no safety benefit over the explicit list here).
  */
 export function buildContentSecurityPolicy(nonce: string): string {
+  // `next dev`'s Fast Refresh runtime calls eval() to instantiate/hot-reload
+  // webpack modules — under a strict CSP with no 'unsafe-eval', that throws
+  // (EvalError) and silently breaks ALL client-side hydration, not just
+  // HMR: every "use client" island (dropdowns, forms, etc.) stops working.
+  // Production builds never eval() at runtime (verified via a real
+  // `next build && next start` run — see the file-level comment above), so
+  // this relaxation is dev-only and never reaches a deployed build.
+  const isProduction = process.env.NODE_ENV === "production";
+  const scriptSrc = isProduction
+    ? `script-src 'self' 'nonce-${nonce}' 'strict-dynamic'`
+    : `script-src 'self' 'nonce-${nonce}' 'strict-dynamic' 'unsafe-eval'`;
+
   const directives = [
     `default-src 'self'`,
-    `script-src 'self' 'nonce-${nonce}' 'strict-dynamic'`,
+    scriptSrc,
     `style-src 'self' 'unsafe-inline'`,
     `img-src 'self' data: blob:`,
     `media-src 'self'`,

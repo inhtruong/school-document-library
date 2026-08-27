@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { LogOut, Menu, Sparkles, Upload, Users } from "lucide-react";
+import { LogOut, Menu, ShieldCheck, Sparkles, Upload, Users } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import {
   DropdownMenu,
@@ -22,6 +22,8 @@ export type MobileMenuProps =
       email: string;
       role: Role;
       canUpload: boolean;
+      /** ADMIN only (FEAT-10B) — server-computed by SiteHeader, never inferred client-side from `role` alone. */
+      canModerate: boolean;
     };
 
 /**
@@ -89,6 +91,14 @@ export function MobileMenu(props: MobileMenuProps) {
             <DropdownMenuItem asChild>
               <Link href="/profile">Profile</Link>
             </DropdownMenuItem>
+            {props.canModerate ? (
+              <DropdownMenuItem asChild>
+                <Link href="/moderation">
+                  <ShieldCheck className="h-4 w-4 text-muted" aria-hidden />
+                  Moderation
+                </Link>
+              </DropdownMenuItem>
+            ) : null}
 
             <DropdownMenuSeparator />
 

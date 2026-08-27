@@ -23,7 +23,11 @@ export default async function UploadPage({ searchParams }: UploadPageProps) {
     "use server";
 
     const session = await requireRole(["TEACHER", "ADMIN"]);
-    const result = await uploadDocument({ uploaderId: session.user.id, formData });
+    const result = await uploadDocument({
+      uploaderId: session.user.id,
+      uploaderRole: session.user.role,
+      formData,
+    });
 
     if (!result.success) {
       const notify = result.status !== 400 ? "&notify=1" : "";

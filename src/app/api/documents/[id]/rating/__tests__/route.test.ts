@@ -36,8 +36,41 @@ function requestWith(body: unknown) {
 beforeEach(() => {
   vi.clearAllMocks();
   resetRateLimitsForTests();
-  vi.mocked(prisma.document.findUnique).mockResolvedValue({ id: "doc_1" } as never);
+  vi.mocked(prisma.document.findUnique).mockResolvedValue(
+    { id: "doc_1", moderationStatus: "APPROVED", uploadedById: "user_1" } as never
+  );
   vi.mocked(prisma.documentRating.upsert).mockResolvedValue({ value: 4 } as never);
+});
+
+describe("PUT /api/documents/:id/rating — moderation visibility (FEAT-10A)", () => {
+  test("an unrelated authenticated user cannot rate a PENDING document (404)", async () => {
+    mockAuth.mockResolvedValue({
+      user: { id: "unrelated_user", name: "Someone Else", email: "x@example.com", role: "STUDENT" },
+      expires: "2099-01-01T00:00:00.000Z",
+    } as never);
+    vi.mocked(prisma.document.findUnique).mockResolvedValue(
+      { id: "doc_1", moderationStatus: "PENDING", uploadedById: "teacher_1" } as never
+    );
+
+    const response = await PUT(requestWith({ value: 4 }), context);
+
+    expect(response.status).toBe(404);
+    expect(prisma.documentRating.upsert).not.toHaveBeenCalled();
+  });
+
+  test("the uploader CAN rate their own PENDING document", async () => {
+    mockAuth.mockResolvedValue({
+      user: { id: "teacher_1", name: "Owner", email: "owner@example.com", role: "TEACHER" },
+      expires: "2099-01-01T00:00:00.000Z",
+    } as never);
+    vi.mocked(prisma.document.findUnique).mockResolvedValue(
+      { id: "doc_1", moderationStatus: "PENDING", uploadedById: "teacher_1" } as never
+    );
+
+    const response = await PUT(requestWith({ value: 4 }), context);
+
+    expect(response.status).toBe(200);
+  });
 });
 
 describe("PUT /api/documents/:id/rating — authentication", () => {

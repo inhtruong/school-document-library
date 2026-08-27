@@ -3,6 +3,7 @@ import { auth } from "@/auth";
 import { apiError, apiSuccess } from "@/lib/api-response";
 import { COMMENTS_PAGE_SIZE } from "@/lib/documents/comment-config";
 import { createComment, listComments } from "@/lib/documents/comment";
+import { isDocumentVisibleTo } from "@/lib/documents/visibility";
 import { prisma } from "@/lib/prisma";
 import { COMMENT_RATE_LIMIT } from "@/lib/security/rate-limit-config";
 import { checkRateLimit, tooManyRequestsResponse } from "@/lib/security/rate-limit";
@@ -16,13 +17,26 @@ function parsePage(value: string | null): number {
   return Number.isInteger(parsed) && parsed >= 1 ? parsed : 1;
 }
 
-/** Public — no auth required to read comments. Newest first, capped at COMMENTS_PAGE_SIZE. */
+/**
+ * Public for APPROVED documents — no auth required to read in that case.
+ * A PENDING/REJECTED document's comments are hidden from unrelated users
+ * (FEAT-10A), so `auth()` is only called when the document isn't
+ * APPROVED — the common/public path keeps its original cost. Newest
+ * first, capped at COMMENTS_PAGE_SIZE.
+ */
 export async function GET(request: NextRequest, { params }: RouteContext) {
   const { id } = await params;
 
   try {
-    const document = await prisma.document.findUnique({ where: { id }, select: { id: true } });
+    const document = await prisma.document.findUnique({
+      where: { id },
+      select: { id: true, moderationStatus: true, uploadedById: true },
+    });
     if (!document) return apiError("Document not found", 404);
+    if (document.moderationStatus !== "APPROVED") {
+      const session = await auth();
+      if (!isDocumentVisibleTo(document, session)) return apiError("Document not found", 404);
+    }
 
     const { searchParams } = new URL(request.url);
     const page = parsePage(searchParams.get("page"));
@@ -67,8 +81,12 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
   }
 
   try {
-    const document = await prisma.document.findUnique({ where: { id }, select: { id: true } });
+    const document = await prisma.document.findUnique({
+      where: { id },
+      select: { id: true, moderationStatus: true, uploadedById: true },
+    });
     if (!document) return apiError("Document not found", 404);
+    if (!isDocumentVisibleTo(document, session)) return apiError("Document not found", 404);
 
     const comment = await createComment(id, session.user.id, parsed.data.content);
     return apiSuccess(comment, { status: 201 });

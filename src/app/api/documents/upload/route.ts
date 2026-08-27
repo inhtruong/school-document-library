@@ -25,7 +25,11 @@ export async function POST(request: NextRequest) {
     return apiError("Request body must be multipart form data", 400);
   }
 
-  const result = await uploadDocument({ uploaderId: session.user.id, formData });
+  const result = await uploadDocument({
+    uploaderId: session.user.id,
+    uploaderRole: session.user.role,
+    formData,
+  });
   if (!result.success) return apiError(result.error, result.status);
 
   return apiSuccess(result.document, { status: 201 });

@@ -2,6 +2,7 @@ import type { NextRequest } from "next/server";
 import { auth } from "@/auth";
 import { apiError, apiSuccess } from "@/lib/api-response";
 import { createReport } from "@/lib/documents/report";
+import { isDocumentVisibleTo } from "@/lib/documents/visibility";
 import { prisma } from "@/lib/prisma";
 import { REPORT_RATE_LIMIT } from "@/lib/security/rate-limit-config";
 import { checkRateLimit, tooManyRequestsResponse } from "@/lib/security/rate-limit";
@@ -38,8 +39,12 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
   }
 
   try {
-    const document = await prisma.document.findUnique({ where: { id }, select: { id: true } });
+    const document = await prisma.document.findUnique({
+      where: { id },
+      select: { id: true, moderationStatus: true, uploadedById: true },
+    });
     if (!document) return apiError("Document not found", 404);
+    if (!isDocumentVisibleTo(document, session)) return apiError("Document not found", 404);
 
     const result = await createReport(id, session.user.id, parsed.data.reason, parsed.data.description);
     if (result.outcome === "duplicate") {

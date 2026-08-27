@@ -31,10 +31,48 @@ function requestFor(method: "GET" | "POST" | "DELETE") {
 
 beforeEach(() => {
   vi.clearAllMocks();
-  vi.mocked(prisma.document.findUnique).mockResolvedValue({ id: "doc_1" } as never);
+  vi.mocked(prisma.document.findUnique).mockResolvedValue(
+    { id: "doc_1", moderationStatus: "APPROVED", uploadedById: "user_1" } as never
+  );
   vi.mocked(prisma.documentBookmark.findUnique).mockResolvedValue(null);
   vi.mocked(prisma.documentBookmark.upsert).mockResolvedValue({} as never);
   vi.mocked(prisma.documentBookmark.deleteMany).mockResolvedValue({ count: 1 } as never);
+});
+
+describe("GET/POST /api/documents/:id/bookmark — moderation visibility (FEAT-10A)", () => {
+  test("an unrelated authenticated user cannot read bookmark state for a PENDING document (404)", async () => {
+    mockAuth.mockResolvedValue(sessionFor("STUDENT", "unrelated_user"));
+    vi.mocked(prisma.document.findUnique).mockResolvedValue(
+      { id: "doc_1", moderationStatus: "PENDING", uploadedById: "teacher_1" } as never
+    );
+
+    const response = await GET(requestFor("GET"), context);
+
+    expect(response.status).toBe(404);
+  });
+
+  test("an unrelated authenticated user cannot bookmark a PENDING document (404)", async () => {
+    mockAuth.mockResolvedValue(sessionFor("STUDENT", "unrelated_user"));
+    vi.mocked(prisma.document.findUnique).mockResolvedValue(
+      { id: "doc_1", moderationStatus: "PENDING", uploadedById: "teacher_1" } as never
+    );
+
+    const response = await POST(requestFor("POST"), context);
+
+    expect(response.status).toBe(404);
+    expect(prisma.documentBookmark.upsert).not.toHaveBeenCalled();
+  });
+
+  test("the uploader CAN bookmark their own PENDING document", async () => {
+    mockAuth.mockResolvedValue(sessionFor("TEACHER", "teacher_1"));
+    vi.mocked(prisma.document.findUnique).mockResolvedValue(
+      { id: "doc_1", moderationStatus: "PENDING", uploadedById: "teacher_1" } as never
+    );
+
+    const response = await POST(requestFor("POST"), context);
+
+    expect(response.status).toBe(200);
+  });
 });
 
 describe("GET /api/documents/:id/bookmark", () => {

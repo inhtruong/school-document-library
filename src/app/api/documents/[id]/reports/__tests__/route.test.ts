@@ -36,11 +36,38 @@ function postRequest(body: unknown) {
 beforeEach(() => {
   vi.clearAllMocks();
   resetRateLimitsForTests();
-  vi.mocked(prisma.document.findUnique).mockResolvedValue({ id: "doc_1" } as never);
+  vi.mocked(prisma.document.findUnique).mockResolvedValue(
+    { id: "doc_1", moderationStatus: "APPROVED", uploadedById: "user_1" } as never
+  );
   vi.mocked(prisma.documentReport.findFirst).mockResolvedValue(null);
   vi.mocked(prisma.documentReport.create).mockResolvedValue(
     { id: "report_1", reason: "BROKEN_FILE", status: "OPEN" } as never
   );
+});
+
+describe("POST /api/documents/:id/reports — moderation visibility (FEAT-10A)", () => {
+  test("an unrelated authenticated user cannot report a PENDING document (404)", async () => {
+    mockAuth.mockResolvedValue(sessionFor("STUDENT", "unrelated_user"));
+    vi.mocked(prisma.document.findUnique).mockResolvedValue(
+      { id: "doc_1", moderationStatus: "PENDING", uploadedById: "teacher_1" } as never
+    );
+
+    const response = await POST(postRequest({ reason: "BROKEN_FILE" }), context);
+
+    expect(response.status).toBe(404);
+    expect(prisma.documentReport.create).not.toHaveBeenCalled();
+  });
+
+  test("ADMIN can report a PENDING document", async () => {
+    mockAuth.mockResolvedValue(sessionFor("ADMIN", "admin_1"));
+    vi.mocked(prisma.document.findUnique).mockResolvedValue(
+      { id: "doc_1", moderationStatus: "PENDING", uploadedById: "teacher_1" } as never
+    );
+
+    const response = await POST(postRequest({ reason: "BROKEN_FILE" }), context);
+
+    expect(response.status).toBe(201);
+  });
 });
 
 describe("POST /api/documents/:id/reports — authentication", () => {

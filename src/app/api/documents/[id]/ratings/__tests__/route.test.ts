@@ -39,7 +39,34 @@ function requestFor() {
 
 beforeEach(() => {
   vi.clearAllMocks();
-  vi.mocked(prisma.document.findUnique).mockResolvedValue({ id: "doc_1" } as never);
+  vi.mocked(prisma.document.findUnique).mockResolvedValue(
+    { id: "doc_1", moderationStatus: "APPROVED", uploadedById: "user_1" } as never
+  );
+});
+
+describe("GET /api/documents/:id/ratings — moderation visibility (FEAT-10A)", () => {
+  test("a guest cannot read a PENDING document's rating summary (404)", async () => {
+    mockAuth.mockResolvedValue(null);
+    vi.mocked(prisma.document.findUnique).mockResolvedValue(
+      { id: "doc_1", moderationStatus: "PENDING", uploadedById: "teacher_1" } as never
+    );
+
+    const response = await GET(requestFor(), context);
+
+    expect(response.status).toBe(404);
+    expect(prisma.documentRating.aggregate).not.toHaveBeenCalled();
+  });
+
+  test("an unrelated authenticated user cannot read a REJECTED document's rating summary (404)", async () => {
+    mockAuth.mockResolvedValue(sessionFor("unrelated_user"));
+    vi.mocked(prisma.document.findUnique).mockResolvedValue(
+      { id: "doc_1", moderationStatus: "REJECTED", uploadedById: "teacher_1" } as never
+    );
+
+    const response = await GET(requestFor(), context);
+
+    expect(response.status).toBe(404);
+  });
 });
 
 describe("GET /api/documents/:id/ratings", () => {

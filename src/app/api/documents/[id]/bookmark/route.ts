@@ -2,6 +2,7 @@ import type { NextRequest } from "next/server";
 import { auth } from "@/auth";
 import { apiError, apiSuccess, PRIVATE_NO_STORE_HEADERS } from "@/lib/api-response";
 import { addBookmark, isBookmarked, removeBookmark } from "@/lib/documents/bookmark";
+import { isDocumentVisibleTo } from "@/lib/documents/visibility";
 import { prisma } from "@/lib/prisma";
 
 type RouteContext = { params: Promise<{ id: string }> };
@@ -14,8 +15,12 @@ export async function GET(_request: NextRequest, { params }: RouteContext) {
   if (!session?.user) return apiError("Authentication required", 401);
 
   try {
-    const document = await prisma.document.findUnique({ where: { id }, select: { id: true } });
+    const document = await prisma.document.findUnique({
+      where: { id },
+      select: { id: true, moderationStatus: true, uploadedById: true },
+    });
     if (!document) return apiError("Document not found", 404);
+    if (!isDocumentVisibleTo(document, session)) return apiError("Document not found", 404);
 
     const bookmarked = await isBookmarked(id, session.user.id);
     return apiSuccess({ bookmarked }, { headers: PRIVATE_NO_STORE_HEADERS });
@@ -37,8 +42,12 @@ export async function POST(_request: NextRequest, { params }: RouteContext) {
   if (!session?.user) return apiError("Authentication required", 401);
 
   try {
-    const document = await prisma.document.findUnique({ where: { id }, select: { id: true } });
+    const document = await prisma.document.findUnique({
+      where: { id },
+      select: { id: true, moderationStatus: true, uploadedById: true },
+    });
     if (!document) return apiError("Document not found", 404);
+    if (!isDocumentVisibleTo(document, session)) return apiError("Document not found", 404);
 
     await addBookmark(id, session.user.id);
     return apiSuccess({ bookmarked: true });

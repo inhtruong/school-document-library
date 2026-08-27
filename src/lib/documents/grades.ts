@@ -1,5 +1,6 @@
 import "server-only";
 import { prisma } from "@/lib/prisma";
+import { APPROVED_DOCUMENT_WHERE } from "@/lib/documents/visibility";
 import type { GradeSummary } from "@/types/document";
 
 /**
@@ -30,7 +31,7 @@ export async function listGradeSummaries(): Promise<GradeWithDocumentCount[]> {
     listGrades(),
     prisma.document.groupBy({
       by: ["gradeId"],
-      where: { gradeId: { not: null } },
+      where: { gradeId: { not: null }, ...APPROVED_DOCUMENT_WHERE },
       _count: { _all: true },
     }),
   ]);

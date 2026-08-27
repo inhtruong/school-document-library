@@ -364,3 +364,59 @@ describe("uploadDocument — ownership and failure handling", () => {
     expect(deleteLocalFile).toHaveBeenCalledWith(writtenKey);
   });
 });
+
+describe("uploadDocument — moderation status (FEAT-10A)", () => {
+  test("a TEACHER upload is created as PENDING", async () => {
+    await uploadDocument({ uploaderId: "user_1", uploaderRole: "TEACHER", formData: buildFormData() });
+
+    const createCall = vi.mocked(prisma.document.create).mock.calls[0][0] as { data: Record<string, unknown> };
+    expect(createCall.data.moderationStatus).toBe("PENDING");
+  });
+
+  test("an ADMIN upload is created as APPROVED", async () => {
+    await uploadDocument({ uploaderId: "user_1", uploaderRole: "ADMIN", formData: buildFormData() });
+
+    const createCall = vi.mocked(prisma.document.create).mock.calls[0][0] as { data: Record<string, unknown> };
+    expect(createCall.data.moderationStatus).toBe("APPROVED");
+  });
+
+  test("a client-supplied moderationStatus/role field in the form data is ignored — status is derived only from uploaderRole", async () => {
+    const formData = buildFormData({ extra: { moderationStatus: "APPROVED", role: "ADMIN" } });
+
+    await uploadDocument({ uploaderId: "user_1", uploaderRole: "TEACHER", formData });
+
+    const createCall = vi.mocked(prisma.document.create).mock.calls[0][0] as { data: Record<string, unknown> };
+    expect(createCall.data.moderationStatus).toBe("PENDING");
+  });
+
+  test("reviewedAt/reviewedById are never set on creation, for either TEACHER or ADMIN uploads", async () => {
+    await uploadDocument({ uploaderId: "user_1", uploaderRole: "ADMIN", formData: buildFormData() });
+
+    const createCall = vi.mocked(prisma.document.create).mock.calls[0][0] as { data: Record<string, unknown> };
+    expect(createCall.data).not.toHaveProperty("reviewedAt");
+    expect(createCall.data).not.toHaveProperty("reviewedById");
+  });
+
+  test("a PENDING (TEACHER) upload does NOT generate NEW_DOCUMENT notifications, even with followers", async () => {
+    vi.mocked(prisma.teacherFollow.findMany).mockResolvedValue([{ followerId: "follower_1" }] as never);
+
+    await uploadDocument({ uploaderId: "user_1", uploaderRole: "TEACHER", formData: buildFormData() });
+
+    expect(prisma.notification.createMany).not.toHaveBeenCalled();
+  });
+
+  test("an APPROVED (ADMIN) upload still generates NEW_DOCUMENT notifications for lesson followers", async () => {
+    vi.mocked(prisma.lessonFollow.findMany).mockResolvedValue([{ userId: "follower_1" }] as never);
+
+    await uploadDocument({ uploaderId: "user_1", uploaderRole: "ADMIN", formData: buildFormData() });
+
+    expect(prisma.notification.createMany).toHaveBeenCalled();
+  });
+
+  test("omitting uploaderRole defaults to the more-restrictive PENDING behavior", async () => {
+    await uploadDocument({ uploaderId: "user_1", formData: buildFormData() });
+
+    const createCall = vi.mocked(prisma.document.create).mock.calls[0][0] as { data: Record<string, unknown> };
+    expect(createCall.data.moderationStatus).toBe("PENDING");
+  });
+});

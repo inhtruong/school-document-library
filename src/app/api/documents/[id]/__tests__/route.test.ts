@@ -54,6 +54,10 @@ const mockDocument = {
   mimeType: null,
   fileCategory: null,
   uploadedById: "teacher_1",
+  moderationStatus: "APPROVED" as const,
+  reviewedAt: null,
+  reviewedById: null,
+  rejectionReason: null,
   createdAt,
   updatedAt,
 };
@@ -80,6 +84,42 @@ describe("GET /api/documents/:id", () => {
 
     expect(response.status).toBe(200);
     expect(body.data).toEqual(serializedMockDocument);
+  });
+
+  test("returns 404 for a PENDING document requested by an unrelated user (FEAT-10A)", async () => {
+    mockAuth.mockResolvedValue(OTHER_TEACHER_SESSION);
+    vi.mocked(prisma.document.findUnique).mockResolvedValue({
+      ...mockDocument,
+      moderationStatus: "PENDING",
+    });
+
+    const response = await GET(new NextRequest("http://localhost/api/documents/doc_1"), context);
+
+    expect(response.status).toBe(404);
+  });
+
+  test("returns 404 for a PENDING document requested by a guest (FEAT-10A)", async () => {
+    mockAuth.mockResolvedValue(null);
+    vi.mocked(prisma.document.findUnique).mockResolvedValue({
+      ...mockDocument,
+      moderationStatus: "PENDING",
+    });
+
+    const response = await GET(new NextRequest("http://localhost/api/documents/doc_1"), context);
+
+    expect(response.status).toBe(404);
+  });
+
+  test("the uploader CAN view their own PENDING document (FEAT-10A)", async () => {
+    mockAuth.mockResolvedValue(OWNER_SESSION);
+    vi.mocked(prisma.document.findUnique).mockResolvedValue({
+      ...mockDocument,
+      moderationStatus: "PENDING",
+    });
+
+    const response = await GET(new NextRequest("http://localhost/api/documents/doc_1"), context);
+
+    expect(response.status).toBe(200);
   });
 
   test("returns 404 when the document does not exist", async () => {

@@ -24,6 +24,8 @@ export type DocumentRecord = {
   mimeType: string | null;
   fileCategory: "PDF" | "WORD" | "EXCEL" | "IMAGE" | "VIDEO" | null;
   uploadedById: string | null;
+  /** FEAT-10A. `reviewedById`/`rejectionReason` are deliberately NOT part of this public-facing type — see get-document.ts/search.ts's `omit`. */
+  moderationStatus: "PENDING" | "APPROVED" | "REJECTED";
   /** Only populated by the document-detail endpoint, which includes the relation. */
   uploadedBy?: { id: string; name: string; role: "STUDENT" | "TEACHER" | "ADMIN" } | null;
   createdAt: string;

@@ -4,9 +4,10 @@ import type { DocumentTypeValue } from "@/lib/documents/document-type";
 import { prisma } from "@/lib/prisma";
 import { resolveSearchTaxonomyFilters, type ResolvedTaxonomyFilters } from "@/lib/documents/search-filters";
 import { SEARCH_PAGE_SIZE, SORT_ORDER_BY, type SortValue } from "@/lib/documents/search-query";
+import { APPROVED_DOCUMENT_WHERE } from "@/lib/documents/visibility";
 import type { DocumentRecord } from "@/types/document";
 
-type DocumentWithTaxonomy = Omit<Document, "fileKey"> & {
+type DocumentWithTaxonomy = Omit<Document, "fileKey" | "reviewedById" | "rejectionReason"> & {
   grade: Grade | null;
   subjectRef: Subject | null;
   lesson: Lesson | null;
@@ -75,6 +76,7 @@ export async function searchDocuments(params: SearchDocumentsParams): Promise<Se
   const skip = usesLegacyPagination ? (params.skip ?? 0) : ((params.page ?? 1) - 1) * SEARCH_PAGE_SIZE;
 
   const where = {
+    ...APPROVED_DOCUMENT_WHERE,
     ...(params.legacySubject ? { subject: { equals: params.legacySubject, mode: "insensitive" as const } } : {}),
     ...(taxonomy.gradeId ? { gradeId: taxonomy.gradeId } : {}),
     ...(taxonomy.subjectId ? { subjectId: taxonomy.subjectId } : {}),
@@ -99,7 +101,7 @@ export async function searchDocuments(params: SearchDocumentsParams): Promise<Se
       orderBy: SORT_ORDER_BY[params.sort],
       take,
       skip,
-      omit: { fileKey: true },
+      omit: { fileKey: true, reviewedById: true, rejectionReason: true },
       include: { grade: true, subjectRef: true, lesson: true },
     }),
     prisma.document.count({ where }),

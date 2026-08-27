@@ -1,6 +1,7 @@
 import type { NextRequest } from "next/server";
 import { auth } from "@/auth";
 import { apiError, apiSuccess } from "@/lib/api-response";
+import { isDocumentVisibleTo } from "@/lib/documents/visibility";
 import { prisma } from "@/lib/prisma";
 import { RATING_RATE_LIMIT } from "@/lib/security/rate-limit-config";
 import { checkRateLimit, tooManyRequestsResponse } from "@/lib/security/rate-limit";
@@ -37,8 +38,12 @@ export async function PUT(request: NextRequest, { params }: RouteContext) {
   }
 
   try {
-    const document = await prisma.document.findUnique({ where: { id }, select: { id: true } });
+    const document = await prisma.document.findUnique({
+      where: { id },
+      select: { id: true, moderationStatus: true, uploadedById: true },
+    });
     if (!document) return apiError("Document not found", 404);
+    if (!isDocumentVisibleTo(document, session)) return apiError("Document not found", 404);
 
     const rating = await prisma.documentRating.upsert({
       where: { documentId_userId: { documentId: id, userId: session.user.id } },

@@ -53,6 +53,10 @@ const mockDocument = {
   mimeType: null,
   fileCategory: null,
   uploadedById: null,
+  moderationStatus: "APPROVED" as const,
+  reviewedAt: null,
+  reviewedById: null,
+  rejectionReason: null,
   createdAt,
   updatedAt,
 };
@@ -413,5 +417,67 @@ describe("POST /api/documents", () => {
 
     expect(response.status).toBe(403);
     expect(prisma.document.create).not.toHaveBeenCalled();
+  });
+
+  test("a TEACHER caller creates the document as PENDING", async () => {
+    mockAuth.mockResolvedValue(TEACHER_SESSION);
+    vi.mocked(prisma.document.create).mockResolvedValue(mockDocument);
+    const request = new NextRequest("http://localhost/api/documents", {
+      method: "POST",
+      body: JSON.stringify({
+        title: "Database Final Exam 2025",
+        subject: "Database",
+        documentType: "EXAM",
+        academicYear: "2024-2025",
+      }),
+    });
+
+    await POST(request);
+
+    const createCall = vi.mocked(prisma.document.create).mock.calls[0][0] as { data: Record<string, unknown> };
+    expect(createCall.data.moderationStatus).toBe("PENDING");
+  });
+
+  test("an ADMIN caller creates the document as APPROVED", async () => {
+    const ADMIN_SESSION: Session = {
+      user: { id: "admin_1", role: "ADMIN", name: "Admin", email: "admin@example.com" },
+      expires: "2099-01-01T00:00:00.000Z",
+    };
+    mockAuth.mockResolvedValue(ADMIN_SESSION);
+    vi.mocked(prisma.document.create).mockResolvedValue(mockDocument);
+    const request = new NextRequest("http://localhost/api/documents", {
+      method: "POST",
+      body: JSON.stringify({
+        title: "Database Final Exam 2025",
+        subject: "Database",
+        documentType: "EXAM",
+        academicYear: "2024-2025",
+      }),
+    });
+
+    await POST(request);
+
+    const createCall = vi.mocked(prisma.document.create).mock.calls[0][0] as { data: Record<string, unknown> };
+    expect(createCall.data.moderationStatus).toBe("APPROVED");
+  });
+
+  test("a client-supplied moderationStatus in the body is ignored (stripped by zod, never reaches Prisma)", async () => {
+    mockAuth.mockResolvedValue(TEACHER_SESSION);
+    vi.mocked(prisma.document.create).mockResolvedValue(mockDocument);
+    const request = new NextRequest("http://localhost/api/documents", {
+      method: "POST",
+      body: JSON.stringify({
+        title: "Database Final Exam 2025",
+        subject: "Database",
+        documentType: "EXAM",
+        academicYear: "2024-2025",
+        moderationStatus: "APPROVED",
+      }),
+    });
+
+    await POST(request);
+
+    const createCall = vi.mocked(prisma.document.create).mock.calls[0][0] as { data: Record<string, unknown> };
+    expect(createCall.data.moderationStatus).toBe("PENDING");
   });
 });

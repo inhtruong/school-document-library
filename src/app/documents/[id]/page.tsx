@@ -17,6 +17,7 @@ import { DOCUMENT_TYPE_LABELS } from "@/lib/documents/document-type";
 import { getDocumentById } from "@/lib/documents/get-document";
 import { getRatingSummary } from "@/lib/documents/rating";
 import { subjectAccent } from "@/lib/documents/subject-accent";
+import { isDocumentVisibleTo } from "@/lib/documents/visibility";
 import { isFollowingLesson } from "@/lib/follow/lesson-follow";
 import { isFollowingTeacher } from "@/lib/follow/teacher-follow";
 import type { DocumentCommentRecord } from "@/types/comment";
@@ -45,6 +46,7 @@ export default async function DocumentDetailPage({ params }: DocumentDetailPageP
   const [doc, session] = await Promise.all([getDocumentById(id), auth()]);
 
   if (!doc) notFound();
+  if (!isDocumentVisibleTo(doc, session)) notFound();
 
   const currentUserId = session?.user?.id ?? null;
   const isAuthenticated = Boolean(session?.user);

@@ -1,5 +1,5 @@
 import "server-only";
-import { NotificationType, type Role } from "@prisma/client";
+import { NotificationType, Prisma, type Role } from "@prisma/client";
 import { NOTIFICATIONS_PAGE_SIZE } from "@/lib/notifications/notification-config";
 import { prisma } from "@/lib/prisma";
 
@@ -18,16 +18,22 @@ export type NewDocumentNotificationUploader = {
 
 function buildNewDocumentContent(
   document: NewDocumentNotificationDocument,
-  uploader: NewDocumentNotificationUploader
+  uploader: NewDocumentNotificationUploader | null
 ): { title: string; message: string } {
   const title = "New document available";
   const lessonName = document.lesson?.name;
-  const isTeacherUpload = uploader.role === "TEACHER";
+  const isTeacherUpload = uploader?.role === "TEACHER";
 
   if (isTeacherUpload) {
+    // FEAT-10D: a Teacher's document is now only ever APPROVED via the
+    // moderation approval transition (never at upload time — a Teacher
+    // upload always starts PENDING), so this branch only ever fires at
+    // actual publication time, which may be well after the original
+    // upload. "published" is accurate here; "uploaded" would misleadingly
+    // imply this just happened.
     const message = lessonName
-      ? `Teacher ${uploader.name} uploaded "${document.title}" for ${lessonName}.`
-      : `Teacher ${uploader.name} uploaded "${document.title}".`;
+      ? `Teacher ${uploader.name} published "${document.title}" for ${lessonName}.`
+      : `Teacher ${uploader.name} published "${document.title}".`;
     return { title, message };
   }
 
@@ -38,26 +44,43 @@ function buildNewDocumentContent(
 }
 
 /**
- * Called after a Document is successfully created (never before, and its
- * failure must never affect that success — see `uploadDocument()`).
+ * The single source of NEW_DOCUMENT recipient resolution — called from two
+ * places: `uploadDocument()` (an ADMIN's direct upload, already APPROVED at
+ * creation) and `approveDocument()` (FEAT-10D: a TEACHER's upload becoming
+ * APPROVED via moderation). Both call sites only invoke this once the
+ * Document is already APPROVED — this function is never itself responsible
+ * for visibility/publication, only for notifying about it.
+ *
  * Recipients are the union of the uploader's Teacher followers (only when
  * the uploader is a TEACHER — Step 8B's rule that only TEACHER users are
- * followable Teacher targets; an ADMIN upload never triggers this branch)
- * and the Document's Lesson followers (only when the Document has a
- * structured Lesson). The uploader is always excluded, even if they follow
- * their own Teacher profile or Lesson. `skipDuplicates` makes this
- * idempotent against the `(userId, documentId, type)` unique constraint —
- * a user following both the Teacher and the Lesson still gets only one
- * row, and calling this twice for the same Document never duplicates rows.
+ * followable Teacher targets; an ADMIN upload, or a document whose uploader
+ * account was later deleted — `uploader: null`, FEAT-10D §31 — never
+ * triggers this branch) and the Document's Lesson followers (only when the
+ * Document has a structured Lesson). The uploader is always excluded, even
+ * if they follow their own Teacher profile or Lesson. `skipDuplicates`
+ * makes this idempotent against the `(userId, documentId, type)` unique
+ * constraint — a user following both the Teacher and the Lesson still gets
+ * only one row, and calling this twice for the same Document never
+ * duplicates rows (this is what makes a retried/duplicate approval attempt
+ * — which can never itself re-enter this function since the atomic
+ * PENDING-only transition it's gated behind can only ever succeed once —
+ * safe in the first place).
+ *
+ * `client` optionally accepts a Prisma transaction client so the caller can
+ * run recipient resolution + notification insertion in the SAME atomic
+ * transaction as the moderation-status transition (see `approveDocument()`)
+ * — defaults to the module-level `prisma` singleton for the upload-time
+ * call site, which has no such transaction to join.
  */
 export async function createNewDocumentNotifications(
   document: NewDocumentNotificationDocument,
-  uploader: NewDocumentNotificationUploader
+  uploader: NewDocumentNotificationUploader | null,
+  client: Prisma.TransactionClient = prisma
 ): Promise<void> {
   const recipientIds = new Set<string>();
 
-  if (uploader.role === "TEACHER") {
-    const teacherFollowers = await prisma.teacherFollow.findMany({
+  if (uploader?.role === "TEACHER") {
+    const teacherFollowers = await client.teacherFollow.findMany({
       where: { teacherId: uploader.id },
       select: { followerId: true },
     });
@@ -65,19 +88,19 @@ export async function createNewDocumentNotifications(
   }
 
   if (document.lessonId) {
-    const lessonFollowers = await prisma.lessonFollow.findMany({
+    const lessonFollowers = await client.lessonFollow.findMany({
       where: { lessonId: document.lessonId },
       select: { userId: true },
     });
     for (const follow of lessonFollowers) recipientIds.add(follow.userId);
   }
 
-  recipientIds.delete(uploader.id);
+  if (uploader) recipientIds.delete(uploader.id);
   if (recipientIds.size === 0) return;
 
   const { title, message } = buildNewDocumentContent(document, uploader);
 
-  await prisma.notification.createMany({
+  await client.notification.createMany({
     data: Array.from(recipientIds).map((userId) => ({
       userId,
       documentId: document.id,

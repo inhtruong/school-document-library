@@ -2,6 +2,7 @@ import "server-only";
 import type { DocumentModerationStatus, FileCategory } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { MODERATION_PAGE_SIZE } from "@/lib/moderation/moderation-config";
+import { createNewDocumentNotifications } from "@/lib/notifications/notification";
 import { rejectDocumentSchema } from "@/lib/validation/moderation";
 
 const MODERATION_SELECT = {
@@ -138,21 +139,56 @@ export type ModerationActionResult =
   | { outcome: "invalid"; error: string };
 
 /**
- * Atomic conditional update — the `where` clause requires
- * `moderationStatus: "PENDING"` in the SAME statement as the transition,
- * so two concurrent Admins can never both "win": at most one `updateMany`
- * call ever matches a row and sets count to 1. `reviewerId` always comes
- * from the caller's authenticated session, never from client input. The
- * follow-up `findUnique` on the failure path is purely to produce a
- * friendlier 404-vs-409 distinction for the caller — it plays no role in
- * the atomicity/correctness guarantee itself.
+ * Atomic conditional update, PLUS the approval-triggered NEW_DOCUMENT
+ * notification side effect (FEAT-10D) — both run inside one
+ * `prisma.$transaction`, so a failure creating notifications rolls back
+ * the moderation-status transition too: a document can never end up
+ * publicly APPROVED with its followers silently un-notified. The `where`
+ * clause requires `moderationStatus: "PENDING"` in the SAME statement as
+ * the transition, so two concurrent Admins can never both "win": at most
+ * one `updateMany` call ever matches a row and sets count to 1 — and since
+ * notification generation only ever runs after that transition succeeds
+ * (never for the loser, which returns not-pending below), a retried or
+ * concurrent approve can never create a second batch of notifications for
+ * the same document (`createNewDocumentNotifications`'s own
+ * `skipDuplicates` against the `(userId, documentId, type)` unique
+ * constraint is a second, independent layer of the same guarantee).
+ * `reviewerId` always comes from the caller's authenticated session, never
+ * from client input. The follow-up `findUnique` on the failure path (OUTSIDE
+ * the transaction, since there is nothing to roll back on that path) is
+ * purely to produce a friendlier 404-vs-409 distinction for the caller — it
+ * plays no role in the atomicity/correctness guarantee itself.
  */
 export async function approveDocument(documentId: string, reviewerId: string): Promise<ModerationActionResult> {
-  const result = await prisma.document.updateMany({
-    where: { id: documentId, moderationStatus: "PENDING" },
-    data: { moderationStatus: "APPROVED", reviewedAt: new Date(), reviewedById: reviewerId, rejectionReason: null },
+  const transitioned = await prisma.$transaction(async (tx) => {
+    const result = await tx.document.updateMany({
+      where: { id: documentId, moderationStatus: "PENDING" },
+      data: { moderationStatus: "APPROVED", reviewedAt: new Date(), reviewedById: reviewerId, rejectionReason: null },
+    });
+    if (result.count !== 1) return false;
+
+    // FEAT-10D §31: uploadedBy may be null (the uploader's account was
+    // later deleted, onDelete: SetNull) — createNewDocumentNotifications
+    // already handles a null uploader gracefully (skips Teacher followers,
+    // still notifies Lesson followers). This document is guaranteed to
+    // exist here — we just updated it in this same transaction.
+    const document = await tx.document.findUnique({
+      where: { id: documentId },
+      select: {
+        id: true,
+        title: true,
+        lessonId: true,
+        lesson: { select: { name: true } },
+        uploadedBy: { select: { id: true, name: true, role: true } },
+      },
+    });
+    if (!document) throw new Error(`Document ${documentId} vanished mid-transaction after a successful transition`);
+
+    await createNewDocumentNotifications(document, document.uploadedBy, tx);
+    return true;
   });
-  if (result.count === 1) return { outcome: "success" };
+
+  if (transitioned) return { outcome: "success" };
 
   const existing = await prisma.document.findUnique({ where: { id: documentId }, select: { id: true } });
   return existing ? { outcome: "not-pending" } : { outcome: "not-found" };

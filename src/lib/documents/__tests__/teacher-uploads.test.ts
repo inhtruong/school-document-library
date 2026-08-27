@@ -201,6 +201,16 @@ describe("resubmitDocument", () => {
     expect(result.outcome).toBe("not-found");
   });
 
+  test("never touches the Notification table — resubmit is not a publication event (FEAT-10D)", async () => {
+    // The mocked `prisma` in this file has no `notification` key at all
+    // (see the vi.mock factory above): if resubmitDocument() ever called
+    // `prisma.notification.createMany`, this would throw a TypeError
+    // instead of silently passing, making this a strong regression guard.
+    vi.mocked(prisma.document.updateMany).mockResolvedValue({ count: 1 });
+
+    await expect(resubmitDocument("teacher_1", "doc_1")).resolves.toEqual({ outcome: "success" });
+  });
+
   test("concurrency: only one of two simultaneous resubmit attempts on the same document wins", async () => {
     vi.mocked(prisma.document.updateMany).mockResolvedValueOnce({ count: 1 }).mockResolvedValueOnce({ count: 0 });
     vi.mocked(prisma.document.findUnique).mockResolvedValue({

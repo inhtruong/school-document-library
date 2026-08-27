@@ -67,7 +67,7 @@ describe("createNewDocumentNotifications — recipient calculation", () => {
         documentId: "doc_1",
         type: "NEW_DOCUMENT",
         title: "New document available",
-        message: 'Teacher Tara Teacher uploaded "Derivative Exercises" for Derivatives.',
+        message: 'Teacher Tara Teacher published "Derivative Exercises" for Derivatives.',
       },
     ]);
   });
@@ -151,6 +151,72 @@ describe("createNewDocumentNotifications — idempotency", () => {
     for (const call of vi.mocked(prisma.notification.createMany).mock.calls) {
       expect((call[0] as NotificationCreateManyCall).skipDuplicates).toBe(true);
     }
+  });
+});
+
+describe("createNewDocumentNotifications — null uploader (FEAT-10D §31, deleted-account case)", () => {
+  test("skips Teacher-follower resolution entirely when uploader is null", async () => {
+    vi.mocked(prisma.lessonFollow.findMany).mockResolvedValue([{ userId: "student_1" }] as never);
+
+    await createNewDocumentNotifications(DOCUMENT_WITH_LESSON, null);
+
+    expect(prisma.teacherFollow.findMany).not.toHaveBeenCalled();
+    const call = vi.mocked(prisma.notification.createMany).mock.calls[0][0] as NotificationCreateManyCall;
+    expect(call.data.map((row) => row.userId)).toEqual(["student_1"]);
+  });
+
+  test("uses the generic (non-Teacher) message wording when uploader is null", async () => {
+    vi.mocked(prisma.lessonFollow.findMany).mockResolvedValue([{ userId: "student_1" }] as never);
+
+    await createNewDocumentNotifications(DOCUMENT_WITH_LESSON, null);
+
+    const call = vi.mocked(prisma.notification.createMany).mock.calls[0][0] as NotificationCreateManyCall;
+    expect(call.data[0].message).toBe('A new document "Derivative Exercises" was added to Derivatives.');
+  });
+
+  test("a document with no Lesson and a null uploader produces zero recipients without crashing", async () => {
+    await expect(createNewDocumentNotifications(DOCUMENT_NO_LESSON, null)).resolves.toBeUndefined();
+
+    expect(prisma.notification.createMany).not.toHaveBeenCalled();
+  });
+});
+
+describe("createNewDocumentNotifications — Teacher-upload wording (FEAT-10D)", () => {
+  test("uses 'published', not 'uploaded' — this only ever fires at actual publication (approval) time now", async () => {
+    vi.mocked(prisma.teacherFollow.findMany).mockResolvedValue([{ followerId: "student_1" }] as never);
+
+    await createNewDocumentNotifications(DOCUMENT_WITH_LESSON, TEACHER_UPLOADER);
+
+    const call = vi.mocked(prisma.notification.createMany).mock.calls[0][0] as NotificationCreateManyCall;
+    expect(call.data[0].message).toBe('Teacher Tara Teacher published "Derivative Exercises" for Derivatives.');
+  });
+});
+
+describe("createNewDocumentNotifications — optional transaction client", () => {
+  test("defaults to the module-level prisma client when no client is passed", async () => {
+    vi.mocked(prisma.teacherFollow.findMany).mockResolvedValue([{ followerId: "student_1" }] as never);
+
+    await createNewDocumentNotifications(DOCUMENT_WITH_LESSON, TEACHER_UPLOADER);
+
+    expect(prisma.teacherFollow.findMany).toHaveBeenCalledTimes(1);
+    expect(prisma.notification.createMany).toHaveBeenCalledTimes(1);
+  });
+
+  test("uses the passed client (e.g. a transaction handle) instead of the module-level prisma client", async () => {
+    const txTeacherFollow = vi.fn().mockResolvedValue([{ followerId: "student_1" }]);
+    const txNotificationCreateMany = vi.fn().mockResolvedValue({ count: 1 });
+    const fakeTx = {
+      teacherFollow: { findMany: txTeacherFollow },
+      lessonFollow: { findMany: vi.fn().mockResolvedValue([]) },
+      notification: { createMany: txNotificationCreateMany },
+    } as never;
+
+    await createNewDocumentNotifications(DOCUMENT_WITH_LESSON, TEACHER_UPLOADER, fakeTx);
+
+    expect(txTeacherFollow).toHaveBeenCalledTimes(1);
+    expect(txNotificationCreateMany).toHaveBeenCalledTimes(1);
+    expect(prisma.teacherFollow.findMany).not.toHaveBeenCalled();
+    expect(prisma.notification.createMany).not.toHaveBeenCalled();
   });
 });
 

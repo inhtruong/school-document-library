@@ -1,8 +1,13 @@
 import Link from "next/link";
+import { CalendarDays, User } from "lucide-react";
 import type { DocumentModerationStatus } from "@prisma/client";
 import { ModerationStatusBadge } from "@/components/moderation/ModerationStatusBadge";
+import { Card } from "@/components/ui/card";
+import { buttonVariants } from "@/components/ui/button";
 import { requireRole } from "@/lib/auth/authorize";
 import { listModerationDocuments } from "@/lib/moderation/moderation";
+import { MODERATION_STATUS_COLOR } from "@/lib/moderation/moderation-status-style";
+import { cn } from "@/lib/utils";
 
 type ModerationPageProps = {
   searchParams: Promise<{ status?: string; page?: string }>;
@@ -77,10 +82,15 @@ export default async function ModerationPage({ searchParams }: ModerationPagePro
             key={s}
             href={tabHref(s)}
             aria-current={s === status ? "page" : undefined}
-            className={`rounded-lg border px-3 py-1.5 text-sm font-medium transition-colors ${
+            className={`inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-sm font-medium transition-colors ${
               s === status ? "border-accent bg-accent text-paper" : "border-line text-ink hover:border-ink/25"
             }`}
           >
+            <span
+              aria-hidden
+              className="h-1.5 w-1.5 shrink-0 rounded-full"
+              style={{ backgroundColor: s === status ? "currentColor" : MODERATION_STATUS_COLOR[s] }}
+            />
             {STATUS_LABELS[s]}
           </Link>
         ))}
@@ -92,7 +102,7 @@ export default async function ModerationPage({ searchParams }: ModerationPagePro
 
       {result.documents.length > 0 ? (
         <>
-          <ul className="mt-4 divide-y divide-line rounded-xl border border-line">
+          <ul className="mt-4 flex flex-col gap-3">
             {result.documents.map((doc) => {
               const taxonomy = [doc.grade?.name, doc.subjectRef?.name, doc.lesson?.name].filter(Boolean).join(" · ");
               const fileSize = formatFileSize(doc.fileSize);
@@ -102,28 +112,43 @@ export default async function ModerationPage({ searchParams }: ModerationPagePro
                   : `Reviewed ${formatDate(doc.reviewedAt)}`;
 
               return (
-                <li key={doc.id} className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
-                  <div className="min-w-0">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <p className="truncate font-medium text-ink">{doc.title}</p>
-                      <ModerationStatusBadge status={doc.moderationStatus} />
+                <li key={doc.id}>
+                  <Card className="flex gap-3 p-4 transition-all hover:-translate-y-px hover:border-ink/20 hover:shadow-[0_4px_12px_rgba(18,22,31,0.06)] sm:items-center">
+                    <span
+                      aria-hidden
+                      className="w-1 shrink-0 self-stretch rounded-full"
+                      style={{ backgroundColor: MODERATION_STATUS_COLOR[doc.moderationStatus] }}
+                    />
+                    <div className="flex min-w-0 flex-1 flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                      <div className="min-w-0">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <p className="truncate font-medium text-ink">{doc.title}</p>
+                          <ModerationStatusBadge status={doc.moderationStatus} />
+                        </div>
+                        <p className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-muted">
+                          <span className="inline-flex min-w-0 items-center gap-1">
+                            <User className="h-3.5 w-3.5 shrink-0" aria-hidden />
+                            <span className="truncate">
+                              {doc.uploadedBy ? `${doc.uploadedBy.name} (${doc.uploadedBy.role})` : "Unknown uploader"}
+                            </span>
+                          </span>
+                          {taxonomy ? <span className="truncate">{taxonomy}</span> : null}
+                        </p>
+                        <p className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted">
+                          {[doc.fileCategory, fileSize].filter(Boolean).length > 0 ? (
+                            <span>{[doc.fileCategory, fileSize].filter(Boolean).join(" · ")}</span>
+                          ) : null}
+                          <span className="inline-flex items-center gap-1">
+                            <CalendarDays className="h-3.5 w-3.5" aria-hidden />
+                            {timestampLabel}
+                          </span>
+                        </p>
+                      </div>
+                      <Link href={`/moderation/${doc.id}`} className={cn(buttonVariants({ variant: "outline", size: "sm" }), "shrink-0")}>
+                        Review
+                      </Link>
                     </div>
-                    <p className="mt-1 truncate text-sm text-muted">
-                      {doc.uploadedBy ? `${doc.uploadedBy.name} (${doc.uploadedBy.role})` : "Unknown uploader"}
-                      {taxonomy ? ` · ${taxonomy}` : ""}
-                    </p>
-                    <p className="mt-0.5 text-xs text-muted">
-                      {[doc.fileCategory, fileSize].filter(Boolean).join(" · ")}
-                      {doc.fileCategory || fileSize ? " · " : ""}
-                      {timestampLabel}
-                    </p>
-                  </div>
-                  <Link
-                    href={`/moderation/${doc.id}`}
-                    className="shrink-0 rounded-lg border border-line px-3 py-1.5 text-center text-sm font-medium text-ink transition-colors hover:border-ink/25 hover:bg-surface"
-                  >
-                    Review
-                  </Link>
+                  </Card>
                 </li>
               );
             })}

@@ -12,6 +12,7 @@ import { ModerationStatusBadge } from "@/components/moderation/ModerationStatusB
 import { ResubmitAction } from "@/components/teacher-uploads/ResubmitAction";
 import { TeacherFollowAction } from "@/components/TeacherFollowAction";
 import { Badge } from "@/components/ui/badge";
+import { Card } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { isBookmarked } from "@/lib/documents/bookmark";
 import { listComments } from "@/lib/documents/comment";
@@ -21,6 +22,7 @@ import { getRatingSummary } from "@/lib/documents/rating";
 import { subjectAccent } from "@/lib/documents/subject-accent";
 import { getRejectionReasonForViewer } from "@/lib/documents/teacher-uploads";
 import { isDocumentVisibleTo } from "@/lib/documents/visibility";
+import { MODERATION_STATUS_COLOR } from "@/lib/moderation/moderation-status-style";
 import { isFollowingLesson } from "@/lib/follow/lesson-follow";
 import { isFollowingTeacher } from "@/lib/follow/teacher-follow";
 import type { DocumentCommentRecord } from "@/types/comment";
@@ -192,36 +194,46 @@ export default async function DocumentDetailPage({ params, searchParams }: Docum
               canSeeModerationDetail was already true (see the Promise.all
               guard), so no extra check is needed here. */}
           {canSeeModerationDetail ? (
-            <div className="mt-6 rounded-xl border border-line bg-surface p-4">
-              <div className="flex flex-wrap items-center gap-2">
-                <h2 className="font-display text-sm font-semibold tracking-tight text-ink">Moderation status</h2>
-                <ModerationStatusBadge status={doc.moderationStatus} />
+            <Card
+              className="mt-6 flex gap-3 p-4"
+              style={{ backgroundColor: `${MODERATION_STATUS_COLOR[doc.moderationStatus]}0d` }}
+            >
+              <span
+                aria-hidden
+                className="w-1 shrink-0 self-stretch rounded-full"
+                style={{ backgroundColor: MODERATION_STATUS_COLOR[doc.moderationStatus] }}
+              />
+              <div className="min-w-0 flex-1">
+                <div className="flex flex-wrap items-center gap-2">
+                  <h2 className="font-display text-sm font-semibold tracking-tight text-ink">Moderation status</h2>
+                  <ModerationStatusBadge status={doc.moderationStatus} />
+                </div>
+
+                {doc.moderationStatus === "PENDING" ? (
+                  <p className="mt-2 text-sm text-muted">This document is not public yet.</p>
+                ) : null}
+
+                {doc.moderationStatus === "APPROVED" ? (
+                  <p className="mt-2 text-sm text-muted">This document is publicly available.</p>
+                ) : null}
+
+                {doc.moderationStatus === "REJECTED" ? (
+                  <>
+                    {rejectionReason ? (
+                      <div className="mt-3 rounded-lg border border-destructive-soft bg-destructive-soft p-3">
+                        <p className="text-xs font-medium uppercase tracking-wide text-destructive">Reason</p>
+                        <p className="mt-1 text-sm text-ink">{rejectionReason}</p>
+                      </div>
+                    ) : null}
+                    {isOwner ? (
+                      <div className="mt-3">
+                        <ResubmitAction documentId={doc.id} />
+                      </div>
+                    ) : null}
+                  </>
+                ) : null}
               </div>
-
-              {doc.moderationStatus === "PENDING" ? (
-                <p className="mt-2 text-sm text-muted">This document is not public yet.</p>
-              ) : null}
-
-              {doc.moderationStatus === "APPROVED" ? (
-                <p className="mt-2 text-sm text-muted">This document is publicly available.</p>
-              ) : null}
-
-              {doc.moderationStatus === "REJECTED" ? (
-                <>
-                  {rejectionReason ? (
-                    <div className="mt-3 rounded-lg border border-destructive-soft bg-destructive-soft p-3">
-                      <p className="text-xs font-medium uppercase tracking-wide text-destructive">Reason</p>
-                      <p className="mt-1 text-sm text-ink">{rejectionReason}</p>
-                    </div>
-                  ) : null}
-                  {isOwner ? (
-                    <div className="mt-3">
-                      <ResubmitAction documentId={doc.id} />
-                    </div>
-                  ) : null}
-                </>
-              ) : null}
-            </div>
+            </Card>
           ) : null}
 
           <div className="mt-8">

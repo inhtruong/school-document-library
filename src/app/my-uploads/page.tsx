@@ -1,9 +1,14 @@
 import Link from "next/link";
+import { CalendarDays } from "lucide-react";
 import { ModerationStatusBadge } from "@/components/moderation/ModerationStatusBadge";
 import { ResubmitAction } from "@/components/teacher-uploads/ResubmitAction";
+import { Card } from "@/components/ui/card";
+import { buttonVariants } from "@/components/ui/button";
 import { DOCUMENT_TYPE_LABELS } from "@/lib/documents/document-type";
 import { listTeacherUploads, type TeacherUploadStatusFilter } from "@/lib/documents/teacher-uploads";
 import { requireRole } from "@/lib/auth/authorize";
+import { MODERATION_STATUS_COLOR } from "@/lib/moderation/moderation-status-style";
+import { cn } from "@/lib/utils";
 import type { DocumentTypeValue } from "@/lib/documents/document-type";
 
 type MyUploadsPageProps = {
@@ -81,10 +86,17 @@ export default async function MyUploadsPage({ searchParams }: MyUploadsPageProps
             key={f}
             href={tabHref(f)}
             aria-current={f === filter ? "page" : undefined}
-            className={`rounded-lg border px-3 py-1.5 text-sm font-medium transition-colors ${
+            className={`inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-sm font-medium transition-colors ${
               f === filter ? "border-accent bg-accent text-paper" : "border-line text-ink hover:border-ink/25"
             }`}
           >
+            {f !== "ALL" ? (
+              <span
+                aria-hidden
+                className="h-1.5 w-1.5 shrink-0 rounded-full"
+                style={{ backgroundColor: f === filter ? "currentColor" : MODERATION_STATUS_COLOR[f] }}
+              />
+            ) : null}
             {FILTER_LABELS[f]}
           </Link>
         ))}
@@ -96,49 +108,62 @@ export default async function MyUploadsPage({ searchParams }: MyUploadsPageProps
 
       {result.documents.length > 0 ? (
         <>
-          <ul className="mt-4 divide-y divide-line rounded-xl border border-line">
+          <ul className="mt-4 flex flex-col gap-3">
             {result.documents.map((doc) => {
               const taxonomy = [doc.grade?.name, doc.subjectRef?.name, doc.lesson?.name].filter(Boolean).join(" · ");
               const fileSize = formatFileSize(doc.fileSize);
               const isRejected = doc.moderationStatus === "REJECTED";
 
               return (
-                <li key={doc.id} className="flex flex-col gap-3 p-4">
-                  <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                    <div className="min-w-0">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <p className="truncate font-medium text-ink">{doc.title}</p>
-                        <ModerationStatusBadge status={doc.moderationStatus} />
+                <li key={doc.id}>
+                  <Card className="flex gap-3 p-4">
+                    <span
+                      aria-hidden
+                      className="w-1 shrink-0 self-stretch rounded-full"
+                      style={{ backgroundColor: MODERATION_STATUS_COLOR[doc.moderationStatus] }}
+                    />
+                    <div className="flex min-w-0 flex-1 flex-col gap-3">
+                      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                        <div className="min-w-0">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <p className="truncate font-medium text-ink">{doc.title}</p>
+                            <ModerationStatusBadge status={doc.moderationStatus} />
+                          </div>
+                          <p className="mt-1 truncate text-sm text-muted">
+                            {taxonomy || DOCUMENT_TYPE_LABELS[doc.documentType as DocumentTypeValue]}
+                          </p>
+                          <p className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted">
+                            {[doc.fileCategory, fileSize].filter(Boolean).length > 0 ? (
+                              <span>{[doc.fileCategory, fileSize].filter(Boolean).join(" · ")}</span>
+                            ) : null}
+                            <span className="inline-flex items-center gap-1">
+                              <CalendarDays className="h-3.5 w-3.5" aria-hidden />
+                              {doc.reviewedAt ? `Reviewed ${formatDate(doc.reviewedAt)}` : `Uploaded ${formatDate(doc.createdAt)}`}
+                            </span>
+                          </p>
+                        </div>
+                        <Link
+                          href={`/documents/${doc.id}?from=my-uploads`}
+                          className={cn(buttonVariants({ variant: "outline", size: "sm" }), "shrink-0")}
+                        >
+                          View
+                        </Link>
                       </div>
-                      <p className="mt-1 truncate text-sm text-muted">
-                        {taxonomy || DOCUMENT_TYPE_LABELS[doc.documentType as DocumentTypeValue]}
-                      </p>
-                      <p className="mt-0.5 text-xs text-muted">
-                        {[doc.fileCategory, fileSize].filter(Boolean).join(" · ")}
-                        {doc.fileCategory || fileSize ? " · " : ""}
-                        {doc.reviewedAt ? `Reviewed ${formatDate(doc.reviewedAt)}` : `Uploaded ${formatDate(doc.createdAt)}`}
-                      </p>
-                    </div>
-                    <Link
-                      href={`/documents/${doc.id}`}
-                      className="shrink-0 rounded-lg border border-line px-3 py-1.5 text-center text-sm font-medium text-ink transition-colors hover:border-ink/25 hover:bg-surface"
-                    >
-                      View
-                    </Link>
-                  </div>
 
-                  {isRejected && doc.rejectionReason ? (
-                    <div className="rounded-lg border border-destructive-soft bg-destructive-soft p-3">
-                      <p className="text-xs font-medium uppercase tracking-wide text-destructive">Reason</p>
-                      <p className="mt-1 text-sm text-ink">{doc.rejectionReason}</p>
-                    </div>
-                  ) : null}
+                      {isRejected && doc.rejectionReason ? (
+                        <div className="rounded-lg border border-destructive-soft bg-destructive-soft p-3">
+                          <p className="text-xs font-medium uppercase tracking-wide text-destructive">Reason</p>
+                          <p className="mt-1 text-sm text-ink">{doc.rejectionReason}</p>
+                        </div>
+                      ) : null}
 
-                  {isRejected ? (
-                    <div>
-                      <ResubmitAction documentId={doc.id} size="sm" />
+                      {isRejected ? (
+                        <div>
+                          <ResubmitAction documentId={doc.id} size="sm" />
+                        </div>
+                      ) : null}
                     </div>
-                  ) : null}
+                  </Card>
                 </li>
               );
             })}

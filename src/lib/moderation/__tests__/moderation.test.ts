@@ -10,7 +10,7 @@ vi.mock("@/lib/prisma", () => {
     },
     teacherFollow: { findMany: vi.fn() },
     lessonFollow: { findMany: vi.fn() },
-    notification: { createMany: vi.fn() },
+    notification: { createMany: vi.fn(), deleteMany: vi.fn() },
     // Test double for prisma.$transaction: just invokes the callback with
     // the SAME mocked client, so `tx.document.updateMany` etc. inside
     // approveDocument() hit the exact mocks configured below — matches how
@@ -65,6 +65,7 @@ beforeEach(() => {
   vi.mocked(prisma.teacherFollow.findMany).mockResolvedValue([]);
   vi.mocked(prisma.lessonFollow.findMany).mockResolvedValue([]);
   vi.mocked(prisma.notification.createMany).mockResolvedValue({ count: 0 } as never);
+  vi.mocked(prisma.notification.deleteMany).mockResolvedValue({ count: 0 } as never);
   vi.mocked(prisma.document.findUnique).mockResolvedValue(APPROVE_DOCUMENT_ROW as never);
 });
 
@@ -216,11 +217,17 @@ describe("approveDocument", () => {
 
     const outcomes = [first.outcome, second.outcome].sort();
     expect(outcomes).toEqual(["not-pending", "success"]);
-    // Exactly one notification batch for the whole race — the loser never
-    // reaches notification generation at all.
-    expect(prisma.notification.createMany).toHaveBeenCalledTimes(1);
-    const call = vi.mocked(prisma.notification.createMany).mock.calls[0][0] as { data: unknown[] };
-    expect(call.data).toHaveLength(1);
+    // Exactly two notification batches for the whole race — one follower
+    // (NEW_DOCUMENT) batch and one Teacher-result (DOCUMENT_APPROVED) batch,
+    // both from the single winner; the loser never reaches notification
+    // generation at all.
+    expect(prisma.notification.createMany).toHaveBeenCalledTimes(2);
+    const calls = vi.mocked(prisma.notification.createMany).mock.calls as unknown as Array<
+      [{ data: Array<{ type: string }> }]
+    >;
+    for (const call of calls) expect(call[0].data).toHaveLength(1);
+    const types = calls.map((call) => call[0].data[0].type).sort();
+    expect(types).toEqual(["DOCUMENT_APPROVED", "NEW_DOCUMENT"]);
   });
 });
 
@@ -261,13 +268,16 @@ describe("approveDocument — notification generation (FEAT-10D)", () => {
     expect(prisma.notification.createMany).not.toHaveBeenCalled();
   });
 
-  test("succeeds with zero notifications when neither the Teacher nor the Lesson has followers", async () => {
+  test("zero follower notifications when neither the Teacher nor the Lesson has followers — the Teacher result notification is separate and still fires", async () => {
     vi.mocked(prisma.document.findUnique).mockResolvedValue(APPROVE_DOCUMENT_ROW as never);
 
     const result = await approveDocument("doc_1", "admin_1");
 
     expect(result.outcome).toBe("success");
-    expect(prisma.notification.createMany).not.toHaveBeenCalled();
+    const calls = vi.mocked(prisma.notification.createMany).mock.calls as unknown as Array<
+      [{ data: Array<{ type: string }> }]
+    >;
+    expect(calls.every((call) => call[0].data.every((row) => row.type !== "NEW_DOCUMENT"))).toBe(true);
   });
 
   test("a document with no Lesson notifies only Teacher followers", async () => {
@@ -333,6 +343,97 @@ describe("approveDocument — notification generation (FEAT-10D)", () => {
     await approveDocument("doc_1", "admin_1");
 
     expect(prisma.$transaction).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("approveDocument / rejectDocument — clears stale DOCUMENT_PENDING_REVIEW (FEAT-10F)", () => {
+  beforeEach(() => {
+    vi.mocked(prisma.document.updateMany).mockResolvedValue({ count: 1 });
+  });
+
+  test("approve clears any outstanding pending-review notification for the document — the task is resolved for every Admin, not just this reviewer", async () => {
+    vi.mocked(prisma.document.findUnique).mockResolvedValue(APPROVE_DOCUMENT_ROW as never);
+
+    await approveDocument("doc_1", "admin_1");
+
+    expect(prisma.notification.deleteMany).toHaveBeenCalledWith({
+      where: { documentId: "doc_1", type: "DOCUMENT_PENDING_REVIEW" },
+    });
+  });
+
+  test("reject clears any outstanding pending-review notification for the document too", async () => {
+    vi.mocked(prisma.document.findUnique).mockResolvedValue(APPROVE_DOCUMENT_ROW as never);
+
+    await rejectDocument("doc_1", "admin_1", { reason: "test" });
+
+    expect(prisma.notification.deleteMany).toHaveBeenCalledWith({
+      where: { documentId: "doc_1", type: "DOCUMENT_PENDING_REVIEW" },
+    });
+  });
+});
+
+describe("approveDocument — Teacher result notification (FEAT-10F)", () => {
+  beforeEach(() => {
+    vi.mocked(prisma.document.updateMany).mockResolvedValue({ count: 1 });
+  });
+
+  test("notifies the uploader with DOCUMENT_APPROVED", async () => {
+    vi.mocked(prisma.document.findUnique).mockResolvedValue(APPROVE_DOCUMENT_ROW as never);
+
+    await approveDocument("doc_1", "admin_1");
+
+    const calls = vi.mocked(prisma.notification.createMany).mock.calls as unknown as Array<
+      [{ data: Array<{ userId: string; type: string; message: string }> }]
+    >;
+    const resultCall = calls.find((call) => call[0].data.some((row) => row.type === "DOCUMENT_APPROVED"));
+    expect(resultCall).toBeDefined();
+    const row = resultCall![0].data[0];
+    expect(row.userId).toBe(APPROVE_DOCUMENT_ROW.uploadedBy.id);
+    expect(row.message).toBe(`Your document "${APPROVE_DOCUMENT_ROW.title}" was approved.`);
+  });
+
+  test("replaces any prior moderation-result notification (approved or rejected) before creating the fresh approved one", async () => {
+    vi.mocked(prisma.document.findUnique).mockResolvedValue(APPROVE_DOCUMENT_ROW as never);
+
+    await approveDocument("doc_1", "admin_1");
+
+    expect(prisma.notification.deleteMany).toHaveBeenCalledWith({
+      where: {
+        userId: APPROVE_DOCUMENT_ROW.uploadedBy.id,
+        documentId: "doc_1",
+        type: { in: ["DOCUMENT_APPROVED", "DOCUMENT_REJECTED"] },
+      },
+    });
+  });
+
+  test("null uploader (deleted account) → no Teacher result notification, approve still succeeds", async () => {
+    vi.mocked(prisma.document.findUnique).mockResolvedValue({ ...APPROVE_DOCUMENT_ROW, uploadedBy: null } as never);
+
+    const result = await approveDocument("doc_1", "admin_1");
+
+    expect(result.outcome).toBe("success");
+    const calls = vi.mocked(prisma.notification.createMany).mock.calls as unknown as Array<
+      [{ data: Array<{ type: string }> }]
+    >;
+    expect(calls.every((call) => call[0].data.every((row) => row.type !== "DOCUMENT_APPROVED"))).toBe(true);
+  });
+
+  test("self-review edge case: reviewer === uploader → no self-notification (e.g. an ADMIN's own PENDING document)", async () => {
+    vi.mocked(prisma.document.findUnique).mockResolvedValue(APPROVE_DOCUMENT_ROW as never);
+
+    await approveDocument("doc_1", APPROVE_DOCUMENT_ROW.uploadedBy.id);
+
+    const calls = vi.mocked(prisma.notification.createMany).mock.calls as unknown as Array<
+      [{ data: Array<{ type: string }> }]
+    >;
+    expect(calls.every((call) => call[0].data.every((row) => row.type !== "DOCUMENT_APPROVED"))).toBe(true);
+  });
+
+  test("notification failure rolls back the entire approval — document remains PENDING", async () => {
+    vi.mocked(prisma.document.findUnique).mockResolvedValue(APPROVE_DOCUMENT_ROW as never);
+    vi.mocked(prisma.notification.createMany).mockRejectedValue(new Error("connection refused"));
+
+    await expect(approveDocument("doc_1", "admin_1")).rejects.toThrow();
   });
 });
 
@@ -418,11 +519,89 @@ describe("rejectDocument", () => {
     expect(call.data.reviewedById).toBe("real-admin-id");
   });
 
-  test("never generates a follower notification — rejection is not a publication event (FEAT-10D)", async () => {
+  test("never generates a follower NEW_DOCUMENT notification — rejection is not a publication event (FEAT-10D)", async () => {
     vi.mocked(prisma.document.updateMany).mockResolvedValue({ count: 1 });
 
     await rejectDocument("doc_1", "admin_1", { reason: "Wrong grade level" });
 
+    const calls = vi.mocked(prisma.notification.createMany).mock.calls as unknown as Array<
+      [{ data: Array<{ type: string }> }]
+    >;
+    expect(calls.every((call) => call[0].data.every((row) => row.type !== "NEW_DOCUMENT"))).toBe(true);
+  });
+
+  test("never generates a DOCUMENT_PENDING_REVIEW notification — rejection does not re-queue for review", async () => {
+    vi.mocked(prisma.document.updateMany).mockResolvedValue({ count: 1 });
+
+    await rejectDocument("doc_1", "admin_1", { reason: "Wrong grade level" });
+
+    const calls = vi.mocked(prisma.notification.createMany).mock.calls as unknown as Array<
+      [{ data: Array<{ type: string }> }]
+    >;
+    expect(calls.every((call) => call[0].data.every((row) => row.type !== "DOCUMENT_PENDING_REVIEW"))).toBe(true);
+  });
+});
+
+describe("rejectDocument — Teacher result notification (FEAT-10F)", () => {
+  beforeEach(() => {
+    vi.mocked(prisma.document.updateMany).mockResolvedValue({ count: 1 });
+  });
+
+  test("notifies the uploader with DOCUMENT_REJECTED, reason not embedded", async () => {
+    vi.mocked(prisma.document.findUnique).mockResolvedValue(APPROVE_DOCUMENT_ROW as never);
+
+    await rejectDocument("doc_1", "admin_1", { reason: "Wrong grade level — please fix and resubmit" });
+
+    const call = vi.mocked(prisma.notification.createMany).mock.calls[0][0] as {
+      data: Array<{ userId: string; type: string; message: string }>;
+    };
+    expect(call.data).toEqual([
+      {
+        userId: APPROVE_DOCUMENT_ROW.uploadedBy.id,
+        documentId: "doc_1",
+        type: "DOCUMENT_REJECTED",
+        title: "Document rejected",
+        message: `Your document "${APPROVE_DOCUMENT_ROW.title}" was rejected. View the reason and make changes before resubmitting.`,
+      },
+    ]);
+    expect(call.data[0].message).not.toContain("Wrong grade level");
+  });
+
+  test("replaces any prior moderation-result notification (approved or rejected) before creating the fresh rejected one", async () => {
+    vi.mocked(prisma.document.findUnique).mockResolvedValue(APPROVE_DOCUMENT_ROW as never);
+
+    await rejectDocument("doc_1", "admin_1", { reason: "test" });
+
+    expect(prisma.notification.deleteMany).toHaveBeenCalledWith({
+      where: {
+        userId: APPROVE_DOCUMENT_ROW.uploadedBy.id,
+        documentId: "doc_1",
+        type: { in: ["DOCUMENT_APPROVED", "DOCUMENT_REJECTED"] },
+      },
+    });
+  });
+
+  test("null uploader (deleted account) → no Teacher result notification, reject still succeeds", async () => {
+    vi.mocked(prisma.document.findUnique).mockResolvedValue({ ...APPROVE_DOCUMENT_ROW, uploadedBy: null } as never);
+
+    const result = await rejectDocument("doc_1", "admin_1", { reason: "test" });
+
+    expect(result.outcome).toBe("success");
     expect(prisma.notification.createMany).not.toHaveBeenCalled();
+  });
+
+  test("self-review edge case: reviewer === uploader → no self-notification", async () => {
+    vi.mocked(prisma.document.findUnique).mockResolvedValue(APPROVE_DOCUMENT_ROW as never);
+
+    await rejectDocument("doc_1", APPROVE_DOCUMENT_ROW.uploadedBy.id, { reason: "test" });
+
+    expect(prisma.notification.createMany).not.toHaveBeenCalled();
+  });
+
+  test("notification failure rolls back the entire rejection — document remains PENDING", async () => {
+    vi.mocked(prisma.document.findUnique).mockResolvedValue(APPROVE_DOCUMENT_ROW as never);
+    vi.mocked(prisma.notification.createMany).mockRejectedValue(new Error("connection refused"));
+
+    await expect(rejectDocument("doc_1", "admin_1", { reason: "test" })).rejects.toThrow();
   });
 });

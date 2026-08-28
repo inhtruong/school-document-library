@@ -112,6 +112,151 @@ export async function createNewDocumentNotifications(
   });
 }
 
+export type PendingReviewNotificationDocument = {
+  id: string;
+  title: string;
+};
+
+export type PendingReviewNotificationUploader = {
+  id: string;
+  name: string;
+};
+
+/**
+ * Notifies every ADMIN that a document just entered PENDING and needs
+ * review — a fresh Teacher upload, or a Resubmit after rejection (bug
+ * report: Admins had no bell notification for either, only the manual
+ * /moderation queue). Unlike `createNewDocumentNotifications`, recipients
+ * are never "followers" — every ADMIN is the moderation authority for
+ * every document, so there's no follow relationship to resolve. The
+ * uploader is excluded defensively (never expected to be an ADMIN in the
+ * current PENDING-transition flows, but matches the same exclusion
+ * discipline as the follower-notification path).
+ *
+ * A single document can enter PENDING more than once over its lifetime
+ * (upload → reject → resubmit → reject → resubmit → ...), and each entry
+ * is a genuinely new "needs review" event that should re-surface in the
+ * bell — unlike NEW_DOCUMENT, which only ever means "this document was
+ * published" once. The `(userId, documentId, type)` unique constraint
+ * exists for NEW_DOCUMENT's one-time semantics; reusing it here via
+ * `skipDuplicates` would silently swallow every notification after the
+ * first for the same document (found during live verification: a
+ * Resubmit produced zero notifications because a row from the original
+ * upload already existed, even though it had already been read). Instead,
+ * any previous pending-review notification for this document — stale the
+ * moment a new one is generated — is replaced rather than stacked.
+ */
+export async function createDocumentPendingReviewNotifications(
+  document: PendingReviewNotificationDocument,
+  uploader: PendingReviewNotificationUploader | null,
+  options: { isResubmit?: boolean } = {},
+  client: Prisma.TransactionClient = prisma
+): Promise<void> {
+  const admins = await client.user.findMany({ where: { role: "ADMIN" }, select: { id: true } });
+  const recipientIds = new Set(admins.map((admin) => admin.id));
+  if (uploader) recipientIds.delete(uploader.id);
+  if (recipientIds.size === 0) return;
+
+  const action = options.isResubmit ? "resubmitted" : "uploaded";
+  const title = "Document awaiting review";
+  const message = uploader
+    ? `${uploader.name} ${action} "${document.title}" — it's waiting for your review.`
+    : `"${document.title}" was ${action} and is waiting for your review.`;
+
+  await client.notification.deleteMany({
+    where: { documentId: document.id, type: NotificationType.DOCUMENT_PENDING_REVIEW },
+  });
+
+  await client.notification.createMany({
+    data: Array.from(recipientIds).map((userId) => ({
+      userId,
+      documentId: document.id,
+      type: NotificationType.DOCUMENT_PENDING_REVIEW,
+      title,
+      message,
+    })),
+    skipDuplicates: true,
+  });
+}
+
+/**
+ * Clears any outstanding DOCUMENT_PENDING_REVIEW notifications for a
+ * document once it leaves PENDING via a moderation decision (approve or
+ * reject). Not explicitly requested by name, but a direct consequence of
+ * the same "current-work-inbox, not immutable history" principle
+ * `createDocumentPendingReviewNotifications`'s delete-then-create already
+ * establishes (found during FEAT-10F live verification: without this, an
+ * Admin who didn't personally act on a document keeps an unread "needs
+ * review" ping for it forever, even after another Admin already resolved
+ * it — the task it represents no longer exists). Safe to call even when no
+ * such rows exist (`deleteMany` matches zero rows without erroring).
+ */
+export async function clearPendingReviewNotifications(
+  documentId: string,
+  client: Prisma.TransactionClient = prisma
+): Promise<void> {
+  await client.notification.deleteMany({
+    where: { documentId, type: NotificationType.DOCUMENT_PENDING_REVIEW },
+  });
+}
+
+export type ModerationResultNotificationDocument = {
+  id: string;
+  title: string;
+};
+
+export type ModerationResultOutcome = "APPROVED" | "REJECTED";
+
+/**
+ * Notifies the document's uploader of the CURRENT moderation result —
+ * DOCUMENT_APPROVED or DOCUMENT_REJECTED (FEAT-10F). Unlike NEW_DOCUMENT's
+ * one-time "this was published" semantics, a single document can be
+ * approved, rejected, edited, and re-reviewed multiple times over its
+ * life — the Teacher should always see the LATEST result, never a stack of
+ * stale/contradictory rows ("Rejected" sitting next to an older
+ * "Approved"). Both the opposite-outcome AND same-outcome prior result row
+ * for this uploader/document are removed before inserting the fresh one —
+ * matching the same "current-work-inbox, not audit history" philosophy
+ * `createDocumentPendingReviewNotifications` already established.
+ * AuditLog (a later, separate feature) will own immutable history.
+ *
+ * Callers MUST skip invoking this entirely when there is no uploader
+ * (deleted account) or when `reviewerId === uploaderId` (an Admin
+ * reviewing their own historical/edge-case PENDING document — no
+ * self-notification) — this function performs no such check itself,
+ * matching the "caller decides eligibility" contract already used by
+ * `createNewDocumentNotifications`/`createDocumentPendingReviewNotifications`.
+ */
+export async function createModerationResultNotification(
+  document: ModerationResultNotificationDocument,
+  uploaderId: string,
+  outcome: ModerationResultOutcome,
+  client: Prisma.TransactionClient = prisma
+): Promise<void> {
+  const type = outcome === "APPROVED" ? NotificationType.DOCUMENT_APPROVED : NotificationType.DOCUMENT_REJECTED;
+  const title = outcome === "APPROVED" ? "Document approved" : "Document rejected";
+  // Deliberately no rejectionReason here — it can be long, and the owner
+  // already sees it in full on /documents/[id] (FEAT-10C/10E's dedicated
+  // owner-safe status panel). Never embed it in a notification row.
+  const message =
+    outcome === "APPROVED"
+      ? `Your document "${document.title}" was approved.`
+      : `Your document "${document.title}" was rejected. View the reason and make changes before resubmitting.`;
+
+  await client.notification.deleteMany({
+    where: {
+      userId: uploaderId,
+      documentId: document.id,
+      type: { in: [NotificationType.DOCUMENT_APPROVED, NotificationType.DOCUMENT_REJECTED] },
+    },
+  });
+
+  await client.notification.createMany({
+    data: [{ userId: uploaderId, documentId: document.id, type, title, message }],
+    skipDuplicates: true,
+  });
+}
+
 export type NotificationRecord = {
   id: string;
   type: NotificationType;

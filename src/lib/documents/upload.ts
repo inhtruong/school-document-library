@@ -3,7 +3,7 @@ import type { Document, DocumentModerationStatus, Grade, Lesson, Role, Subject }
 import { prisma } from "@/lib/prisma";
 import { MAX_UPLOAD_SIZE_BYTES, MAX_UPLOAD_SIZE_MB } from "@/lib/documents/upload-config";
 import { validateTaxonomySelection } from "@/lib/documents/taxonomy";
-import { createNewDocumentNotifications } from "@/lib/notifications/notification";
+import { createDocumentPendingReviewNotifications, createNewDocumentNotifications } from "@/lib/notifications/notification";
 import {
   buildFileKey,
   deleteLocalFile,
@@ -155,17 +155,37 @@ export async function uploadDocument(input: {
   // notification failure for a Document-creation failure and delete the
   // just-written file.
   //
-  // FEAT-10A: a PENDING Teacher upload must not notify anyone with a link
-  // to a document they can't yet see, so this only fires for the
-  // APPROVED (Admin direct-upload) case. Notifications tied to the
-  // eventual Approve action itself don't exist yet — Approve doesn't
-  // exist until FEAT-10B — so this is a deliberate, temporary gap;
-  // FEAT-10D will finalize the full moderation/notification integration.
+  // FEAT-10F trade-off: unlike resubmit/approve/reject (pure-DB
+  // transitions, now wrapped in `$transaction` with their notifications),
+  // upload's notification stays best-effort/non-transactional on purpose.
+  // The real state change here already spans a non-DB resource — the file
+  // write to local storage happens BEFORE this point and can't be rolled
+  // back by a Postgres transaction — so wrapping just document.create()+
+  // notification in one `$transaction` wouldn't actually make the whole
+  // operation atomic, only add a new failure mode: a transient notification
+  // hiccup would force a successfully-validated, already-stored upload to
+  // be reported as failed (and its orphan file deleted) to the Teacher.
+  // That's a worse outcome for a routine "please review this" ping than
+  // just logging and moving on. A rare failure here still leaves the
+  // document fully visible via /moderation's queue regardless.
+  //
+  // APPROVED (an Admin's direct upload): notify followers immediately — a
+  // publication event. PENDING (a Teacher's upload): no follower
+  // notification (FEAT-10A — a PENDING doc isn't visible to followers
+  // yet), but every ADMIN gets a "needs review" notification, since
+  // otherwise the only way to discover it was to manually check
+  // /moderation (user-reported gap).
   if (document.uploadedBy && moderationStatus === "APPROVED") {
     try {
       await createNewDocumentNotifications(document, document.uploadedBy);
     } catch (error) {
       console.error("Notification generation failed for a new document upload", error);
+    }
+  } else if (moderationStatus === "PENDING") {
+    try {
+      await createDocumentPendingReviewNotifications(document, document.uploadedBy);
+    } catch (error) {
+      console.error("Pending-review notification generation failed for a new document upload", error);
     }
   }
 

@@ -2,6 +2,7 @@ import "server-only";
 import type { DocumentModerationStatus, FileCategory } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { TEACHER_UPLOADS_PAGE_SIZE } from "@/lib/documents/teacher-uploads-config";
+import { createDocumentPendingReviewNotifications } from "@/lib/notifications/notification";
 
 export type TeacherUploadStatusFilter = "ALL" | DocumentModerationStatus;
 
@@ -138,17 +139,42 @@ export type ResubmitResult =
  * "REJECTED"` in the SAME statement as the transition, so exactly one
  * concurrent resubmit attempt can ever win. `uploaderId` always comes from
  * the caller's authenticated session, never from client input — there is no
- * "resubmit on someone else's behalf" path, not even for ADMIN. The
- * follow-up `findUnique` on the failure path exists only to distinguish
- * not-found vs forbidden vs not-rejected for a friendlier error — it plays
- * no role in the atomicity guarantee itself.
+ * "resubmit on someone else's behalf" path, not even for ADMIN.
+ *
+ * FEAT-10F: the transition and the Admin pending-review notification now
+ * run inside one `prisma.$transaction`, unlike `uploadDocument()`'s
+ * upload-time notification (which stays best-effort — see its own comment
+ * for why file-storage architecture makes that impractical). Resubmit has
+ * no such constraint (no file I/O involved), so a notification failure
+ * here rolls back the transition too — the document stays REJECTED rather
+ * than silently becoming PENDING with no Admin ever told about it. Admin
+ * notification is operationally important: without it, the only way to
+ * discover a resubmitted document is manually re-checking /moderation.
+ *
+ * The follow-up `findUnique` on the failure path (OUTSIDE the transaction,
+ * since there is nothing to roll back on that path) exists only to
+ * distinguish not-found vs forbidden vs not-rejected for a friendlier
+ * error — it plays no role in the atomicity guarantee itself.
  */
 export async function resubmitDocument(uploaderId: string, documentId: string): Promise<ResubmitResult> {
-  const result = await prisma.document.updateMany({
-    where: { id: documentId, uploadedById: uploaderId, moderationStatus: "REJECTED" },
-    data: { moderationStatus: "PENDING", reviewedAt: null, reviewedById: null, rejectionReason: null },
+  const transitioned = await prisma.$transaction(async (tx) => {
+    const result = await tx.document.updateMany({
+      where: { id: documentId, uploadedById: uploaderId, moderationStatus: "REJECTED" },
+      data: { moderationStatus: "PENDING", reviewedAt: null, reviewedById: null, rejectionReason: null },
+    });
+    if (result.count !== 1) return false;
+
+    const document = await tx.document.findUnique({
+      where: { id: documentId },
+      select: { id: true, title: true, uploadedBy: { select: { id: true, name: true } } },
+    });
+    if (!document) throw new Error(`Document ${documentId} vanished mid-transaction after a successful resubmit`);
+
+    await createDocumentPendingReviewNotifications(document, document.uploadedBy, { isResubmit: true }, tx);
+    return true;
   });
-  if (result.count === 1) return { outcome: "success" };
+
+  if (transitioned) return { outcome: "success" };
 
   const existing = await prisma.document.findUnique({
     where: { id: documentId },

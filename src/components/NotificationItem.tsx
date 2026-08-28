@@ -21,6 +21,21 @@ function formatNotificationDate(value: string): string {
 }
 
 /**
+ * DOCUMENT_PENDING_REVIEW (Admin-only) lands directly on the review/approve
+ * page — that route is Admin-only, so it's never generated for anyone
+ * else. Every other type — NEW_DOCUMENT (follower), DOCUMENT_APPROVED /
+ * DOCUMENT_REJECTED (uploader, FEAT-10F) — points to the plain document
+ * view: the uploader can already see the current moderation status,
+ * rejection reason, and Resubmit action right there (FEAT-10C/10E).
+ */
+function notificationHref(notification: NotificationRecord): string {
+  if (notification.type === "DOCUMENT_PENDING_REVIEW") {
+    return `/moderation/${notification.documentId}`;
+  }
+  return `/documents/${notification.documentId}`;
+}
+
+/**
  * Clicking navigates to the linked Document via the normal `<Link>`
  * navigation; if the notification is still unread, this also fires a
  * fire-and-forget mark-as-read request and calls `router.refresh()` so the
@@ -42,7 +57,7 @@ export function NotificationItem({ notification, onRead }: NotificationItemProps
   return (
     <li>
       <Link
-        href={`/documents/${notification.documentId}`}
+        href={notificationHref(notification)}
         onClick={handleClick}
         className={`flex items-start gap-2 px-3 py-3 transition-colors hover:bg-surface ${
           isUnread ? "bg-accent/5" : ""

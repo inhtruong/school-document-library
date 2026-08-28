@@ -8,7 +8,8 @@ vi.mock("@/lib/prisma", () => ({
     lesson: { findUnique: vi.fn() },
     teacherFollow: { findMany: vi.fn() },
     lessonFollow: { findMany: vi.fn() },
-    notification: { createMany: vi.fn() },
+    user: { findMany: vi.fn() },
+    notification: { createMany: vi.fn(), deleteMany: vi.fn() },
   },
 }));
 
@@ -171,7 +172,9 @@ beforeEach(() => {
   );
   vi.mocked(prisma.teacherFollow.findMany).mockResolvedValue([] as never);
   vi.mocked(prisma.lessonFollow.findMany).mockResolvedValue([] as never);
+  vi.mocked(prisma.user.findMany).mockResolvedValue([] as never);
   vi.mocked(prisma.notification.createMany).mockResolvedValue({ count: 0 } as never);
+  vi.mocked(prisma.notification.deleteMany).mockResolvedValue({ count: 0 } as never);
 });
 
 describe("uploadDocument — accepted formats", () => {
@@ -397,20 +400,47 @@ describe("uploadDocument — moderation status (FEAT-10A)", () => {
     expect(createCall.data).not.toHaveProperty("reviewedById");
   });
 
-  test("a PENDING (TEACHER) upload does NOT generate NEW_DOCUMENT notifications, even with followers", async () => {
+  test("a PENDING (TEACHER) upload does NOT generate a NEW_DOCUMENT follower notification, even with followers", async () => {
     vi.mocked(prisma.teacherFollow.findMany).mockResolvedValue([{ followerId: "follower_1" }] as never);
 
     await uploadDocument({ uploaderId: "user_1", uploaderRole: "TEACHER", formData: buildFormData() });
 
-    expect(prisma.notification.createMany).not.toHaveBeenCalled();
+    const calls = vi.mocked(prisma.notification.createMany).mock.calls as unknown as Array<
+      [{ data: Array<{ type: string }> }]
+    >;
+    expect(calls.every((call) => call[0].data.every((row) => row.type !== "NEW_DOCUMENT"))).toBe(true);
   });
 
-  test("an APPROVED (ADMIN) upload still generates NEW_DOCUMENT notifications for lesson followers", async () => {
+  test("a PENDING (TEACHER) upload DOES notify every ADMIN that it needs review (bug report)", async () => {
+    vi.mocked(prisma.user.findMany).mockResolvedValue([{ id: "admin_1" }, { id: "admin_2" }] as never);
+
+    await uploadDocument({ uploaderId: "user_1", uploaderRole: "TEACHER", formData: buildFormData() });
+
+    const call = vi.mocked(prisma.notification.createMany).mock.calls[0][0] as {
+      data: Array<{ userId: string; type: string; message: string }>;
+    };
+    expect(call.data.map((row) => row.userId).sort()).toEqual(["admin_1", "admin_2"]);
+    expect(call.data[0].type).toBe("DOCUMENT_PENDING_REVIEW");
+    expect(call.data[0].message).toMatch(/uploaded/i);
+  });
+
+  test("a pending-review notification failure never fails an otherwise-successful upload", async () => {
+    vi.mocked(prisma.user.findMany).mockRejectedValue(new Error("connection refused"));
+
+    const result = await uploadDocument({ uploaderId: "user_1", uploaderRole: "TEACHER", formData: buildFormData() });
+
+    expect(result.success).toBe(true);
+  });
+
+  test("an APPROVED (ADMIN) upload still generates NEW_DOCUMENT notifications for lesson followers, and never a pending-review notification", async () => {
     vi.mocked(prisma.lessonFollow.findMany).mockResolvedValue([{ userId: "follower_1" }] as never);
 
     await uploadDocument({ uploaderId: "user_1", uploaderRole: "ADMIN", formData: buildFormData() });
 
-    expect(prisma.notification.createMany).toHaveBeenCalled();
+    expect(prisma.notification.createMany).toHaveBeenCalledTimes(1);
+    const call = vi.mocked(prisma.notification.createMany).mock.calls[0][0] as { data: Array<{ type: string }> };
+    expect(call.data[0].type).toBe("NEW_DOCUMENT");
+    expect(prisma.user.findMany).not.toHaveBeenCalled();
   });
 
   test("omitting uploaderRole defaults to the more-restrictive PENDING behavior", async () => {

@@ -4,11 +4,13 @@ vi.mock("@/lib/prisma", () => ({
   prisma: {
     teacherFollow: { findMany: vi.fn() },
     lessonFollow: { findMany: vi.fn() },
+    user: { findMany: vi.fn() },
     notification: {
       findMany: vi.fn(),
       findUnique: vi.fn(),
       count: vi.fn(),
       createMany: vi.fn(),
+      deleteMany: vi.fn(),
       update: vi.fn(),
       updateMany: vi.fn(),
     },
@@ -18,6 +20,8 @@ vi.mock("@/lib/prisma", () => ({
 import { prisma } from "@/lib/prisma";
 import { NOTIFICATIONS_PAGE_SIZE } from "@/lib/notifications/notification-config";
 import {
+  createDocumentPendingReviewNotifications,
+  createModerationResultNotification,
   createNewDocumentNotifications,
   getUnreadNotificationCount,
   listNotifications,
@@ -51,7 +55,9 @@ beforeEach(() => {
   vi.clearAllMocks();
   vi.mocked(prisma.teacherFollow.findMany).mockResolvedValue([]);
   vi.mocked(prisma.lessonFollow.findMany).mockResolvedValue([]);
+  vi.mocked(prisma.user.findMany).mockResolvedValue([]);
   vi.mocked(prisma.notification.createMany).mockResolvedValue({ count: 0 } as never);
+  vi.mocked(prisma.notification.deleteMany).mockResolvedValue({ count: 0 } as never);
 });
 
 describe("createNewDocumentNotifications — recipient calculation", () => {
@@ -220,6 +226,113 @@ describe("createNewDocumentNotifications — optional transaction client", () =>
   });
 });
 
+describe("createDocumentPendingReviewNotifications — recipients", () => {
+  const DOCUMENT = { id: "doc_1", title: "Derivative Exercises" };
+  const UPLOADER = { id: "teacher_1", name: "Tara Teacher" };
+
+  test("notifies every ADMIN user, not a follower list", async () => {
+    vi.mocked(prisma.user.findMany).mockResolvedValue([{ id: "admin_1" }, { id: "admin_2" }] as never);
+
+    await createDocumentPendingReviewNotifications(DOCUMENT, UPLOADER);
+
+    expect(prisma.user.findMany).toHaveBeenCalledWith({ where: { role: "ADMIN" }, select: { id: true } });
+    const call = vi.mocked(prisma.notification.createMany).mock.calls[0][0] as NotificationCreateManyCall;
+    expect(call.data.map((row) => row.userId).sort()).toEqual(["admin_1", "admin_2"]);
+    expect(call.data.every((row) => row.type === "DOCUMENT_PENDING_REVIEW")).toBe(true);
+  });
+
+  test("zero Admins produces zero notification rows, without erroring", async () => {
+    vi.mocked(prisma.user.findMany).mockResolvedValue([]);
+
+    await expect(createDocumentPendingReviewNotifications(DOCUMENT, UPLOADER)).resolves.toBeUndefined();
+
+    expect(prisma.notification.createMany).not.toHaveBeenCalled();
+  });
+
+  test("excludes the uploader defensively, even if they somehow appear in the Admin list", async () => {
+    vi.mocked(prisma.user.findMany).mockResolvedValue([{ id: "teacher_1" }, { id: "admin_1" }] as never);
+
+    await createDocumentPendingReviewNotifications(DOCUMENT, UPLOADER);
+
+    const call = vi.mocked(prisma.notification.createMany).mock.calls[0][0] as NotificationCreateManyCall;
+    expect(call.data.map((row) => row.userId)).toEqual(["admin_1"]);
+  });
+
+  test("always passes skipDuplicates", async () => {
+    vi.mocked(prisma.user.findMany).mockResolvedValue([{ id: "admin_1" }] as never);
+
+    await createDocumentPendingReviewNotifications(DOCUMENT, UPLOADER);
+
+    const call = vi.mocked(prisma.notification.createMany).mock.calls[0][0] as NotificationCreateManyCall;
+    expect(call.skipDuplicates).toBe(true);
+  });
+});
+
+describe("createDocumentPendingReviewNotifications — repeat pending events (bug fix)", () => {
+  const DOCUMENT = { id: "doc_1", title: "Derivative Exercises" };
+  const UPLOADER = { id: "teacher_1", name: "Tara Teacher" };
+
+  test("clears any previous pending-review notification for this document before creating the new one", async () => {
+    vi.mocked(prisma.user.findMany).mockResolvedValue([{ id: "admin_1" }] as never);
+
+    await createDocumentPendingReviewNotifications(DOCUMENT, UPLOADER, { isResubmit: true });
+
+    expect(prisma.notification.deleteMany).toHaveBeenCalledWith({
+      where: { documentId: "doc_1", type: "DOCUMENT_PENDING_REVIEW" },
+    });
+    const deleteOrder = vi.mocked(prisma.notification.deleteMany).mock.invocationCallOrder[0];
+    const createOrder = vi.mocked(prisma.notification.createMany).mock.invocationCallOrder[0];
+    expect(deleteOrder).toBeLessThan(createOrder);
+  });
+
+  test("a resubmit after a prior (already-read) upload notification still produces a fresh unread row — this is the exact bug reported live", async () => {
+    vi.mocked(prisma.user.findMany).mockResolvedValue([{ id: "admin_1" }] as never);
+
+    // First event: fresh upload.
+    await createDocumentPendingReviewNotifications(DOCUMENT, UPLOADER, { isResubmit: false });
+    // Second event, same document + same recipient: a resubmit after reject.
+    // Without the deleteMany fix, skipDuplicates would silently drop this
+    // second insert because a row for (admin_1, doc_1, DOCUMENT_PENDING_REVIEW)
+    // already exists — reproducing the reported bug.
+    await createDocumentPendingReviewNotifications(DOCUMENT, UPLOADER, { isResubmit: true });
+
+    expect(prisma.notification.createMany).toHaveBeenCalledTimes(2);
+    expect(prisma.notification.deleteMany).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe("createDocumentPendingReviewNotifications — content", () => {
+  const DOCUMENT = { id: "doc_1", title: "Derivative Exercises" };
+  const UPLOADER = { id: "teacher_1", name: "Tara Teacher" };
+
+  test("a fresh upload says 'uploaded'", async () => {
+    vi.mocked(prisma.user.findMany).mockResolvedValue([{ id: "admin_1" }] as never);
+
+    await createDocumentPendingReviewNotifications(DOCUMENT, UPLOADER);
+
+    const call = vi.mocked(prisma.notification.createMany).mock.calls[0][0] as NotificationCreateManyCall;
+    expect(call.data[0].message).toBe('Tara Teacher uploaded "Derivative Exercises" — it\'s waiting for your review.');
+  });
+
+  test("a resubmit says 'resubmitted', not 'uploaded'", async () => {
+    vi.mocked(prisma.user.findMany).mockResolvedValue([{ id: "admin_1" }] as never);
+
+    await createDocumentPendingReviewNotifications(DOCUMENT, UPLOADER, { isResubmit: true });
+
+    const call = vi.mocked(prisma.notification.createMany).mock.calls[0][0] as NotificationCreateManyCall;
+    expect(call.data[0].message).toBe('Tara Teacher resubmitted "Derivative Exercises" — it\'s waiting for your review.');
+  });
+
+  test("a null uploader (deleted account) still produces a sensible message", async () => {
+    vi.mocked(prisma.user.findMany).mockResolvedValue([{ id: "admin_1" }] as never);
+
+    await createDocumentPendingReviewNotifications(DOCUMENT, null);
+
+    const call = vi.mocked(prisma.notification.createMany).mock.calls[0][0] as NotificationCreateManyCall;
+    expect(call.data[0].message).toBe('"Derivative Exercises" was uploaded and is waiting for your review.');
+  });
+});
+
 describe("listNotifications", () => {
   test("orders newest first, caps take at NOTIFICATIONS_PAGE_SIZE, and computes skip from the page", async () => {
     vi.mocked(prisma.notification.findMany).mockResolvedValue([]);
@@ -343,5 +456,69 @@ describe("markAllNotificationsRead", () => {
 
     const call = vi.mocked(prisma.notification.updateMany).mock.calls[0][0] as { where: { userId: string } };
     expect(call.where.userId).toBe("user_1");
+  });
+});
+
+describe("createModerationResultNotification — content and recipient (FEAT-10F)", () => {
+  const DOCUMENT = { id: "doc_1", title: "Derivative Exercises" };
+
+  test("APPROVED: notifies only the uploader, correct type/title/message", async () => {
+    await createModerationResultNotification(DOCUMENT, "teacher_1", "APPROVED");
+
+    const call = vi.mocked(prisma.notification.createMany).mock.calls[0][0] as NotificationCreateManyCall;
+    expect(call.data).toEqual([
+      {
+        userId: "teacher_1",
+        documentId: "doc_1",
+        type: "DOCUMENT_APPROVED",
+        title: "Document approved",
+        message: 'Your document "Derivative Exercises" was approved.',
+      },
+    ]);
+  });
+
+  test("REJECTED: notifies only the uploader, correct type/title/message, no rejection reason embedded", async () => {
+    await createModerationResultNotification(DOCUMENT, "teacher_1", "REJECTED");
+
+    const call = vi.mocked(prisma.notification.createMany).mock.calls[0][0] as NotificationCreateManyCall;
+    expect(call.data).toEqual([
+      {
+        userId: "teacher_1",
+        documentId: "doc_1",
+        type: "DOCUMENT_REJECTED",
+        title: "Document rejected",
+        message:
+          'Your document "Derivative Exercises" was rejected. View the reason and make changes before resubmitting.',
+      },
+    ]);
+  });
+});
+
+describe("createModerationResultNotification — replacement semantics (FEAT-10F §15)", () => {
+  const DOCUMENT = { id: "doc_1", title: "Derivative Exercises" };
+
+  test("deletes any prior DOCUMENT_APPROVED or DOCUMENT_REJECTED for this uploader/document before creating the fresh one", async () => {
+    await createModerationResultNotification(DOCUMENT, "teacher_1", "REJECTED");
+
+    expect(prisma.notification.deleteMany).toHaveBeenCalledWith({
+      where: {
+        userId: "teacher_1",
+        documentId: "doc_1",
+        type: { in: ["DOCUMENT_APPROVED", "DOCUMENT_REJECTED"] },
+      },
+    });
+    const deleteOrder = vi.mocked(prisma.notification.deleteMany).mock.invocationCallOrder[0];
+    const createOrder = vi.mocked(prisma.notification.createMany).mock.invocationCallOrder[0];
+    expect(deleteOrder).toBeLessThan(createOrder);
+  });
+
+  test("a re-approval after an earlier rejection still produces a fresh unread DOCUMENT_APPROVED — this is the current-result-inbox behavior, distinct from NEW_DOCUMENT's one-time semantics", async () => {
+    await createModerationResultNotification(DOCUMENT, "teacher_1", "REJECTED");
+    await createModerationResultNotification(DOCUMENT, "teacher_1", "APPROVED");
+
+    expect(prisma.notification.createMany).toHaveBeenCalledTimes(2);
+    expect(prisma.notification.deleteMany).toHaveBeenCalledTimes(2);
+    const lastCall = vi.mocked(prisma.notification.createMany).mock.calls[1][0] as NotificationCreateManyCall;
+    expect(lastCall.data[0].type).toBe("DOCUMENT_APPROVED");
   });
 });

@@ -414,4 +414,10 @@ model Notification {
 /** Kept intentionally small — see Notification's doc comment. */
 enum NotificationType {
   NEW_DOCUMENT
+  /** A document just entered PENDING (fresh Teacher upload, or a Resubmit) — sent to every ADMIN, never to followers. */
+  DOCUMENT_PENDING_REVIEW
+  /** PENDING → APPROVED — sent to the document's uploader only (FEAT-10F). */
+  DOCUMENT_APPROVED
+  /** PENDING → REJECTED — sent to the document's uploader only (FEAT-10F). */
+  DOCUMENT_REJECTED
 }

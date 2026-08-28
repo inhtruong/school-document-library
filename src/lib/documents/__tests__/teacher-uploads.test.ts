@@ -1,15 +1,24 @@
 import { beforeEach, describe, expect, test, vi } from "vitest";
 
-vi.mock("@/lib/prisma", () => ({
-  prisma: {
+vi.mock("@/lib/prisma", () => {
+  const mockPrisma = {
     document: {
       findMany: vi.fn(),
       count: vi.fn(),
       findUnique: vi.fn(),
       updateMany: vi.fn(),
     },
-  },
-}));
+    user: { findMany: vi.fn() },
+    notification: { createMany: vi.fn(), deleteMany: vi.fn() },
+    // Test double for prisma.$transaction: invokes the callback with the
+    // SAME mocked client, so `tx.document.updateMany` etc. inside
+    // resubmitDocument() hit the exact mocks configured below — matches
+    // how the real interactive transaction hands every query the same
+    // connection/client.
+    $transaction: vi.fn((callback: (tx: unknown) => unknown) => callback(mockPrisma)),
+  };
+  return { prisma: mockPrisma };
+});
 
 import { prisma } from "@/lib/prisma";
 import {
@@ -39,6 +48,9 @@ const mockRow = {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  vi.mocked(prisma.user.findMany).mockResolvedValue([]);
+  vi.mocked(prisma.notification.createMany).mockResolvedValue({ count: 0 } as never);
+  vi.mocked(prisma.notification.deleteMany).mockResolvedValue({ count: 0 } as never);
 });
 
 describe("listTeacherUploads", () => {
@@ -141,6 +153,11 @@ describe("getRejectionReasonForViewer", () => {
 describe("resubmitDocument", () => {
   test("transitions REJECTED to PENDING and clears all review metadata, in one atomic call", async () => {
     vi.mocked(prisma.document.updateMany).mockResolvedValue({ count: 1 });
+    vi.mocked(prisma.document.findUnique).mockResolvedValue({
+      id: "doc_1",
+      title: "Test Document",
+      uploadedBy: { id: "teacher_1", name: "Tara Teacher" },
+    } as never);
 
     const result = await resubmitDocument("teacher_1", "doc_1");
 
@@ -201,21 +218,14 @@ describe("resubmitDocument", () => {
     expect(result.outcome).toBe("not-found");
   });
 
-  test("never touches the Notification table — resubmit is not a publication event (FEAT-10D)", async () => {
-    // The mocked `prisma` in this file has no `notification` key at all
-    // (see the vi.mock factory above): if resubmitDocument() ever called
-    // `prisma.notification.createMany`, this would throw a TypeError
-    // instead of silently passing, making this a strong regression guard.
-    vi.mocked(prisma.document.updateMany).mockResolvedValue({ count: 1 });
-
-    await expect(resubmitDocument("teacher_1", "doc_1")).resolves.toEqual({ outcome: "success" });
-  });
-
   test("concurrency: only one of two simultaneous resubmit attempts on the same document wins", async () => {
     vi.mocked(prisma.document.updateMany).mockResolvedValueOnce({ count: 1 }).mockResolvedValueOnce({ count: 0 });
     vi.mocked(prisma.document.findUnique).mockResolvedValue({
+      id: "doc_1",
+      title: "Test Document",
       uploadedById: "teacher_1",
       moderationStatus: "REJECTED",
+      uploadedBy: { id: "teacher_1", name: "Tara Teacher" },
     } as never);
 
     const [first, second] = await Promise.all([
@@ -225,5 +235,49 @@ describe("resubmitDocument", () => {
 
     const outcomes = [first.outcome, second.outcome].sort();
     expect(outcomes).toEqual(["not-rejected", "success"]);
+  });
+});
+
+describe("resubmitDocument — pending-review notification (Admin bell)", () => {
+  const RESUBMITTED_DOCUMENT_ROW = {
+    id: "doc_1",
+    title: "Test Document",
+    uploadedBy: { id: "teacher_1", name: "Tara Teacher" },
+  };
+
+  test("notifies every ADMIN that the document is waiting for review again", async () => {
+    vi.mocked(prisma.document.updateMany).mockResolvedValue({ count: 1 });
+    vi.mocked(prisma.document.findUnique).mockResolvedValue(RESUBMITTED_DOCUMENT_ROW as never);
+    vi.mocked(prisma.user.findMany).mockResolvedValue([{ id: "admin_1" }, { id: "admin_2" }] as never);
+
+    const result = await resubmitDocument("teacher_1", "doc_1");
+
+    expect(result.outcome).toBe("success");
+    const call = vi.mocked(prisma.notification.createMany).mock.calls[0][0] as {
+      data: Array<{ userId: string; type: string; message: string }>;
+    };
+    expect(call.data.map((row) => row.userId).sort()).toEqual(["admin_1", "admin_2"]);
+    expect(call.data[0].type).toBe("DOCUMENT_PENDING_REVIEW");
+    expect(call.data[0].message).toMatch(/resubmitted/i);
+  });
+
+  test("FEAT-10F: a resubmit notification failure now rolls back the whole resubmit (transactional) — document stays REJECTED, not silently PENDING with no Admin told", async () => {
+    vi.mocked(prisma.document.updateMany).mockResolvedValue({ count: 1 });
+    vi.mocked(prisma.document.findUnique).mockResolvedValue(RESUBMITTED_DOCUMENT_ROW as never);
+    vi.mocked(prisma.user.findMany).mockRejectedValue(new Error("connection refused"));
+
+    await expect(resubmitDocument("teacher_1", "doc_1")).rejects.toThrow();
+  });
+
+  test("does not notify Admins when the transition did not succeed", async () => {
+    vi.mocked(prisma.document.updateMany).mockResolvedValue({ count: 0 });
+    vi.mocked(prisma.document.findUnique).mockResolvedValue({
+      uploadedById: "teacher_1",
+      moderationStatus: "PENDING",
+    } as never);
+
+    await resubmitDocument("teacher_1", "doc_1");
+
+    expect(prisma.notification.createMany).not.toHaveBeenCalled();
   });
 });

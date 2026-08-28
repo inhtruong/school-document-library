@@ -2,7 +2,11 @@ import "server-only";
 import type { DocumentModerationStatus, FileCategory } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { MODERATION_PAGE_SIZE } from "@/lib/moderation/moderation-config";
-import { createNewDocumentNotifications } from "@/lib/notifications/notification";
+import {
+  clearPendingReviewNotifications,
+  createModerationResultNotification,
+  createNewDocumentNotifications,
+} from "@/lib/notifications/notification";
 import { rejectDocumentSchema } from "@/lib/validation/moderation";
 
 const MODERATION_SELECT = {
@@ -139,20 +143,31 @@ export type ModerationActionResult =
   | { outcome: "invalid"; error: string };
 
 /**
- * Atomic conditional update, PLUS the approval-triggered NEW_DOCUMENT
- * notification side effect (FEAT-10D) — both run inside one
- * `prisma.$transaction`, so a failure creating notifications rolls back
- * the moderation-status transition too: a document can never end up
- * publicly APPROVED with its followers silently un-notified. The `where`
- * clause requires `moderationStatus: "PENDING"` in the SAME statement as
- * the transition, so two concurrent Admins can never both "win": at most
- * one `updateMany` call ever matches a row and sets count to 1 — and since
- * notification generation only ever runs after that transition succeeds
- * (never for the loser, which returns not-pending below), a retried or
- * concurrent approve can never create a second batch of notifications for
- * the same document (`createNewDocumentNotifications`'s own
- * `skipDuplicates` against the `(userId, documentId, type)` unique
- * constraint is a second, independent layer of the same guarantee).
+ * Atomic conditional update, PLUS TWO notification side effects — both run
+ * inside one `prisma.$transaction`, so a failure creating either rolls
+ * back the moderation-status transition too: a document can never end up
+ * publicly APPROVED with its followers or its uploader silently
+ * un-notified. The `where` clause requires `moderationStatus: "PENDING"`
+ * in the SAME statement as the transition, so two concurrent Admins can
+ * never both "win": at most one `updateMany` call ever matches a row and
+ * sets count to 1 — and since notification generation only ever runs
+ * after that transition succeeds (never for the loser, which returns
+ * not-pending below), a retried or concurrent approve can never create a
+ * second batch of notifications for the same document
+ * (`createNewDocumentNotifications`'s own `skipDuplicates` against the
+ * `(userId, documentId, type)` unique constraint is a second, independent
+ * layer of the same guarantee).
+ *
+ * The two notification effects (FEAT-10F §10) are distinct audiences:
+ * `createNewDocumentNotifications` → Teacher/Lesson followers (one-time,
+ * "this was published" — the uploader is always excluded there already);
+ * `createModerationResultNotification` → the uploader themself, "your
+ * document was approved" (may recur across review cycles — see its own
+ * doc comment). Skipped entirely when there's no uploader (deleted
+ * account) or when `reviewerId === uploader.id` (§27 self-review edge
+ * case — an Admin should never get a self-notification for their own
+ * PENDING document).
+ *
  * `reviewerId` always comes from the caller's authenticated session, never
  * from client input. The follow-up `findUnique` on the failure path (OUTSIDE
  * the transaction, since there is nothing to roll back on that path) is
@@ -184,7 +199,16 @@ export async function approveDocument(documentId: string, reviewerId: string): P
     });
     if (!document) throw new Error(`Document ${documentId} vanished mid-transaction after a successful transition`);
 
+    // The "please review this" task these represent is now resolved for
+    // every Admin, not just this reviewer — see clearPendingReviewNotifications's doc comment.
+    await clearPendingReviewNotifications(documentId, tx);
+
     await createNewDocumentNotifications(document, document.uploadedBy, tx);
+
+    if (document.uploadedBy && document.uploadedBy.id !== reviewerId) {
+      await createModerationResultNotification(document, document.uploadedBy.id, "APPROVED", tx);
+    }
+
     return true;
   });
 
@@ -194,7 +218,19 @@ export async function approveDocument(documentId: string, reviewerId: string): P
   return existing ? { outcome: "not-pending" } : { outcome: "not-found" };
 }
 
-/** Same atomic conditional-update guarantee as approveDocument() — see its doc comment. */
+/**
+ * Same atomic conditional-update guarantee as approveDocument() — see its
+ * doc comment. FEAT-10F: now also transactional, matching approve — the
+ * transition and the uploader's DOCUMENT_REJECTED notification either both
+ * succeed or both roll back, so a document is never left REJECTED with its
+ * uploader silently un-notified (unlike the best-effort PENDING-review
+ * notifications, this workflow-result notification is the ONLY way a
+ * Teacher learns their document needs changes, so strong consistency is
+ * preferred here — see the final report's atomicity/failure-handling
+ * section for the full reasoning). Never generates NEW_DOCUMENT or
+ * DOCUMENT_PENDING_REVIEW — rejected content is never announced to
+ * followers or re-queued for review on its own.
+ */
 export async function rejectDocument(
   documentId: string,
   reviewerId: string,
@@ -205,16 +241,37 @@ export async function rejectDocument(
     return { outcome: "invalid", error: parsed.error.issues[0]?.message ?? "Invalid rejection reason" };
   }
 
-  const result = await prisma.document.updateMany({
-    where: { id: documentId, moderationStatus: "PENDING" },
-    data: {
-      moderationStatus: "REJECTED",
-      reviewedAt: new Date(),
-      reviewedById: reviewerId,
-      rejectionReason: parsed.data.reason,
-    },
+  const transitioned = await prisma.$transaction(async (tx) => {
+    const result = await tx.document.updateMany({
+      where: { id: documentId, moderationStatus: "PENDING" },
+      data: {
+        moderationStatus: "REJECTED",
+        reviewedAt: new Date(),
+        reviewedById: reviewerId,
+        rejectionReason: parsed.data.reason,
+      },
+    });
+    if (result.count !== 1) return false;
+
+    const document = await tx.document.findUnique({
+      where: { id: documentId },
+      select: { id: true, title: true, uploadedBy: { select: { id: true } } },
+    });
+    if (!document) throw new Error(`Document ${documentId} vanished mid-transaction after a successful transition`);
+
+    // Resolved for every Admin now, not just this reviewer — see
+    // clearPendingReviewNotifications's doc comment. Still never CREATES a
+    // DOCUMENT_PENDING_REVIEW row (see this function's own doc comment).
+    await clearPendingReviewNotifications(documentId, tx);
+
+    if (document.uploadedBy && document.uploadedBy.id !== reviewerId) {
+      await createModerationResultNotification(document, document.uploadedBy.id, "REJECTED", tx);
+    }
+
+    return true;
   });
-  if (result.count === 1) return { outcome: "success" };
+
+  if (transitioned) return { outcome: "success" };
 
   const existing = await prisma.document.findUnique({ where: { id: documentId }, select: { id: true } });
   return existing ? { outcome: "not-pending" } : { outcome: "not-found" };

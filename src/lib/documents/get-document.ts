@@ -26,5 +26,6 @@ export async function getDocumentById(id: string): Promise<DocumentRecord | null
     ...document,
     createdAt: document.createdAt.toISOString(),
     updatedAt: document.updatedAt.toISOString(),
+    reviewedAt: document.reviewedAt ? document.reviewedAt.toISOString() : null,
   };
 }

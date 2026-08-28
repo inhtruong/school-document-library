@@ -18,6 +18,7 @@ function toDocumentRecord(document: DocumentWithTaxonomy): DocumentRecord {
     ...document,
     createdAt: document.createdAt.toISOString(),
     updatedAt: document.updatedAt.toISOString(),
+    reviewedAt: document.reviewedAt ? document.reviewedAt.toISOString() : null,
   };
 }
 

@@ -34,7 +34,12 @@ export default async function UploadPage({ searchParams }: UploadPageProps) {
       redirect(`/upload?error=${encodeURIComponent(result.error)}${notify}`);
     }
 
-    redirect(`/documents/${result.document.id}?toast=${TOAST_KEYS.uploadSuccess}`);
+    // FEAT-10C: a Teacher's upload lands PENDING (not yet public), so the
+    // success toast must say so rather than implying immediate publication
+    // — only an ADMIN's (already-APPROVED) upload gets the plain message.
+    const toastKey =
+      result.document.moderationStatus === "PENDING" ? TOAST_KEYS.uploadPendingReview : TOAST_KEYS.uploadSuccess;
+    redirect(`/documents/${result.document.id}?toast=${toastKey}`);
   }
 
   return (

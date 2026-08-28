@@ -8,6 +8,8 @@ import { DownloadButton } from "@/components/DownloadButton";
 import { FilePreview } from "@/components/FilePreview";
 import { LessonFollowAction } from "@/components/LessonFollowAction";
 import { ReportDocumentAction } from "@/components/ReportDocumentAction";
+import { ModerationStatusBadge } from "@/components/moderation/ModerationStatusBadge";
+import { ResubmitAction } from "@/components/teacher-uploads/ResubmitAction";
 import { TeacherFollowAction } from "@/components/TeacherFollowAction";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
@@ -17,6 +19,7 @@ import { DOCUMENT_TYPE_LABELS } from "@/lib/documents/document-type";
 import { getDocumentById } from "@/lib/documents/get-document";
 import { getRatingSummary } from "@/lib/documents/rating";
 import { subjectAccent } from "@/lib/documents/subject-accent";
+import { getRejectionReasonForViewer } from "@/lib/documents/teacher-uploads";
 import { isDocumentVisibleTo } from "@/lib/documents/visibility";
 import { isFollowingLesson } from "@/lib/follow/lesson-follow";
 import { isFollowingTeacher } from "@/lib/follow/teacher-follow";
@@ -52,13 +55,25 @@ export default async function DocumentDetailPage({ params }: DocumentDetailPageP
   const isAuthenticated = Boolean(session?.user);
   const isUploaderTeacher = doc.uploadedBy?.role === "TEACHER";
 
-  const [ratingSummary, commentsPage, bookmarked, teacherFollowing, lessonFollowing] = await Promise.all([
-    getRatingSummary(doc.id, currentUserId),
-    listComments(doc.id, 1),
-    isBookmarked(doc.id, currentUserId),
-    isUploaderTeacher && doc.uploadedBy ? isFollowingTeacher(currentUserId, doc.uploadedBy.id) : Promise.resolve(false),
-    doc.lessonId ? isFollowingLesson(currentUserId, doc.lessonId) : Promise.resolve(false),
-  ]);
+  // FEAT-10C: only the uploader or an ADMIN ever sees moderation internals
+  // on this otherwise-public page — matches isDocumentVisibleTo's own
+  // owner-or-admin boundary, so this can never diverge from "can this
+  // person even see the document" for a non-APPROVED document.
+  const isOwner = currentUserId !== null && currentUserId === doc.uploadedById;
+  const isAdmin = session?.user?.role === "ADMIN";
+  const canSeeModerationDetail = isOwner || isAdmin;
+
+  const [ratingSummary, commentsPage, bookmarked, teacherFollowing, lessonFollowing, rejectionReason] =
+    await Promise.all([
+      getRatingSummary(doc.id, currentUserId),
+      listComments(doc.id, 1),
+      isBookmarked(doc.id, currentUserId),
+      isUploaderTeacher && doc.uploadedBy ? isFollowingTeacher(currentUserId, doc.uploadedBy.id) : Promise.resolve(false),
+      doc.lessonId ? isFollowingLesson(currentUserId, doc.lessonId) : Promise.resolve(false),
+      canSeeModerationDetail && doc.moderationStatus === "REJECTED"
+        ? getRejectionReasonForViewer(doc.id)
+        : Promise.resolve(null),
+    ]);
 
   const createdLabel = formatDate(doc.createdAt);
   const documentPagePath = `/documents/${doc.id}`;
@@ -151,6 +166,43 @@ export default async function DocumentDetailPage({ params }: DocumentDetailPageP
               ) : null}
             </div>
           </div>
+
+          {/* FEAT-10C: owner/ADMIN-only — never shown to an unrelated
+              visitor. rejectionReason only ever populated above when
+              canSeeModerationDetail was already true (see the Promise.all
+              guard), so no extra check is needed here. */}
+          {canSeeModerationDetail ? (
+            <div className="mt-6 rounded-xl border border-line bg-surface p-4">
+              <div className="flex flex-wrap items-center gap-2">
+                <h2 className="font-display text-sm font-semibold tracking-tight text-ink">Moderation status</h2>
+                <ModerationStatusBadge status={doc.moderationStatus} />
+              </div>
+
+              {doc.moderationStatus === "PENDING" ? (
+                <p className="mt-2 text-sm text-muted">This document is not public yet.</p>
+              ) : null}
+
+              {doc.moderationStatus === "APPROVED" ? (
+                <p className="mt-2 text-sm text-muted">This document is publicly available.</p>
+              ) : null}
+
+              {doc.moderationStatus === "REJECTED" ? (
+                <>
+                  {rejectionReason ? (
+                    <div className="mt-3 rounded-lg border border-destructive-soft bg-destructive-soft p-3">
+                      <p className="text-xs font-medium uppercase tracking-wide text-destructive">Reason</p>
+                      <p className="mt-1 text-sm text-ink">{rejectionReason}</p>
+                    </div>
+                  ) : null}
+                  {isOwner ? (
+                    <div className="mt-3">
+                      <ResubmitAction documentId={doc.id} />
+                    </div>
+                  ) : null}
+                </>
+              ) : null}
+            </div>
+          ) : null}
 
           <div className="mt-8">
             <h2 className="font-display text-lg font-semibold tracking-tight text-ink">Preview</h2>

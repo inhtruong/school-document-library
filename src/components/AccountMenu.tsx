@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { ChevronDown, LogOut, ShieldCheck, Sparkles, Users } from "lucide-react";
+import { ChevronDown, FileStack, LogOut, ShieldCheck, Sparkles, Users } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import {
   DropdownMenu,
@@ -20,6 +20,8 @@ export type AccountMenuProps = {
   role: Role;
   /** ADMIN only (FEAT-10B) — server-computed by SiteHeader, never inferred client-side from `role` alone. */
   canModerate: boolean;
+  /** TEACHER only (FEAT-10C) — server-computed by SiteHeader, same convention as canModerate. */
+  canViewMyUploads: boolean;
 };
 
 /**
@@ -32,7 +34,7 @@ export type AccountMenuProps = {
  * Following, Profile, and (Admin-only) Moderation all exist today; no
  * placeholder/future routes.
  */
-export function AccountMenu({ name, email, role, canModerate }: AccountMenuProps) {
+export function AccountMenu({ name, email, role, canModerate, canViewMyUploads }: AccountMenuProps) {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger className="flex items-center gap-1.5 rounded-full py-1 pl-1 pr-2 text-sm text-ink outline-none transition-colors hover:bg-surface focus-visible:ring-2 focus-visible:ring-accent">
@@ -73,6 +75,14 @@ export function AccountMenu({ name, email, role, canModerate }: AccountMenuProps
         <DropdownMenuItem asChild>
           <Link href="/profile">Profile</Link>
         </DropdownMenuItem>
+        {canViewMyUploads ? (
+          <DropdownMenuItem asChild>
+            <Link href="/my-uploads">
+              <FileStack className="h-4 w-4 text-muted" aria-hidden />
+              My uploads
+            </Link>
+          </DropdownMenuItem>
+        ) : null}
         {canModerate ? (
           <DropdownMenuItem asChild>
             <Link href="/moderation">

@@ -26,6 +26,8 @@ export type DocumentRecord = {
   uploadedById: string | null;
   /** FEAT-10A. `reviewedById`/`rejectionReason` are deliberately NOT part of this public-facing type — see get-document.ts/search.ts's `omit`. */
   moderationStatus: "PENDING" | "APPROVED" | "REJECTED";
+  /** Already returned by get-document.ts (not omitted); FEAT-10C types it for the owner/admin-only status section on the document detail page. */
+  reviewedAt: string | null;
   /** Only populated by the document-detail endpoint, which includes the relation. */
   uploadedBy?: { id: string; name: string; role: "STUDENT" | "TEACHER" | "ADMIN" } | null;
   createdAt: string;

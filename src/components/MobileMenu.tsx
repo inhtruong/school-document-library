@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { LogOut, Menu, ShieldCheck, Sparkles, Upload, Users } from "lucide-react";
+import { FileStack, LogOut, Menu, ShieldCheck, Sparkles, Upload, Users } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import {
   DropdownMenu,
@@ -24,6 +24,8 @@ export type MobileMenuProps =
       canUpload: boolean;
       /** ADMIN only (FEAT-10B) — server-computed by SiteHeader, never inferred client-side from `role` alone. */
       canModerate: boolean;
+      /** TEACHER only (FEAT-10C) — server-computed by SiteHeader, same convention as canModerate. */
+      canViewMyUploads: boolean;
     };
 
 /**
@@ -91,6 +93,14 @@ export function MobileMenu(props: MobileMenuProps) {
             <DropdownMenuItem asChild>
               <Link href="/profile">Profile</Link>
             </DropdownMenuItem>
+            {props.canViewMyUploads ? (
+              <DropdownMenuItem asChild>
+                <Link href="/my-uploads">
+                  <FileStack className="h-4 w-4 text-muted" aria-hidden />
+                  My uploads
+                </Link>
+              </DropdownMenuItem>
+            ) : null}
             {props.canModerate ? (
               <DropdownMenuItem asChild>
                 <Link href="/moderation">

@@ -25,6 +25,7 @@ export default async function SiteHeader() {
   const unreadCount = session?.user ? await getUnreadNotificationCount(session.user.id) : 0;
   const canUpload = session?.user ? hasRole(session, ["TEACHER", "ADMIN"]) : false;
   const canModerate = session?.user ? hasRole(session, "ADMIN") : false;
+  const canViewMyUploads = session?.user ? hasRole(session, "TEACHER") : false;
 
   return (
     <header className="sticky top-0 z-40 border-b border-line bg-paper">
@@ -80,6 +81,7 @@ export default async function SiteHeader() {
                 email={session.user.email ?? ""}
                 role={session.user.role}
                 canModerate={canModerate}
+                canViewMyUploads={canViewMyUploads}
               />
             </div>
           ) : (
@@ -102,6 +104,7 @@ export default async function SiteHeader() {
                 role={session.user.role}
                 canUpload={canUpload}
                 canModerate={canModerate}
+                canViewMyUploads={canViewMyUploads}
               />
             ) : (
               <MobileMenu isAuthenticated={false} />

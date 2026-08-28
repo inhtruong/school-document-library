@@ -39,7 +39,14 @@ export default async function UploadPage({ searchParams }: UploadPageProps) {
     // — only an ADMIN's (already-APPROVED) upload gets the plain message.
     const toastKey =
       result.document.moderationStatus === "PENDING" ? TOAST_KEYS.uploadPendingReview : TOAST_KEYS.uploadSuccess;
-    redirect(`/documents/${result.document.id}?toast=${toastKey}`);
+    // Bug report: landing on the just-uploaded document's detail page still
+    // showed "Back to search" instead of returning to where a Teacher would
+    // actually expect — their own upload list. Only TEACHER gets `from=
+    // my-uploads` here: /my-uploads is TEACHER-only, so an ADMIN upload
+    // (immediately APPROVED, found via normal search) keeps the default
+    // "Back to search" instead of a link they'd be redirected away from.
+    const from = session.user.role === "TEACHER" ? "&from=my-uploads" : "";
+    redirect(`/documents/${result.document.id}?toast=${toastKey}${from}`);
   }
 
   return (

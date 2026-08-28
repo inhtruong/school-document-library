@@ -27,7 +27,24 @@ import type { DocumentCommentRecord } from "@/types/comment";
 
 type DocumentDetailPageProps = {
   params: Promise<{ id: string }>;
+  searchParams: Promise<{ from?: string }>;
 };
+
+/**
+ * The document detail page is a shared destination linked from many
+ * places (search, saved, following, notifications, homepage, ...) — the
+ * back link defaults to /search for all of those, unchanged. `?from=` is
+ * an explicit, server-driven hint (not browser history/referrer, which
+ * isn't available in a Server Component and isn't reliable anyway) that a
+ * specific known source page sets on its own links back to itself. Only
+ * "my-uploads" exists today — add another entry here (and the matching
+ * `?from=` on that page's own links) if another source page needs its own
+ * back destination.
+ */
+const BACK_DESTINATIONS: Record<string, { href: string; label: string }> = {
+  "my-uploads": { href: "/my-uploads", label: "Back to my uploads" },
+};
+const DEFAULT_BACK_DESTINATION = { href: "/search", label: "Back to search" };
 
 function formatDate(value: string): string | null {
   const date = new Date(value);
@@ -44,12 +61,15 @@ function taxonomyHref(params: Record<string, string | undefined>): string {
   return `/search?${search.toString()}`;
 }
 
-export default async function DocumentDetailPage({ params }: DocumentDetailPageProps) {
+export default async function DocumentDetailPage({ params, searchParams }: DocumentDetailPageProps) {
   const { id } = await params;
+  const { from } = await searchParams;
   const [doc, session] = await Promise.all([getDocumentById(id), auth()]);
 
   if (!doc) notFound();
   if (!isDocumentVisibleTo(doc, session)) notFound();
+
+  const backDestination = (from && BACK_DESTINATIONS[from]) || DEFAULT_BACK_DESTINATION;
 
   const currentUserId = session?.user?.id ?? null;
   const isAuthenticated = Boolean(session?.user);
@@ -110,8 +130,8 @@ export default async function DocumentDetailPage({ params }: DocumentDetailPageP
 
   return (
     <div className="mx-auto max-w-5xl px-5 py-8 sm:py-10">
-      <Link href="/search" className="text-sm text-muted transition-colors hover:text-ink">
-        ← Back to search
+      <Link href={backDestination.href} className="text-sm text-muted transition-colors hover:text-ink">
+        ← {backDestination.label}
       </Link>
 
       {breadcrumb.length > 0 ? (

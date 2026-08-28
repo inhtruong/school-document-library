@@ -1,5 +1,6 @@
 import "server-only";
 import { prisma } from "@/lib/prisma";
+import { APPROVED_DOCUMENT_WHERE } from "@/lib/documents/visibility";
 import type { SubjectSummary } from "@/types/document";
 
 /**
@@ -14,6 +15,7 @@ import type { SubjectSummary } from "@/types/document";
 export async function listSubjectSummaries(): Promise<SubjectSummary[]> {
   const grouped = await prisma.document.groupBy({
     by: ["subject"],
+    where: APPROVED_DOCUMENT_WHERE,
     _count: { _all: true },
     orderBy: { subject: "asc" },
   });

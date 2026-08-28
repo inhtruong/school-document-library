@@ -1,21 +1,26 @@
 import { Readable } from "node:stream";
 import { NextResponse, type NextRequest } from "next/server";
+import { auth } from "@/auth";
 import { apiError } from "@/lib/api-response";
 import { prisma } from "@/lib/prisma";
 import { resolvePreviewKind, STREAMABLE_PREVIEW_KINDS } from "@/lib/documents/preview-kind";
 import { parseRangeHeader } from "@/lib/documents/preview-range";
+import { isDocumentVisibleTo } from "@/lib/documents/visibility";
 import { createLocalFileReadStream, statLocalFile } from "@/lib/storage/local-storage";
 import type { DocumentRecord } from "@/types/document";
 
 type RouteContext = { params: Promise<{ id: string }> };
 
 /**
- * Public preview endpoint — intentionally requires no auth (`requireAuth`/
- * `requireRole` are never called here). Receives only a Document ID; the
- * stored `fileKey` is read server-side from Postgres and resolved through
- * `resolveStoragePath`'s containment check, so the client never supplies or
- * sees a filesystem path. Serves inline (no `Content-Disposition: attachment`)
- * — this is preview, not the download feature planned for a later step.
+ * Public preview endpoint for APPROVED documents — no auth required in
+ * that (common) case. A PENDING/REJECTED document additionally requires
+ * the caller to be its uploader or an ADMIN (FEAT-10A); `auth()` is only
+ * called when the document isn't APPROVED, so the public/common path
+ * keeps its original zero-auth-check cost. Receives only a Document ID;
+ * the stored `fileKey` is read server-side from Postgres and resolved
+ * through `resolveStoragePath`'s containment check, so the client never
+ * supplies or sees a filesystem path. Serves inline (no
+ * `Content-Disposition: attachment`) — this is preview, not download.
  */
 export async function GET(request: NextRequest, { params }: RouteContext) {
   const { id } = await params;
@@ -24,7 +29,7 @@ export async function GET(request: NextRequest, { params }: RouteContext) {
   try {
     document = await prisma.document.findUnique({
       where: { id },
-      select: { fileKey: true, fileCategory: true, mimeType: true },
+      select: { fileKey: true, fileCategory: true, mimeType: true, moderationStatus: true, uploadedById: true },
     });
   } catch (error) {
     console.error(`GET /api/documents/${id}/preview failed to load document`, error);
@@ -33,6 +38,10 @@ export async function GET(request: NextRequest, { params }: RouteContext) {
 
   if (!document) {
     return apiError("Document not found", 404);
+  }
+  if (document.moderationStatus !== "APPROVED") {
+    const session = await auth();
+    if (!isDocumentVisibleTo(document, session)) return apiError("Document not found", 404);
   }
   if (!document.fileKey || !document.fileCategory || !document.mimeType) {
     return apiError("No file available for this document", 404);

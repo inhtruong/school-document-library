@@ -4,16 +4,20 @@ import { auth } from "@/auth";
 import { apiError } from "@/lib/api-response";
 import { prisma } from "@/lib/prisma";
 import { buildContentDisposition } from "@/lib/documents/content-disposition";
+import { isDocumentVisibleTo } from "@/lib/documents/visibility";
 import { createLocalFileReadStream, statLocalFile } from "@/lib/storage/local-storage";
 
 type RouteContext = { params: Promise<{ id: string }> };
 
 /**
- * Protected download endpoint — any authenticated user (STUDENT/TEACHER/
- * ADMIN) may download; guests get 401. Unlike the preview endpoint, this
- * always serves as `Content-Disposition: attachment` under the document's
- * original `fileName` (never the generated `fileKey`). Receives only a
- * Document ID; `fileKey` is read server-side and resolved through the same
+ * Protected download endpoint — any authenticated user may download an
+ * APPROVED document (STUDENT/TEACHER/ADMIN alike); guests get 401. A
+ * PENDING/REJECTED document additionally requires the caller to be its
+ * uploader or an ADMIN (FEAT-10A) — "authenticated" alone no longer
+ * bypasses moderation. Unlike preview, this always serves as
+ * `Content-Disposition: attachment` under the document's original
+ * `fileName` (never the generated `fileKey`). Receives only a Document ID;
+ * `fileKey` is read server-side and resolved through the same
  * containment-checked `statLocalFile`/`createLocalFileReadStream` helpers
  * the preview endpoint uses — no filesystem path ever comes from the client.
  */
@@ -29,7 +33,7 @@ export async function GET(_request: NextRequest, { params }: RouteContext) {
   try {
     document = await prisma.document.findUnique({
       where: { id },
-      select: { fileKey: true, fileName: true, mimeType: true },
+      select: { fileKey: true, fileName: true, mimeType: true, moderationStatus: true, uploadedById: true },
     });
   } catch (error) {
     console.error(`GET /api/documents/${id}/download failed to load document`, error);
@@ -37,6 +41,9 @@ export async function GET(_request: NextRequest, { params }: RouteContext) {
   }
 
   if (!document) {
+    return apiError("Document not found", 404);
+  }
+  if (!isDocumentVisibleTo(document, session)) {
     return apiError("Document not found", 404);
   }
   if (!document.fileKey || !document.mimeType) {

@@ -9,6 +9,7 @@ export const TOAST_KEYS = {
   loggedIn: "logged-in",
   loggedOut: "logged-out",
   uploadSuccess: "upload-success",
+  uploadPendingReview: "upload-pending-review",
   passwordChanged: "password-changed",
 } as const;
 
@@ -19,6 +20,7 @@ export const TOAST_MESSAGES: Record<ToastKey, string> = {
   [TOAST_KEYS.loggedIn]: "Logged in successfully",
   [TOAST_KEYS.loggedOut]: "Logged out successfully",
   [TOAST_KEYS.uploadSuccess]: "Document uploaded successfully",
+  [TOAST_KEYS.uploadPendingReview]: "Document uploaded successfully and is pending review",
   [TOAST_KEYS.passwordChanged]: "Password changed successfully. Please sign in again.",
 };
 

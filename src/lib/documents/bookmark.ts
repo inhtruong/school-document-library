@@ -2,9 +2,10 @@ import "server-only";
 import type { Document, Grade, Lesson, Subject } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { SAVED_PAGE_SIZE } from "@/lib/documents/bookmark-config";
+import { APPROVED_DOCUMENT_WHERE } from "@/lib/documents/visibility";
 import type { DocumentRecord } from "@/types/document";
 
-type DocumentWithTaxonomy = Omit<Document, "fileKey"> & {
+type DocumentWithTaxonomy = Omit<Document, "fileKey" | "reviewedById" | "rejectionReason"> & {
   grade: Grade | null;
   subjectRef: Subject | null;
   lesson: Lesson | null;
@@ -15,6 +16,7 @@ function toDocumentRecord(document: DocumentWithTaxonomy): DocumentRecord {
     ...document,
     createdAt: document.createdAt.toISOString(),
     updatedAt: document.updatedAt.toISOString(),
+    reviewedAt: document.reviewedAt ? document.reviewedAt.toISOString() : null,
   };
 }
 
@@ -53,20 +55,26 @@ export type SavedDocumentsPage = {
 export async function listUserBookmarks(userId: string, page: number): Promise<SavedDocumentsPage> {
   const skip = (page - 1) * SAVED_PAGE_SIZE;
 
+  // A bookmarked document that later becomes non-APPROVED (a future
+  // Admin action, not yet possible in FEAT-10A) must not remain exposed
+  // through /saved to an unrelated user — filtered via the relation, not
+  // fetched-then-filtered in JS.
+  const where = { userId, document: APPROVED_DOCUMENT_WHERE };
+
   const [bookmarks, total] = await Promise.all([
     prisma.documentBookmark.findMany({
-      where: { userId },
+      where,
       orderBy: { createdAt: "desc" },
       skip,
       take: SAVED_PAGE_SIZE,
       include: {
         document: {
-          omit: { fileKey: true },
+          omit: { fileKey: true, reviewedById: true, rejectionReason: true },
           include: { grade: true, subjectRef: true, lesson: true },
         },
       },
     }),
-    prisma.documentBookmark.count({ where: { userId } }),
+    prisma.documentBookmark.count({ where }),
   ]);
 
   return {

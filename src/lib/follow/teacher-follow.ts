@@ -1,6 +1,7 @@
 import "server-only";
 import { prisma } from "@/lib/prisma";
 import { FOLLOWING_PAGE_SIZE } from "@/lib/follow/follow-config";
+import { APPROVED_DOCUMENT_WHERE } from "@/lib/documents/visibility";
 
 export async function isFollowingTeacher(followerId: string | null, teacherId: string): Promise<boolean> {
   if (!followerId) return false;
@@ -61,7 +62,11 @@ export async function listFollowedTeachers(followerId: string, page: number): Pr
       take: FOLLOWING_PAGE_SIZE,
       include: {
         teacher: {
-          select: { id: true, name: true, _count: { select: { uploadedDocuments: true } } },
+          select: {
+            id: true,
+            name: true,
+            _count: { select: { uploadedDocuments: { where: APPROVED_DOCUMENT_WHERE } } },
+          },
         },
       },
     }),

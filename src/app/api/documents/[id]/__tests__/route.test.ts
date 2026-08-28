@@ -7,6 +7,7 @@ vi.mock("@/lib/prisma", () => ({
     document: {
       findUnique: vi.fn(),
       update: vi.fn(),
+      updateMany: vi.fn(),
       delete: vi.fn(),
     },
   },
@@ -54,6 +55,10 @@ const mockDocument = {
   mimeType: null,
   fileCategory: null,
   uploadedById: "teacher_1",
+  moderationStatus: "APPROVED" as const,
+  reviewedAt: null,
+  reviewedById: null,
+  rejectionReason: null,
   createdAt,
   updatedAt,
 };
@@ -80,6 +85,42 @@ describe("GET /api/documents/:id", () => {
 
     expect(response.status).toBe(200);
     expect(body.data).toEqual(serializedMockDocument);
+  });
+
+  test("returns 404 for a PENDING document requested by an unrelated user (FEAT-10A)", async () => {
+    mockAuth.mockResolvedValue(OTHER_TEACHER_SESSION);
+    vi.mocked(prisma.document.findUnique).mockResolvedValue({
+      ...mockDocument,
+      moderationStatus: "PENDING",
+    });
+
+    const response = await GET(new NextRequest("http://localhost/api/documents/doc_1"), context);
+
+    expect(response.status).toBe(404);
+  });
+
+  test("returns 404 for a PENDING document requested by a guest (FEAT-10A)", async () => {
+    mockAuth.mockResolvedValue(null);
+    vi.mocked(prisma.document.findUnique).mockResolvedValue({
+      ...mockDocument,
+      moderationStatus: "PENDING",
+    });
+
+    const response = await GET(new NextRequest("http://localhost/api/documents/doc_1"), context);
+
+    expect(response.status).toBe(404);
+  });
+
+  test("the uploader CAN view their own PENDING document (FEAT-10A)", async () => {
+    mockAuth.mockResolvedValue(OWNER_SESSION);
+    vi.mocked(prisma.document.findUnique).mockResolvedValue({
+      ...mockDocument,
+      moderationStatus: "PENDING",
+    });
+
+    const response = await GET(new NextRequest("http://localhost/api/documents/doc_1"), context);
+
+    expect(response.status).toBe(200);
   });
 
   test("returns 404 when the document does not exist", async () => {
@@ -192,6 +233,182 @@ describe("PUT /api/documents/:id", () => {
 
     expect(response.status).toBe(403);
     expect(prisma.document.update).not.toHaveBeenCalled();
+  });
+});
+
+describe("PUT /api/documents/:id — FEAT-10E edit/re-review rules", () => {
+  function putRequest(body: unknown) {
+    return new NextRequest("http://localhost/api/documents/doc_1", { method: "PUT", body: JSON.stringify(body) });
+  }
+
+  test("Teacher owner: a minor-only edit (title) on an APPROVED document stays APPROVED via a plain update, review metadata preserved", async () => {
+    vi.mocked(prisma.document.findUnique).mockResolvedValue({
+      ...mockDocument,
+      reviewedAt: new Date("2026-01-01T00:00:00.000Z"),
+      reviewedById: "admin_1",
+    });
+    vi.mocked(prisma.document.update).mockResolvedValue(mockDocument);
+
+    const response = await PUT(putRequest({ title: "Corrected title" }), context);
+
+    expect(response.status).toBe(200);
+    expect(prisma.document.update).toHaveBeenCalledWith({
+      where: { id: "doc_1" },
+      data: { title: "Corrected title" },
+      omit: { fileKey: true, reviewedById: true, rejectionReason: true },
+    });
+    expect(prisma.document.updateMany).not.toHaveBeenCalled();
+  });
+
+  test("Teacher owner: a material edit (documentType) on an APPROVED document transitions to PENDING, clearing review metadata, in one atomic write", async () => {
+    vi.mocked(prisma.document.findUnique)
+      .mockResolvedValueOnce(mockDocument) // the initial "existing" read
+      .mockResolvedValueOnce({ ...mockDocument, documentType: "REFERENCE", moderationStatus: "PENDING" }); // post-write refetch
+    vi.mocked(prisma.document.updateMany).mockResolvedValue({ count: 1 });
+
+    const response = await PUT(putRequest({ documentType: "REFERENCE" }), context);
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(body.data.moderationStatus).toBe("PENDING");
+    expect(prisma.document.update).not.toHaveBeenCalled();
+    const call = vi.mocked(prisma.document.updateMany).mock.calls[0][0];
+    expect(call.where).toEqual({ id: "doc_1", moderationStatus: "APPROVED" });
+    expect(call.data).toEqual({
+      documentType: "REFERENCE",
+      moderationStatus: "PENDING",
+      reviewedAt: null,
+      reviewedById: null,
+      rejectionReason: null,
+    });
+  });
+
+  test("Teacher owner: a material edit to the legacy `subject` field on an APPROVED document also triggers PENDING", async () => {
+    vi.mocked(prisma.document.findUnique)
+      .mockResolvedValueOnce(mockDocument)
+      .mockResolvedValueOnce({ ...mockDocument, subject: "Physics", moderationStatus: "PENDING" });
+    vi.mocked(prisma.document.updateMany).mockResolvedValue({ count: 1 });
+
+    const response = await PUT(putRequest({ subject: "Physics" }), context);
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(body.data.moderationStatus).toBe("PENDING");
+  });
+
+  test("Teacher owner: a mixed minor+material edit is treated as material as a whole", async () => {
+    vi.mocked(prisma.document.findUnique)
+      .mockResolvedValueOnce(mockDocument)
+      .mockResolvedValueOnce({ ...mockDocument, title: "New title", documentType: "REFERENCE", moderationStatus: "PENDING" });
+    vi.mocked(prisma.document.updateMany).mockResolvedValue({ count: 1 });
+
+    await PUT(putRequest({ title: "New title", documentType: "REFERENCE" }), context);
+
+    const call = vi.mocked(prisma.document.updateMany).mock.calls[0][0];
+    expect(call.data.moderationStatus).toBe("PENDING");
+    expect(call.data.title).toBe("New title");
+  });
+
+  test("Teacher owner: resubmitting the SAME documentType value on an APPROVED document is a no-op — stays APPROVED, no transition", async () => {
+    vi.mocked(prisma.document.findUnique).mockResolvedValue(mockDocument); // documentType is already "EXAM"
+    vi.mocked(prisma.document.update).mockResolvedValue(mockDocument);
+
+    await PUT(putRequest({ documentType: "EXAM" }), context);
+
+    expect(prisma.document.updateMany).not.toHaveBeenCalled();
+    expect(prisma.document.update).toHaveBeenCalled();
+  });
+
+  test("Teacher owner: editing an already-PENDING document never transitions it (stays PENDING via a plain update)", async () => {
+    vi.mocked(prisma.document.findUnique).mockResolvedValue({ ...mockDocument, moderationStatus: "PENDING" });
+    vi.mocked(prisma.document.update).mockResolvedValue({ ...mockDocument, moderationStatus: "PENDING" });
+
+    await PUT(putRequest({ documentType: "REFERENCE" }), context);
+
+    expect(prisma.document.updateMany).not.toHaveBeenCalled();
+    const call = vi.mocked(prisma.document.update).mock.calls[0][0] as { data: Record<string, unknown> };
+    expect(call.data).not.toHaveProperty("moderationStatus");
+  });
+
+  test("Teacher owner: editing an already-REJECTED document never auto-resubmits — stays REJECTED, rejectionReason preserved", async () => {
+    vi.mocked(prisma.document.findUnique).mockResolvedValue({
+      ...mockDocument,
+      moderationStatus: "REJECTED",
+      rejectionReason: "Wrong grade level",
+    });
+    vi.mocked(prisma.document.update).mockResolvedValue({
+      ...mockDocument,
+      moderationStatus: "REJECTED",
+      rejectionReason: "Wrong grade level",
+    });
+
+    await PUT(putRequest({ documentType: "REFERENCE" }), context);
+
+    expect(prisma.document.updateMany).not.toHaveBeenCalled();
+    const call = vi.mocked(prisma.document.update).mock.calls[0][0] as { data: Record<string, unknown> };
+    expect(call.data).not.toHaveProperty("moderationStatus");
+    expect(call.data).not.toHaveProperty("rejectionReason");
+  });
+
+  test("ADMIN editing an APPROVED document's documentType never triggers re-review — stays APPROVED via a plain update", async () => {
+    mockAuth.mockResolvedValue(ADMIN_SESSION);
+    vi.mocked(prisma.document.findUnique).mockResolvedValue(mockDocument);
+    vi.mocked(prisma.document.update).mockResolvedValue({ ...mockDocument, documentType: "REFERENCE" });
+
+    await PUT(putRequest({ documentType: "REFERENCE" }), context);
+
+    expect(prisma.document.updateMany).not.toHaveBeenCalled();
+    const call = vi.mocked(prisma.document.update).mock.calls[0][0] as { data: Record<string, unknown> };
+    expect(call.data).not.toHaveProperty("moderationStatus");
+  });
+
+  test("ADMIN editing a PENDING document never implicitly approves or rejects it", async () => {
+    mockAuth.mockResolvedValue(ADMIN_SESSION);
+    vi.mocked(prisma.document.findUnique).mockResolvedValue({ ...mockDocument, moderationStatus: "PENDING" });
+    vi.mocked(prisma.document.update).mockResolvedValue({ ...mockDocument, moderationStatus: "PENDING" });
+
+    await PUT(putRequest({ title: "Admin-corrected title" }), context);
+
+    expect(prisma.document.updateMany).not.toHaveBeenCalled();
+    const call = vi.mocked(prisma.document.update).mock.calls[0][0] as { data: Record<string, unknown> };
+    expect(call.data).not.toHaveProperty("moderationStatus");
+  });
+
+  test("concurrency: if the document is no longer APPROVED by the time the guarded write runs, returns 409 and writes nothing", async () => {
+    vi.mocked(prisma.document.findUnique).mockResolvedValue(mockDocument); // snapshot said APPROVED
+    vi.mocked(prisma.document.updateMany).mockResolvedValue({ count: 0 }); // but the guard no longer matches
+
+    const response = await PUT(putRequest({ documentType: "REFERENCE" }), context);
+
+    expect(response.status).toBe(409);
+  });
+
+  test("the response never leaks reviewedById/rejectionReason to the caller, even the owner", async () => {
+    vi.mocked(prisma.document.findUnique).mockResolvedValue(mockDocument);
+    vi.mocked(prisma.document.update).mockResolvedValue(mockDocument);
+
+    await PUT(putRequest({ title: "Corrected title" }), context);
+
+    const call = vi.mocked(prisma.document.update).mock.calls[0][0] as { omit: Record<string, unknown> };
+    expect(call.omit).toEqual({ fileKey: true, reviewedById: true, rejectionReason: true });
+  });
+
+  test("the client cannot smuggle moderation fields through the request body — updateDocumentSchema strips them", async () => {
+    vi.mocked(prisma.document.findUnique).mockResolvedValue(mockDocument);
+    vi.mocked(prisma.document.update).mockResolvedValue(mockDocument);
+
+    await PUT(
+      putRequest({
+        title: "Corrected title",
+        moderationStatus: "APPROVED",
+        reviewedById: "attacker-controlled-id",
+        rejectionReason: null,
+      }),
+      context
+    );
+
+    const call = vi.mocked(prisma.document.update).mock.calls[0][0] as { data: Record<string, unknown> };
+    expect(call.data).toEqual({ title: "Corrected title" });
   });
 });
 

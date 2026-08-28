@@ -122,7 +122,7 @@ describe("listUserBookmarks", () => {
 
     expect(prisma.documentBookmark.findMany).toHaveBeenCalledWith(
       expect.objectContaining({
-        where: { userId: "user_1" },
+        where: { userId: "user_1", document: { moderationStatus: "APPROVED" } },
         orderBy: { createdAt: "desc" },
         skip: SAVED_PAGE_SIZE,
         take: SAVED_PAGE_SIZE,
@@ -136,7 +136,19 @@ describe("listUserBookmarks", () => {
 
     await listUserBookmarks("user_1", 1);
 
-    expect(prisma.documentBookmark.count).toHaveBeenCalledWith({ where: { userId: "user_1" } });
+    expect(prisma.documentBookmark.count).toHaveBeenCalledWith({
+      where: { userId: "user_1", document: { moderationStatus: "APPROVED" } },
+    });
+  });
+
+  test("only includes APPROVED documents — a bookmarked PENDING/REJECTED document does not leak through /saved", async () => {
+    vi.mocked(prisma.documentBookmark.findMany).mockResolvedValue([]);
+    vi.mocked(prisma.documentBookmark.count).mockResolvedValue(0);
+
+    await listUserBookmarks("user_1", 1);
+
+    const findManyArgs = vi.mocked(prisma.documentBookmark.findMany).mock.calls[0][0];
+    expect(findManyArgs?.where).toEqual({ userId: "user_1", document: { moderationStatus: "APPROVED" } });
   });
 
   test("maps bookmark rows to serialized Document records (ISO date strings)", async () => {

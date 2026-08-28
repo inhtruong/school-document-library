@@ -44,9 +44,58 @@ function postRequest(body: unknown) {
 beforeEach(() => {
   vi.clearAllMocks();
   resetRateLimitsForTests();
-  vi.mocked(prisma.document.findUnique).mockResolvedValue({ id: "doc_1" } as never);
+  vi.mocked(prisma.document.findUnique).mockResolvedValue(
+    { id: "doc_1", moderationStatus: "APPROVED", uploadedById: "user_1" } as never
+  );
   vi.mocked(prisma.documentComment.findMany).mockResolvedValue([]);
   vi.mocked(prisma.documentComment.count).mockResolvedValue(0);
+});
+
+describe("GET/POST /api/documents/:id/comments — moderation visibility (FEAT-10A)", () => {
+  test("a guest cannot read a PENDING document's comments (404)", async () => {
+    vi.mocked(prisma.document.findUnique).mockResolvedValue(
+      { id: "doc_1", moderationStatus: "PENDING", uploadedById: "teacher_1" } as never
+    );
+
+    const response = await GET(getRequest(), context);
+
+    expect(response.status).toBe(404);
+    expect(prisma.documentComment.findMany).not.toHaveBeenCalled();
+  });
+
+  test("an unrelated authenticated user cannot post a comment on a PENDING document (404)", async () => {
+    mockAuth.mockResolvedValue(sessionFor("STUDENT", "unrelated_user"));
+    vi.mocked(prisma.document.findUnique).mockResolvedValue(
+      { id: "doc_1", moderationStatus: "PENDING", uploadedById: "teacher_1" } as never
+    );
+
+    const response = await POST(postRequest({ content: "Nice work!" }), context);
+
+    expect(response.status).toBe(404);
+    expect(prisma.documentComment.create).not.toHaveBeenCalled();
+  });
+
+  test("the uploader CAN read and comment on their own PENDING document", async () => {
+    mockAuth.mockResolvedValue(sessionFor("TEACHER", "teacher_1"));
+    vi.mocked(prisma.document.findUnique).mockResolvedValue(
+      { id: "doc_1", moderationStatus: "PENDING", uploadedById: "teacher_1" } as never
+    );
+    vi.mocked(prisma.documentComment.create).mockResolvedValue({
+      id: "c1",
+      documentId: "doc_1",
+      userId: "teacher_1",
+      content: "note to self",
+      createdAt: now,
+      updatedAt: now,
+      user: AUTHOR,
+    } as never);
+
+    const getResponse = await GET(getRequest(), context);
+    expect(getResponse.status).toBe(200);
+
+    const postResponse = await POST(postRequest({ content: "note to self" }), context);
+    expect(postResponse.status).toBe(201);
+  });
 });
 
 describe("GET /api/documents/:id/comments — public read", () => {

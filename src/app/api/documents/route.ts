@@ -93,7 +93,16 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    const document = await prisma.document.create({ data: parsed.data, omit: { fileKey: true } });
+    // Same role-based moderation rule as the taxonomy-aware upload flow
+    // (see uploadDocument()) — `parsed.data` can never carry
+    // moderationStatus itself (createDocumentSchema doesn't define that
+    // field, so zod strips it), but this legacy path still needs to set
+    // the initial status explicitly rather than relying on the DB default.
+    const moderationStatus = session.user.role === "ADMIN" ? "APPROVED" : "PENDING";
+    const document = await prisma.document.create({
+      data: { ...parsed.data, moderationStatus },
+      omit: { fileKey: true },
+    });
     return apiSuccess(document, { status: 201 });
   } catch (error) {
     console.error("POST /api/documents failed", error);

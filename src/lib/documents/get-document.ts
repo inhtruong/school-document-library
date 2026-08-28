@@ -12,7 +12,7 @@ import type { DocumentRecord } from "@/types/document";
 export async function getDocumentById(id: string): Promise<DocumentRecord | null> {
   const document = await prisma.document.findUnique({
     where: { id },
-    omit: { fileKey: true },
+    omit: { fileKey: true, reviewedById: true, rejectionReason: true },
     include: {
       uploadedBy: { select: { id: true, name: true, role: true } },
       grade: true,
@@ -26,5 +26,6 @@ export async function getDocumentById(id: string): Promise<DocumentRecord | null
     ...document,
     createdAt: document.createdAt.toISOString(),
     updatedAt: document.updatedAt.toISOString(),
+    reviewedAt: document.reviewedAt ? document.reviewedAt.toISOString() : null,
   };
 }

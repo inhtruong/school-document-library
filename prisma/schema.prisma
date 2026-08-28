@@ -42,6 +42,22 @@ model Document {
   uploadedById String?
   uploadedBy   User?    @relation(fields: [uploadedById], references: [id], onDelete: SetNull)
 
+  // Moderation foundation (FEAT-10A). `@default(APPROVED)` is deliberate:
+  // it backfills every pre-existing row to APPROVED as part of this
+  // additive migration (existing documents were already public), and acts
+  // as a safe fallback for any direct `create()` that forgets to set it
+  // explicitly. It is NOT the business rule for new uploads — the upload
+  // service always sets this field explicitly per uploader role
+  // (TEACHER -> PENDING, ADMIN -> APPROVED), never relying on this default.
+  moderationStatus DocumentModerationStatus @default(APPROVED)
+  reviewedAt       DateTime?
+  reviewedById     String?
+  // Named relation ("DocumentReviewer") to avoid colliding with the
+  // uploadedBy relation above — both point at User. SetNull so a deleted
+  // reviewer account never cascades into deleting the Document itself.
+  reviewedBy       User?                    @relation("DocumentReviewer", fields: [reviewedById], references: [id], onDelete: SetNull)
+  rejectionReason  String?
+
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
@@ -58,6 +74,13 @@ model Document {
   @@index([gradeId])
   @@index([subjectId])
   @@index([lessonId])
+  @@index([reviewedById])
+  // Almost every public document query filters `moderationStatus:
+  // APPROVED`; the default sort (and the homepage's "latest documents")
+  // also orders by `createdAt desc`, so this compound index directly
+  // serves that exact combination rather than adding a second,
+  // less-justified standalone index on moderationStatus alone.
+  @@index([moderationStatus, createdAt])
   // GIN/trigram indexes backing the `ILIKE '%term%'` search in
   // src/app/api/documents/route.ts — without these, that query is a full
   // sequential scan (confirmed via EXPLAIN) that gets linearly slower as
@@ -194,6 +217,13 @@ enum Role {
   ADMIN
 }
 
+/** FEAT-10A moderation foundation. Deliberately only these 3 states — see schema comment on Document.moderationStatus. */
+enum DocumentModerationStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
 enum FileCategory {
   PDF
   WORD
@@ -280,6 +310,7 @@ model User {
   updatedAt    DateTime @updatedAt
 
   uploadedDocuments Document[]
+  reviewedDocuments Document[] @relation("DocumentReviewer")
   ratings           DocumentRating[]
   comments          DocumentComment[]
   reports           DocumentReport[]
@@ -383,4 +414,10 @@ model Notification {
 /** Kept intentionally small — see Notification's doc comment. */
 enum NotificationType {
   NEW_DOCUMENT
+  /** A document just entered PENDING (fresh Teacher upload, or a Resubmit) — sent to every ADMIN, never to followers. */
+  DOCUMENT_PENDING_REVIEW
+  /** PENDING → APPROVED — sent to the document's uploader only (FEAT-10F). */
+  DOCUMENT_APPROVED
+  /** PENDING → REJECTED — sent to the document's uploader only (FEAT-10F). */
+  DOCUMENT_REJECTED
 }

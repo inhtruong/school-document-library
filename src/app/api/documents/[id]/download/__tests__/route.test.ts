@@ -42,10 +42,63 @@ const mockDocument = {
   fileKey: "pdf/a.pdf",
   fileName: "Database Final Exam 2026.pdf",
   mimeType: "application/pdf",
+  moderationStatus: "APPROVED",
+  uploadedById: null,
 };
 
 beforeEach(() => {
   vi.clearAllMocks();
+});
+
+describe("GET /api/documents/:id/download — moderation visibility (FEAT-10A)", () => {
+  test("an unrelated authenticated user cannot download a PENDING document (404)", async () => {
+    mockAuth.mockResolvedValue(sessionFor("STUDENT"));
+    vi.mocked(prisma.document.findUnique).mockResolvedValue(
+      { ...mockDocument, moderationStatus: "PENDING", uploadedById: "teacher_1" } as never
+    );
+
+    const response = await GET(requestWith(), context);
+
+    expect(response.status).toBe(404);
+    expect(statLocalFile).not.toHaveBeenCalled();
+  });
+
+  test("the uploader CAN download their own PENDING document", async () => {
+    mockAuth.mockResolvedValue({
+      user: { id: "teacher_1", name: "Owner", email: "owner@example.com", role: "TEACHER" },
+      expires: "2099-01-01T00:00:00.000Z",
+    } as never);
+    vi.mocked(prisma.document.findUnique).mockResolvedValue(
+      { ...mockDocument, moderationStatus: "PENDING", uploadedById: "teacher_1" } as never
+    );
+    vi.mocked(statLocalFile).mockResolvedValue({
+      exists: true,
+      absolutePath: "/fake/pdf/a.pdf",
+      size: FAKE_CONTENT.length,
+    });
+    vi.mocked(createLocalFileReadStream).mockReturnValue(fakeStream() as never);
+
+    const response = await GET(requestWith(), context);
+
+    expect(response.status).toBe(200);
+  });
+
+  test("ADMIN can download any PENDING document", async () => {
+    mockAuth.mockResolvedValue(sessionFor("ADMIN"));
+    vi.mocked(prisma.document.findUnique).mockResolvedValue(
+      { ...mockDocument, moderationStatus: "PENDING", uploadedById: "teacher_1" } as never
+    );
+    vi.mocked(statLocalFile).mockResolvedValue({
+      exists: true,
+      absolutePath: "/fake/pdf/a.pdf",
+      size: FAKE_CONTENT.length,
+    });
+    vi.mocked(createLocalFileReadStream).mockReturnValue(fakeStream() as never);
+
+    const response = await GET(requestWith(), context);
+
+    expect(response.status).toBe(200);
+  });
 });
 
 describe("GET /api/documents/:id/download — authentication", () => {

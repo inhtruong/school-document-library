@@ -20,6 +20,11 @@ describe("toast-messages", () => {
     expect(isToastKey(TOAST_KEYS.loggedIn)).toBe(true);
     expect(isToastKey(TOAST_KEYS.loggedOut)).toBe(true);
     expect(isToastKey(TOAST_KEYS.uploadSuccess)).toBe(true);
+    expect(isToastKey(TOAST_KEYS.uploadPendingReview)).toBe(true);
+  });
+
+  test("the pending-review upload message does not imply immediate publication", () => {
+    expect(TOAST_MESSAGES[TOAST_KEYS.uploadPendingReview]).toMatch(/pending review/i);
   });
 
   test("isToastKey rejects unknown or missing values", () => {

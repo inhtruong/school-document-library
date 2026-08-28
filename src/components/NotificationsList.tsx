@@ -2,9 +2,11 @@
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { BellOff, CheckCheck } from "lucide-react";
 import { toast } from "sonner";
 import { NotificationItem } from "@/components/NotificationItem";
 import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
 import type { NotificationRecord } from "@/lib/notifications/notification";
 
 type NotificationsListProps = {
@@ -62,10 +64,13 @@ export function NotificationsList({ initialNotifications, initialUnreadCount }: 
 
   if (notifications.length === 0) {
     return (
-      <p className="mt-6 text-sm text-muted">
-        You don&apos;t have any notifications yet. Follow a teacher or lesson to get notified about new
-        documents.
-      </p>
+      <div className="mt-6 flex flex-col items-center gap-2 rounded-xl border border-dashed border-line bg-surface p-10 text-center">
+        <BellOff className="h-5 w-5 text-muted" aria-hidden />
+        <p className="text-sm text-muted">
+          You don&apos;t have any notifications yet. Follow a teacher or lesson to get notified about new
+          documents.
+        </p>
+      </div>
     );
   }
 
@@ -74,16 +79,19 @@ export function NotificationsList({ initialNotifications, initialUnreadCount }: 
       {unreadCount > 0 ? (
         <div className="mb-3 flex justify-end">
           <Button type="button" variant="outline" size="sm" disabled={markingAll} onClick={handleMarkAllRead}>
+            <CheckCheck className="h-4 w-4" aria-hidden />
             Mark all as read
           </Button>
         </div>
       ) : null}
 
-      <ul className="divide-y divide-line rounded-xl border border-line">
-        {notifications.map((notification) => (
-          <NotificationItem key={notification.id} notification={notification} onRead={handleItemRead} />
-        ))}
-      </ul>
+      <Card className="divide-y divide-line overflow-hidden p-0">
+        <ul>
+          {notifications.map((notification) => (
+            <NotificationItem key={notification.id} notification={notification} onRead={handleItemRead} />
+          ))}
+        </ul>
+      </Card>
     </div>
   );
 }

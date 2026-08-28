@@ -1,12 +1,12 @@
 import Link from "next/link";
-import { Bell } from "lucide-react";
 import { auth } from "@/auth";
 import { AccountMenu } from "@/components/AccountMenu";
 import { MobileMenu } from "@/components/MobileMenu";
+import { NotificationBell } from "@/components/NotificationBell";
 import { buttonVariants } from "@/components/ui/button";
 import { hasRole } from "@/lib/auth/authorize";
 import { cn } from "@/lib/utils";
-import { getUnreadNotificationCount } from "@/lib/notifications/notification";
+import { listNotifications } from "@/lib/notifications/notification";
 
 const navLinkClassName =
   "rounded-lg px-3 py-2 text-sm font-medium text-muted transition-colors hover:bg-surface hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent";
@@ -22,7 +22,7 @@ const navLinkClassName =
  */
 export default async function SiteHeader() {
   const session = await auth();
-  const unreadCount = session?.user ? await getUnreadNotificationCount(session.user.id) : 0;
+  const notificationsPreview = session?.user ? await listNotifications(session.user.id, 1) : null;
   const canUpload = session?.user ? hasRole(session, ["TEACHER", "ADMIN"]) : false;
   const canModerate = session?.user ? hasRole(session, "ADMIN") : false;
   const canViewMyUploads = session?.user ? hasRole(session, "TEACHER") : false;
@@ -59,19 +59,11 @@ export default async function SiteHeader() {
         </nav>
 
         <div className="ml-auto flex items-center gap-2">
-          {session?.user ? (
-            <Link
-              href="/notifications"
-              aria-label={unreadCount > 0 ? `Notifications (${unreadCount} unread)` : "Notifications"}
-              className="relative inline-flex h-11 w-11 items-center justify-center rounded-xl border border-line bg-card text-ink transition-colors hover:bg-surface focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
-            >
-              <Bell className="h-4 w-4" aria-hidden />
-              {unreadCount > 0 ? (
-                <span className="absolute -right-1 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-accent px-1 text-[10px] font-medium leading-none text-paper">
-                  {unreadCount > 99 ? "99+" : unreadCount}
-                </span>
-              ) : null}
-            </Link>
+          {session?.user && notificationsPreview ? (
+            <NotificationBell
+              initialNotifications={notificationsPreview.notifications.slice(0, 5)}
+              initialUnreadCount={notificationsPreview.unreadCount}
+            />
           ) : null}
 
           {session?.user ? (

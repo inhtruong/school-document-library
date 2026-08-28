@@ -2,11 +2,22 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { CheckCircle2, Clock, FileText, XCircle, type LucideIcon } from "lucide-react";
 import type { NotificationRecord } from "@/lib/notifications/notification";
 
 type NotificationItemProps = {
   notification: NotificationRecord;
   onRead: (id: string) => void;
+  /** Popover-only: lets NotificationBell close itself on navigation (the header doesn't remount across client-side routing, so the popover would otherwise stay open). */
+  onNavigate?: () => void;
+};
+
+/** Reuses the app-wide success/warning/destructive/accent tokens — the same "status rail" palette already established across the moderation surfaces — so each notification type reads at a glance. */
+const NOTIFICATION_TYPE_STYLES: Record<NotificationRecord["type"], { icon: LucideIcon; bg: string; fg: string }> = {
+  NEW_DOCUMENT: { icon: FileText, bg: "bg-accent-soft", fg: "text-accent" },
+  DOCUMENT_PENDING_REVIEW: { icon: Clock, bg: "bg-warning-soft", fg: "text-warning" },
+  DOCUMENT_APPROVED: { icon: CheckCircle2, bg: "bg-success-soft", fg: "text-success" },
+  DOCUMENT_REJECTED: { icon: XCircle, bg: "bg-destructive-soft", fg: "text-destructive" },
 };
 
 function formatNotificationDate(value: string): string {
@@ -43,15 +54,18 @@ function notificationHref(notification: NotificationRecord): string {
  * global notification state — the parent list's local state and the
  * header's own server-side query are the only two sources of truth.
  */
-export function NotificationItem({ notification, onRead }: NotificationItemProps) {
+export function NotificationItem({ notification, onRead, onNavigate }: NotificationItemProps) {
   const router = useRouter();
   const isUnread = notification.readAt === null;
+  const { icon: Icon, bg, fg } = NOTIFICATION_TYPE_STYLES[notification.type];
 
   function handleClick() {
-    if (!isUnread) return;
-    onRead(notification.id);
-    fetch(`/api/notifications/${notification.id}/read`, { method: "PATCH" }).catch(() => {});
-    router.refresh();
+    if (isUnread) {
+      onRead(notification.id);
+      fetch(`/api/notifications/${notification.id}/read`, { method: "PATCH" }).catch(() => {});
+      router.refresh();
+    }
+    onNavigate?.();
   }
 
   return (
@@ -59,19 +73,23 @@ export function NotificationItem({ notification, onRead }: NotificationItemProps
       <Link
         href={notificationHref(notification)}
         onClick={handleClick}
-        className={`flex items-start gap-2 px-3 py-3 transition-colors hover:bg-surface ${
-          isUnread ? "bg-accent/5" : ""
+        className={`flex items-start gap-3 px-4 py-3 transition-colors hover:bg-surface ${
+          isUnread ? "bg-accent-soft/40" : ""
         }`}
       >
-        <span
-          aria-hidden
-          className={`mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full ${isUnread ? "bg-accent" : "bg-transparent"}`}
-        />
+        <span aria-hidden className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full ${bg}`}>
+          <Icon className={`h-4 w-4 ${fg}`} aria-hidden />
+        </span>
         <div className="min-w-0 flex-1">
-          <p className={`text-sm ${isUnread ? "font-semibold text-ink" : "font-medium text-ink"}`}>
-            {notification.title}
-          </p>
-          <p className="mt-0.5 text-sm text-muted">{notification.message}</p>
+          <div className="flex items-start justify-between gap-2">
+            <p className={`text-sm ${isUnread ? "font-semibold text-ink" : "font-medium text-ink"}`}>
+              {notification.title}
+            </p>
+            {isUnread ? (
+              <span aria-hidden className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-accent" />
+            ) : null}
+          </div>
+          <p className="mt-0.5 line-clamp-2 text-sm text-muted">{notification.message}</p>
           <p className="mt-1 text-xs text-muted">{formatNotificationDate(notification.createdAt)}</p>
         </div>
       </Link>

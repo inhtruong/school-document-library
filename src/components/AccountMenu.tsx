@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { ChevronDown, FileStack, LogOut, ShieldCheck, Sparkles, Users } from "lucide-react";
+import { ChevronDown, FileStack, LogOut, ShieldCheck, Sparkles, User, Users } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import {
   DropdownMenu,
@@ -73,7 +73,10 @@ export function AccountMenu({ name, email, role, canModerate, canViewMyUploads }
           </Link>
         </DropdownMenuItem>
         <DropdownMenuItem asChild>
-          <Link href="/profile">Profile</Link>
+          <Link href="/profile">
+            <User className="h-4 w-4 text-muted" aria-hidden />
+            Profile
+          </Link>
         </DropdownMenuItem>
         {canViewMyUploads ? (
           <DropdownMenuItem asChild>

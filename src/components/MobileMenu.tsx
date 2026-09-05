@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { FileStack, LogOut, Menu, ShieldCheck, Sparkles, Upload, Users } from "lucide-react";
+import { FileStack, LogOut, Menu, ShieldCheck, Sparkles, Upload, User, Users } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import {
   DropdownMenu,
@@ -91,7 +91,10 @@ export function MobileMenu(props: MobileMenuProps) {
               </Link>
             </DropdownMenuItem>
             <DropdownMenuItem asChild>
-              <Link href="/profile">Profile</Link>
+              <Link href="/profile">
+                <User className="h-4 w-4 text-muted" aria-hidden />
+                Profile
+              </Link>
             </DropdownMenuItem>
             {props.canViewMyUploads ? (
               <DropdownMenuItem asChild>

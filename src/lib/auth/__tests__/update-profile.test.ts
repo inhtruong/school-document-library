@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, test } from "vitest";
 import { vi } from "vitest";
 
 vi.mock("@/lib/prisma", () => ({
-  prisma: { user: { update: vi.fn() } },
+  prisma: { user: { findUnique: vi.fn(), update: vi.fn() }, auditLog: { create: vi.fn() } },
 }));
 
 import { prisma } from "@/lib/prisma";
@@ -10,7 +10,17 @@ import { updateProfileName } from "@/lib/auth/update-profile";
 
 beforeEach(() => {
   vi.clearAllMocks();
+  // A different current name than any test's new value, so the FEAT-11
+  // no-op check (`before.name !== user.name`) sees a real change and the
+  // best-effort audit write path runs (harmlessly, against the mock below)
+  // for every test that doesn't override this.
+  vi.mocked(prisma.user.findUnique).mockResolvedValue({
+    name: "Previous Name",
+    email: "user@example.com",
+    role: "STUDENT",
+  } as never);
   vi.mocked(prisma.user.update).mockResolvedValue({ id: "user_1", name: "Updated Name" } as never);
+  vi.mocked(prisma.auditLog.create).mockResolvedValue({} as never);
 });
 
 describe("updateProfileName", () => {

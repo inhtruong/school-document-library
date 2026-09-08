@@ -1,6 +1,7 @@
 import type { NextRequest } from "next/server";
 import { auth } from "@/auth";
 import { apiError, apiSuccess } from "@/lib/api-response";
+import { actorFromSessionUser } from "@/lib/audit/audit";
 import { createReport } from "@/lib/documents/report";
 import { isDocumentVisibleTo } from "@/lib/documents/visibility";
 import { prisma } from "@/lib/prisma";
@@ -46,7 +47,13 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
     if (!document) return apiError("Document not found", 404);
     if (!isDocumentVisibleTo(document, session)) return apiError("Document not found", 404);
 
-    const result = await createReport(id, session.user.id, parsed.data.reason, parsed.data.description);
+    const result = await createReport(
+      id,
+      session.user.id,
+      parsed.data.reason,
+      parsed.data.description,
+      actorFromSessionUser(session.user)
+    );
     if (result.outcome === "duplicate") {
       return apiError("You have already reported this issue.", 409);
     }

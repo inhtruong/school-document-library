@@ -59,7 +59,10 @@ describe("POST /api/documents/:id/resubmit — authorization", () => {
     const response = await POST(requestFor(), context);
 
     expect(response.status).toBe(403);
-    expect(mockResubmit).toHaveBeenCalledWith("student_1", "doc_1");
+    expect(mockResubmit).toHaveBeenCalledWith(
+      { id: "student_1", email: "test@example.com", role: "STUDENT" },
+      "doc_1"
+    );
   });
 
   test("an unrelated Teacher (not the uploader) gets 403", async () => {
@@ -78,7 +81,10 @@ describe("POST /api/documents/:id/resubmit — uploader identity", () => {
 
     await POST(requestFor(), context);
 
-    expect(mockResubmit).toHaveBeenCalledWith("teacher_1", "doc_1");
+    expect(mockResubmit).toHaveBeenCalledWith(
+      { id: "teacher_1", email: "test@example.com", role: "TEACHER" },
+      "doc_1"
+    );
   });
 });
 

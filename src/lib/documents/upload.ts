@@ -1,6 +1,7 @@
 import "server-only";
 import type { Document, DocumentModerationStatus, Grade, Lesson, Role, Subject } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
+import { writeAuditLog } from "@/lib/audit/audit";
 import { MAX_UPLOAD_SIZE_BYTES, MAX_UPLOAD_SIZE_MB } from "@/lib/documents/upload-config";
 import { validateTaxonomySelection } from "@/lib/documents/taxonomy";
 import { createDocumentPendingReviewNotifications, createNewDocumentNotifications } from "@/lib/notifications/notification";
@@ -44,6 +45,8 @@ export async function uploadDocument(input: {
    * care about moderation don't all need updating just to keep compiling.
    */
   uploaderRole?: Role;
+  /** FEAT-11: the DOCUMENT_UPLOADED audit actor snapshot. Optional for the same reason as `uploaderRole` — tests that don't care about auditing keep compiling; a real caller always passes `session.user.email ?? null`. */
+  uploaderEmail?: string | null;
   formData: FormData;
 }): Promise<UploadDocumentResult> {
   const parsedMetadata = uploadDocumentSchema.safeParse({
@@ -111,33 +114,54 @@ export async function uploadDocument(input: {
 
   let document: UploadedDocument;
   try {
-    document = await prisma.document.create({
-      data: {
-        title: parsedMetadata.data.title,
-        description: parsedMetadata.data.description,
-        academicYear: parsedMetadata.data.academicYear,
-        documentType: parsedMetadata.data.documentType,
-        // Legacy free-text field, auto-derived from the taxonomy Subject's
-        // name so homepage/search grouping (which still reads this field)
-        // keeps working unchanged for taxonomy-backed uploads too.
-        subject: taxonomy.subject.name,
-        gradeId: taxonomy.grade.id,
-        subjectId: taxonomy.subject.id,
-        lessonId: taxonomy.lesson.id,
-        fileKey,
-        fileName: file.name.trim().slice(0, 200) || `document${format.extension}`,
-        fileSize: file.size,
-        mimeType: file.type,
-        fileCategory: format.category,
-        uploadedById: input.uploaderId,
-        moderationStatus,
-      },
-      include: {
-        uploadedBy: { select: { id: true, name: true, role: true } },
-        grade: true,
-        subjectRef: true,
-        lesson: true,
-      },
+    // FEAT-11 §16: the file write already happened above, so wrapping just
+    // the Document row + its DOCUMENT_UPLOADED audit row in one transaction
+    // makes THAT pair atomic without holding a transaction open across the
+    // (already-completed) file I/O. A failure anywhere in here — including
+    // the audit insert — is caught below exactly like a plain create()
+    // failure always was, reusing the existing orphan-file cleanup path.
+    document = await prisma.$transaction(async (tx) => {
+      const created = await tx.document.create({
+        data: {
+          title: parsedMetadata.data.title,
+          description: parsedMetadata.data.description,
+          academicYear: parsedMetadata.data.academicYear,
+          documentType: parsedMetadata.data.documentType,
+          // Legacy free-text field, auto-derived from the taxonomy Subject's
+          // name so homepage/search grouping (which still reads this field)
+          // keeps working unchanged for taxonomy-backed uploads too.
+          subject: taxonomy.subject.name,
+          gradeId: taxonomy.grade.id,
+          subjectId: taxonomy.subject.id,
+          lessonId: taxonomy.lesson.id,
+          fileKey,
+          fileName: file.name.trim().slice(0, 200) || `document${format.extension}`,
+          fileSize: file.size,
+          mimeType: file.type,
+          fileCategory: format.category,
+          uploadedById: input.uploaderId,
+          moderationStatus,
+        },
+        include: {
+          uploadedBy: { select: { id: true, name: true, role: true } },
+          grade: true,
+          subjectRef: true,
+          lesson: true,
+        },
+      });
+
+      await writeAuditLog(
+        {
+          actor: { id: input.uploaderId, email: input.uploaderEmail ?? null, role: input.uploaderRole ?? null },
+          action: "DOCUMENT_UPLOADED",
+          entityType: "DOCUMENT",
+          entityId: created.id,
+          metadata: { documentTitle: created.title },
+        },
+        tx
+      );
+
+      return created;
     });
   } catch (error) {
     console.error(

@@ -2,6 +2,7 @@ import type { NextRequest } from "next/server";
 import type { Session } from "next-auth";
 import { auth } from "@/auth";
 import { apiError, apiSuccess } from "@/lib/api-response";
+import { actorFromSessionUser, writeAuditLog } from "@/lib/audit/audit";
 import { getDocumentChangeClassification } from "@/lib/documents/document-change";
 import { getDocumentById } from "@/lib/documents/get-document";
 import { isDocumentVisibleTo } from "@/lib/documents/visibility";
@@ -85,16 +86,42 @@ export async function PUT(request: NextRequest, { params }: RouteContext) {
       return apiError("You do not have permission to update this document", 403);
     }
 
+    // Computed unconditionally now (FEAT-11 §18), not only for the
+    // material-change gate below — `changedFields` also drives the
+    // DOCUMENT_UPDATED audit metadata, and a genuinely empty result (a
+    // resubmission of identical values) is the one case that gets NO audit
+    // row at all, matching the no-op rule.
+    const classification = getDocumentChangeClassification(existing, parsed.data);
     const requiresReReview =
-      session.user.role !== "ADMIN" &&
-      existing.moderationStatus === "APPROVED" &&
-      getDocumentChangeClassification(existing, parsed.data).hasMaterialChange;
+      session.user.role !== "ADMIN" && existing.moderationStatus === "APPROVED" && classification.hasMaterialChange;
+    const actor = actorFromSessionUser(session.user);
 
     if (!requiresReReview) {
-      const document = await prisma.document.update({
-        where: { id },
-        data: parsed.data,
-        omit: DOCUMENT_RESPONSE_OMIT,
+      if (classification.changedFields.length === 0) {
+        const document = await prisma.document.update({
+          where: { id },
+          data: parsed.data,
+          omit: DOCUMENT_RESPONSE_OMIT,
+        });
+        return apiSuccess(document);
+      }
+
+      // FEAT-11 §15/§37: the mutation and its audit row commit together —
+      // a failed audit write rolls back the (otherwise harmless) edit too,
+      // matching document delete/moderation's atomicity guarantee.
+      const document = await prisma.$transaction(async (tx) => {
+        const updated = await tx.document.update({ where: { id }, data: parsed.data, omit: DOCUMENT_RESPONSE_OMIT });
+        await writeAuditLog(
+          {
+            actor,
+            action: "DOCUMENT_UPDATED",
+            entityType: "DOCUMENT",
+            entityId: id,
+            metadata: { documentTitle: updated.title, changedFields: classification.changedFields },
+          },
+          tx
+        );
+        return updated;
       });
       return apiSuccess(document);
     }
@@ -109,16 +136,37 @@ export async function PUT(request: NextRequest, { params }: RouteContext) {
     // we report a conflict rather than silently applying a stale-based
     // transition. No follower notification is generated (§11/§27) — this
     // is not a publication event.
-    const result = await prisma.document.updateMany({
-      where: { id, moderationStatus: "APPROVED" },
-      data: { ...parsed.data, moderationStatus: "PENDING", reviewedAt: null, reviewedById: null, rejectionReason: null },
+    const document = await prisma.$transaction(async (tx) => {
+      const result = await tx.document.updateMany({
+        where: { id, moderationStatus: "APPROVED" },
+        data: { ...parsed.data, moderationStatus: "PENDING", reviewedAt: null, reviewedById: null, rejectionReason: null },
+      });
+      if (result.count !== 1) return null;
+
+      const updated = await tx.document.findUnique({ where: { id }, omit: DOCUMENT_RESPONSE_OMIT });
+      if (!updated) throw new Error(`Document ${id} vanished mid-transaction after a successful edit`);
+
+      await writeAuditLog(
+        {
+          actor,
+          action: "DOCUMENT_UPDATED",
+          entityType: "DOCUMENT",
+          entityId: id,
+          metadata: {
+            documentTitle: updated.title,
+            changedFields: classification.changedFields,
+            moderationTransition: { from: "APPROVED", to: "PENDING" },
+          },
+        },
+        tx
+      );
+
+      return updated;
     });
-    if (result.count !== 1) {
+
+    if (document === null) {
       return apiError("This document was changed by someone else. Please reload and try again.", 409);
     }
-
-    const document = await prisma.document.findUnique({ where: { id }, omit: DOCUMENT_RESPONSE_OMIT });
-    if (!document) return apiError("Failed to update document", 500);
     return apiSuccess(document);
   } catch (error) {
     console.error(`PUT /api/documents/${id} failed`, error);
@@ -145,7 +193,26 @@ export async function DELETE(_request: NextRequest, { params }: RouteContext) {
       return apiError("You do not have permission to delete this document", 403);
     }
 
-    await prisma.document.delete({ where: { id } });
+    // FEAT-11 §19: title/moderationStatus are snapshotted from `existing`
+    // (already fetched above) BEFORE the row is gone — entityId is a
+    // logical reference, not a live FK, so this AuditLog row is the only
+    // place that history survives once the Document itself no longer
+    // exists. Delete + audit insert commit in the same transaction
+    // (§15/§37): a failed audit write rolls back the deletion too.
+    await prisma.$transaction(async (tx) => {
+      await tx.document.delete({ where: { id } });
+      await writeAuditLog(
+        {
+          actor: actorFromSessionUser(session.user),
+          action: "DOCUMENT_DELETED",
+          entityType: "DOCUMENT",
+          entityId: id,
+          metadata: { documentTitle: existing.title, moderationStatus: existing.moderationStatus },
+        },
+        tx
+      );
+    });
+
     return apiSuccess({ id });
   } catch (error) {
     console.error(`DELETE /api/documents/${id} failed`, error);

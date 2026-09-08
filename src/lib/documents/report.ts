@@ -1,5 +1,7 @@
 import "server-only";
 import { prisma } from "@/lib/prisma";
+import type { AuditActor } from "@/lib/audit/audit";
+import { writeAuditLog } from "@/lib/audit/audit";
 import type { ReportReasonValue } from "@/lib/documents/report-reason";
 
 export type CreatedReport = { id: string; reason: ReportReasonValue; status: "OPEN" };
@@ -17,11 +19,13 @@ function isUniqueConstraintViolation(error: unknown): boolean {
  * safety net — two concurrent submissions could both pass the pre-check,
  * but only one `create()` can win against the DB constraint.
  */
+/** `actor` is optional only so existing tests that don't care about auditing keep compiling (matches `uploadDocument`'s established convention) — the real caller always passes it. */
 export async function createReport(
   documentId: string,
   userId: string,
   reason: ReportReasonValue,
-  description: string | null
+  description: string | null,
+  actor?: AuditActor
 ): Promise<CreateReportOutcome> {
   const existingOpenReport = await prisma.documentReport.findFirst({
     where: { documentId, userId, reason, status: "OPEN" },
@@ -34,6 +38,23 @@ export async function createReport(
       data: { documentId, userId, reason, description, status: "OPEN" },
       select: { id: true, reason: true, status: true },
     });
+
+    // Best-effort (FEAT-11 §23/§37) — never the free-text `description`,
+    // even for reason "OTHER".
+    if (actor) {
+      try {
+        await writeAuditLog({
+          actor,
+          action: "REPORT_CREATED",
+          entityType: "REPORT",
+          entityId: report.id,
+          metadata: { documentId, reason },
+        });
+      } catch (error) {
+        console.error("Audit log write failed for REPORT_CREATED", error);
+      }
+    }
+
     return { outcome: "created", report: report as CreatedReport };
   } catch (error) {
     if (isUniqueConstraintViolation(error)) return { outcome: "duplicate" };

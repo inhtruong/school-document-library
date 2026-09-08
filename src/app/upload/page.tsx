@@ -29,6 +29,7 @@ export default async function UploadPage({ searchParams }: UploadPageProps) {
     const result = await uploadDocument({
       uploaderId: session.user.id,
       uploaderRole: session.user.role,
+      uploaderEmail: session.user.email ?? null,
       formData,
     });
 

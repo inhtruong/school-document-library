@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, test, vi } from "vitest";
 
 vi.mock("@/lib/prisma", () => ({
-  prisma: { user: { findUnique: vi.fn(), create: vi.fn() } },
+  prisma: { user: { findUnique: vi.fn(), create: vi.fn() }, auditLog: { create: vi.fn() } },
 }));
 
 import { prisma } from "@/lib/prisma";
@@ -21,6 +21,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   vi.mocked(prisma.user.findUnique).mockResolvedValue(null);
   vi.mocked(prisma.user.create).mockResolvedValue(mockCreatedUser as never);
+  vi.mocked(prisma.auditLog.create).mockResolvedValue({} as never);
 });
 
 describe("registerStudent", () => {
@@ -106,5 +107,42 @@ describe("registerStudent", () => {
     if (!result.success) expect(result.status).toBe(400);
     expect(prisma.user.findUnique).not.toHaveBeenCalled();
     expect(prisma.user.create).not.toHaveBeenCalled();
+  });
+});
+
+describe("registerStudent — FEAT-11 audit log", () => {
+  test("writes a USER_REGISTERED audit row with no password/hash in metadata", async () => {
+    await registerStudent({
+      name: "New Student",
+      email: "newstudent@example.com",
+      password: "password123",
+    });
+
+    expect(prisma.auditLog.create).toHaveBeenCalledWith({
+      data: {
+        actorUserId: "user_1",
+        actorEmail: "newstudent@example.com",
+        actorRole: "STUDENT",
+        action: "USER_REGISTERED",
+        entityType: "USER",
+        entityId: "user_1",
+        status: "SUCCESS",
+        metadata: undefined,
+      },
+    });
+    const call = vi.mocked(prisma.auditLog.create).mock.calls[0][0];
+    expect(JSON.stringify(call)).not.toContain("password123");
+  });
+
+  test("a failed audit write never fails registration itself", async () => {
+    vi.mocked(prisma.auditLog.create).mockRejectedValue(new Error("audit db down"));
+
+    const result = await registerStudent({
+      name: "New Student",
+      email: "newstudent@example.com",
+      password: "password123",
+    });
+
+    expect(result.success).toBe(true);
   });
 });

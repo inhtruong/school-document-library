@@ -3,9 +3,14 @@ import { beforeEach, describe, expect, test, vi } from "vitest";
 
 vi.mock("@/auth", () => ({ auth: vi.fn() }));
 
-vi.mock("@/lib/prisma", () => ({
-  prisma: { user: { findUnique: vi.fn(), update: vi.fn() } },
-}));
+vi.mock("@/lib/prisma", () => {
+  const mockPrisma = {
+    user: { findUnique: vi.fn(), update: vi.fn() },
+    auditLog: { create: vi.fn() },
+    $transaction: vi.fn((callback: (tx: unknown) => unknown) => callback(mockPrisma)),
+  };
+  return { prisma: mockPrisma };
+});
 
 import type { Session } from "next-auth";
 import { auth } from "@/auth";
@@ -36,8 +41,13 @@ function postRequest(body: unknown) {
 beforeEach(async () => {
   vi.clearAllMocks();
   resetRateLimitsForTests();
-  vi.mocked(prisma.user.findUnique).mockResolvedValue({ passwordHash: await hashPassword(OLD_PASSWORD) } as never);
+  vi.mocked(prisma.user.findUnique).mockResolvedValue({
+    passwordHash: await hashPassword(OLD_PASSWORD),
+    email: "test@example.com",
+    role: "STUDENT",
+  } as never);
   vi.mocked(prisma.user.update).mockResolvedValue({} as never);
+  vi.mocked(prisma.auditLog.create).mockResolvedValue({} as never);
 });
 
 describe("POST /api/profile/password — authentication", () => {

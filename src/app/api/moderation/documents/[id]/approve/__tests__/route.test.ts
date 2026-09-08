@@ -77,7 +77,7 @@ describe("POST /api/moderation/documents/:id/approve — reviewer identity", () 
 
     await POST(requestFor(), context);
 
-    expect(mockApprove).toHaveBeenCalledWith("doc_1", "admin_1");
+    expect(mockApprove).toHaveBeenCalledWith("doc_1", { id: "admin_1", email: "test@example.com", role: "ADMIN" });
   });
 });
 

@@ -4,7 +4,7 @@ import { beforeEach, describe, expect, test, vi } from "vitest";
 vi.mock("@/auth", () => ({ auth: vi.fn() }));
 
 vi.mock("@/lib/prisma", () => ({
-  prisma: { user: { update: vi.fn() } },
+  prisma: { user: { findUnique: vi.fn(), update: vi.fn() }, auditLog: { create: vi.fn() } },
 }));
 
 import type { Session } from "next-auth";
@@ -30,7 +30,13 @@ function patchRequest(body: unknown) {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  vi.mocked(prisma.user.findUnique).mockResolvedValue({
+    name: "Previous Name",
+    email: "test@example.com",
+    role: "STUDENT",
+  } as never);
   vi.mocked(prisma.user.update).mockResolvedValue({ id: "user_1", name: "Updated Name" } as never);
+  vi.mocked(prisma.auditLog.create).mockResolvedValue({} as never);
 });
 
 describe("PATCH /api/profile — authentication", () => {

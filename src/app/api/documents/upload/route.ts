@@ -28,6 +28,7 @@ export async function POST(request: NextRequest) {
   const result = await uploadDocument({
     uploaderId: session.user.id,
     uploaderRole: session.user.role,
+    uploaderEmail: session.user.email ?? null,
     formData,
   });
   if (!result.success) return apiError(result.error, result.status);

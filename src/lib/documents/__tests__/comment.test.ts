@@ -7,6 +7,7 @@ vi.mock("@/lib/prisma", () => ({
       count: vi.fn(),
       create: vi.fn(),
     },
+    auditLog: { create: vi.fn() },
     // Array-form `$transaction` just awaits the already-invoked query
     // promises together — same effect as `Promise.all` for these mocks.
     $transaction: vi.fn((ops: unknown[]) => Promise.all(ops)),
@@ -22,6 +23,7 @@ const AUTHOR = { id: "user_1", name: "Sam Student", role: "STUDENT" as const };
 
 beforeEach(() => {
   vi.clearAllMocks();
+  vi.mocked(prisma.auditLog.create).mockResolvedValue({} as never);
 });
 
 describe("listComments", () => {
@@ -84,6 +86,40 @@ describe("createComment", () => {
       expect.objectContaining({ data: { documentId: "doc_1", userId: "user_1", content: "hello" } })
     );
     expect(result.author).toEqual(AUTHOR);
+  });
+
+  test("with an actor, writes a COMMENT_CREATED audit row without the comment body (FEAT-11)", async () => {
+    const row = { id: "c1", content: "a secret complaint", createdAt: now, updatedAt: now, user: AUTHOR };
+    vi.mocked(prisma.documentComment.create).mockResolvedValue(row as never);
+
+    await createComment("doc_1", "user_1", "a secret complaint", {
+      id: "user_1",
+      email: "student@example.com",
+      role: "STUDENT",
+    });
+
+    expect(prisma.auditLog.create).toHaveBeenCalledWith({
+      data: {
+        actorUserId: "user_1",
+        actorEmail: "student@example.com",
+        actorRole: "STUDENT",
+        action: "COMMENT_CREATED",
+        entityType: "COMMENT",
+        entityId: "c1",
+        status: "SUCCESS",
+        metadata: { documentId: "doc_1" },
+      },
+    });
+    expect(JSON.stringify(vi.mocked(prisma.auditLog.create).mock.calls[0][0])).not.toContain("a secret complaint");
+  });
+
+  test("without an actor, no audit row is written (existing callers that don't care about auditing keep working)", async () => {
+    const row = { id: "c1", content: "hello", createdAt: now, updatedAt: now, user: AUTHOR };
+    vi.mocked(prisma.documentComment.create).mockResolvedValue(row as never);
+
+    await createComment("doc_1", "user_1", "hello");
+
+    expect(prisma.auditLog.create).not.toHaveBeenCalled();
   });
 });
 

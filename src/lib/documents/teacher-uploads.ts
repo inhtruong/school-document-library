@@ -1,6 +1,8 @@
 import "server-only";
 import type { DocumentModerationStatus, FileCategory } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
+import type { AuditActor } from "@/lib/audit/audit";
+import { writeAuditLog } from "@/lib/audit/audit";
 import { TEACHER_UPLOADS_PAGE_SIZE } from "@/lib/documents/teacher-uploads-config";
 import { createDocumentPendingReviewNotifications } from "@/lib/notifications/notification";
 
@@ -156,10 +158,10 @@ export type ResubmitResult =
  * distinguish not-found vs forbidden vs not-rejected for a friendlier
  * error — it plays no role in the atomicity guarantee itself.
  */
-export async function resubmitDocument(uploaderId: string, documentId: string): Promise<ResubmitResult> {
+export async function resubmitDocument(uploader: AuditActor, documentId: string): Promise<ResubmitResult> {
   const transitioned = await prisma.$transaction(async (tx) => {
     const result = await tx.document.updateMany({
-      where: { id: documentId, uploadedById: uploaderId, moderationStatus: "REJECTED" },
+      where: { id: documentId, uploadedById: uploader.id, moderationStatus: "REJECTED" },
       data: { moderationStatus: "PENDING", reviewedAt: null, reviewedById: null, rejectionReason: null },
     });
     if (result.count !== 1) return false;
@@ -171,6 +173,20 @@ export async function resubmitDocument(uploaderId: string, documentId: string): 
     if (!document) throw new Error(`Document ${documentId} vanished mid-transaction after a successful resubmit`);
 
     await createDocumentPendingReviewNotifications(document, document.uploadedBy, { isResubmit: true }, tx);
+
+    // FEAT-11 §17/§37: same in-transaction guarantee as approve/reject —
+    // a failed audit write rolls back the resubmit too.
+    await writeAuditLog(
+      {
+        actor: uploader,
+        action: "DOCUMENT_RESUBMITTED",
+        entityType: "DOCUMENT",
+        entityId: document.id,
+        metadata: { documentTitle: document.title, fromStatus: "REJECTED", toStatus: "PENDING" },
+      },
+      tx
+    );
+
     return true;
   });
 
@@ -181,6 +197,6 @@ export async function resubmitDocument(uploaderId: string, documentId: string): 
     select: { uploadedById: true, moderationStatus: true },
   });
   if (!existing) return { outcome: "not-found" };
-  if (existing.uploadedById !== uploaderId) return { outcome: "forbidden" };
+  if (existing.uploadedById !== uploader.id) return { outcome: "forbidden" };
   return { outcome: "not-rejected" };
 }

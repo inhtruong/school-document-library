@@ -80,7 +80,11 @@ describe("POST /api/moderation/documents/:id/reject — reviewer identity", () =
 
     await POST(requestWith({ reason: "test", reviewedById: "attacker-controlled-id" }), context);
 
-    expect(mockReject).toHaveBeenCalledWith("doc_1", "admin_1", { reason: "test", reviewedById: "attacker-controlled-id" });
+    expect(mockReject).toHaveBeenCalledWith(
+      "doc_1",
+      { id: "admin_1", email: "test@example.com", role: "ADMIN" },
+      { reason: "test", reviewedById: "attacker-controlled-id" }
+    );
   });
 });
 

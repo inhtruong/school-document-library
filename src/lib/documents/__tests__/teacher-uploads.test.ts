@@ -10,6 +10,7 @@ vi.mock("@/lib/prisma", () => {
     },
     user: { findMany: vi.fn() },
     notification: { createMany: vi.fn(), deleteMany: vi.fn() },
+    auditLog: { create: vi.fn() },
     // Test double for prisma.$transaction: invokes the callback with the
     // SAME mocked client, so `tx.document.updateMany` etc. inside
     // resubmitDocument() hit the exact mocks configured below — matches
@@ -51,6 +52,7 @@ beforeEach(() => {
   vi.mocked(prisma.user.findMany).mockResolvedValue([]);
   vi.mocked(prisma.notification.createMany).mockResolvedValue({ count: 0 } as never);
   vi.mocked(prisma.notification.deleteMany).mockResolvedValue({ count: 0 } as never);
+  vi.mocked(prisma.auditLog.create).mockResolvedValue({} as never);
 });
 
 describe("listTeacherUploads", () => {
@@ -159,7 +161,7 @@ describe("resubmitDocument", () => {
       uploadedBy: { id: "teacher_1", name: "Tara Teacher" },
     } as never);
 
-    const result = await resubmitDocument("teacher_1", "doc_1");
+    const result = await resubmitDocument({ id: "teacher_1", email: "teacher_1@example.com", role: "TEACHER" }, "doc_1");
 
     expect(result.outcome).toBe("success");
     expect(prisma.document.updateMany).toHaveBeenCalledTimes(1);
@@ -180,7 +182,7 @@ describe("resubmitDocument", () => {
       moderationStatus: "PENDING",
     } as never);
 
-    const result = await resubmitDocument("teacher_1", "doc_1");
+    const result = await resubmitDocument({ id: "teacher_1", email: "teacher_1@example.com", role: "TEACHER" }, "doc_1");
 
     expect(result.outcome).toBe("not-rejected");
   });
@@ -192,7 +194,7 @@ describe("resubmitDocument", () => {
       moderationStatus: "APPROVED",
     } as never);
 
-    const result = await resubmitDocument("teacher_1", "doc_1");
+    const result = await resubmitDocument({ id: "teacher_1", email: "teacher_1@example.com", role: "TEACHER" }, "doc_1");
 
     expect(result.outcome).toBe("not-rejected");
   });
@@ -204,7 +206,7 @@ describe("resubmitDocument", () => {
       moderationStatus: "REJECTED",
     } as never);
 
-    const result = await resubmitDocument("teacher_1", "doc_1");
+    const result = await resubmitDocument({ id: "teacher_1", email: "teacher_1@example.com", role: "TEACHER" }, "doc_1");
 
     expect(result.outcome).toBe("forbidden");
   });
@@ -213,7 +215,7 @@ describe("resubmitDocument", () => {
     vi.mocked(prisma.document.updateMany).mockResolvedValue({ count: 0 });
     vi.mocked(prisma.document.findUnique).mockResolvedValue(null);
 
-    const result = await resubmitDocument("teacher_1", "missing");
+    const result = await resubmitDocument({ id: "teacher_1", email: "teacher_1@example.com", role: "TEACHER" }, "missing");
 
     expect(result.outcome).toBe("not-found");
   });
@@ -229,8 +231,8 @@ describe("resubmitDocument", () => {
     } as never);
 
     const [first, second] = await Promise.all([
-      resubmitDocument("teacher_1", "doc_1"),
-      resubmitDocument("teacher_1", "doc_1"),
+      resubmitDocument({ id: "teacher_1", email: "teacher_1@example.com", role: "TEACHER" }, "doc_1"),
+      resubmitDocument({ id: "teacher_1", email: "teacher_1@example.com", role: "TEACHER" }, "doc_1"),
     ]);
 
     const outcomes = [first.outcome, second.outcome].sort();
@@ -250,7 +252,7 @@ describe("resubmitDocument — pending-review notification (Admin bell)", () => 
     vi.mocked(prisma.document.findUnique).mockResolvedValue(RESUBMITTED_DOCUMENT_ROW as never);
     vi.mocked(prisma.user.findMany).mockResolvedValue([{ id: "admin_1" }, { id: "admin_2" }] as never);
 
-    const result = await resubmitDocument("teacher_1", "doc_1");
+    const result = await resubmitDocument({ id: "teacher_1", email: "teacher_1@example.com", role: "TEACHER" }, "doc_1");
 
     expect(result.outcome).toBe("success");
     const call = vi.mocked(prisma.notification.createMany).mock.calls[0][0] as {
@@ -266,7 +268,7 @@ describe("resubmitDocument — pending-review notification (Admin bell)", () => 
     vi.mocked(prisma.document.findUnique).mockResolvedValue(RESUBMITTED_DOCUMENT_ROW as never);
     vi.mocked(prisma.user.findMany).mockRejectedValue(new Error("connection refused"));
 
-    await expect(resubmitDocument("teacher_1", "doc_1")).rejects.toThrow();
+    await expect(resubmitDocument({ id: "teacher_1", email: "teacher_1@example.com", role: "TEACHER" }, "doc_1")).rejects.toThrow();
   });
 
   test("does not notify Admins when the transition did not succeed", async () => {
@@ -276,8 +278,46 @@ describe("resubmitDocument — pending-review notification (Admin bell)", () => 
       moderationStatus: "PENDING",
     } as never);
 
-    await resubmitDocument("teacher_1", "doc_1");
+    await resubmitDocument({ id: "teacher_1", email: "teacher_1@example.com", role: "TEACHER" }, "doc_1");
 
     expect(prisma.notification.createMany).not.toHaveBeenCalled();
+  });
+});
+
+describe("resubmitDocument — FEAT-11 audit log", () => {
+  const RESUBMITTED_DOCUMENT_ROW = {
+    id: "doc_1",
+    title: "Test Document",
+    uploadedBy: { id: "teacher_1", name: "Tara Teacher" },
+  };
+
+  test("writes a DOCUMENT_RESUBMITTED audit row with the uploader as actor", async () => {
+    vi.mocked(prisma.document.updateMany).mockResolvedValue({ count: 1 });
+    vi.mocked(prisma.document.findUnique).mockResolvedValue(RESUBMITTED_DOCUMENT_ROW as never);
+
+    await resubmitDocument({ id: "teacher_1", email: "teacher_1@example.com", role: "TEACHER" }, "doc_1");
+
+    expect(prisma.auditLog.create).toHaveBeenCalledWith({
+      data: {
+        actorUserId: "teacher_1",
+        actorEmail: "teacher_1@example.com",
+        actorRole: "TEACHER",
+        action: "DOCUMENT_RESUBMITTED",
+        entityType: "DOCUMENT",
+        entityId: "doc_1",
+        status: "SUCCESS",
+        metadata: { documentTitle: "Test Document", fromStatus: "REJECTED", toStatus: "PENDING" },
+      },
+    });
+  });
+
+  test("a failing audit write rolls back the resubmit — document stays REJECTED", async () => {
+    vi.mocked(prisma.document.updateMany).mockResolvedValue({ count: 1 });
+    vi.mocked(prisma.document.findUnique).mockResolvedValue(RESUBMITTED_DOCUMENT_ROW as never);
+    vi.mocked(prisma.auditLog.create).mockRejectedValue(new Error("audit db unavailable"));
+
+    await expect(
+      resubmitDocument({ id: "teacher_1", email: "teacher_1@example.com", role: "TEACHER" }, "doc_1")
+    ).rejects.toThrow("audit db unavailable");
   });
 });

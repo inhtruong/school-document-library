@@ -1,6 +1,7 @@
 import type { NextRequest } from "next/server";
 import { auth } from "@/auth";
 import { apiError, apiSuccess } from "@/lib/api-response";
+import { actorFromSessionUser } from "@/lib/audit/audit";
 import { COMMENTS_PAGE_SIZE } from "@/lib/documents/comment-config";
 import { createComment, listComments } from "@/lib/documents/comment";
 import { isDocumentVisibleTo } from "@/lib/documents/visibility";
@@ -88,7 +89,7 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
     if (!document) return apiError("Document not found", 404);
     if (!isDocumentVisibleTo(document, session)) return apiError("Document not found", 404);
 
-    const comment = await createComment(id, session.user.id, parsed.data.content);
+    const comment = await createComment(id, session.user.id, parsed.data.content, actorFromSessionUser(session.user));
     return apiSuccess(comment, { status: 201 });
   } catch (error) {
     console.error(`POST /api/documents/${id}/comments failed`, error);

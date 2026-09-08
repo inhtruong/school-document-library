@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, test, vi } from "vitest";
 vi.mock("@/lib/prisma", () => ({
   prisma: {
     documentReport: { findFirst: vi.fn(), create: vi.fn(), findMany: vi.fn() },
+    auditLog: { create: vi.fn() },
   },
 }));
 
@@ -11,6 +12,7 @@ import { createReport, getMyOpenReportReasons } from "@/lib/documents/report";
 
 beforeEach(() => {
   vi.clearAllMocks();
+  vi.mocked(prisma.auditLog.create).mockResolvedValue({} as never);
 });
 
 describe("createReport", () => {
@@ -66,6 +68,47 @@ describe("createReport", () => {
     vi.mocked(prisma.documentReport.create).mockRejectedValue(new Error("connection refused"));
 
     await expect(createReport("doc_1", "user_1", "BROKEN_FILE", null)).rejects.toThrow("connection refused");
+  });
+
+  test("with an actor, writes a REPORT_CREATED audit row without the free-text description (FEAT-11)", async () => {
+    vi.mocked(prisma.documentReport.findFirst).mockResolvedValue(null);
+    vi.mocked(prisma.documentReport.create).mockResolvedValue(
+      { id: "report_1", reason: "OTHER", status: "OPEN" } as never
+    );
+
+    await createReport("doc_1", "user_1", "OTHER", "a very specific private complaint", {
+      id: "user_1",
+      email: "student@example.com",
+      role: "STUDENT",
+    });
+
+    expect(prisma.auditLog.create).toHaveBeenCalledWith({
+      data: {
+        actorUserId: "user_1",
+        actorEmail: "student@example.com",
+        actorRole: "STUDENT",
+        action: "REPORT_CREATED",
+        entityType: "REPORT",
+        entityId: "report_1",
+        status: "SUCCESS",
+        metadata: { documentId: "doc_1", reason: "OTHER" },
+      },
+    });
+    expect(JSON.stringify(vi.mocked(prisma.auditLog.create).mock.calls[0][0])).not.toContain(
+      "a very specific private complaint"
+    );
+  });
+
+  test("a duplicate report never writes an audit row", async () => {
+    vi.mocked(prisma.documentReport.findFirst).mockResolvedValue({ id: "existing" } as never);
+
+    await createReport("doc_1", "user_1", "BROKEN_FILE", null, {
+      id: "user_1",
+      email: "student@example.com",
+      role: "STUDENT",
+    });
+
+    expect(prisma.auditLog.create).not.toHaveBeenCalled();
   });
 });
 

@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { FileStack, LogOut, Menu, ShieldCheck, Sparkles, Upload, User, Users } from "lucide-react";
+import { FileClock, FileStack, LogOut, Menu, ShieldCheck, Sparkles, Upload, User, Users } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import {
   DropdownMenu,
@@ -109,6 +109,14 @@ export function MobileMenu(props: MobileMenuProps) {
                 <Link href="/moderation">
                   <ShieldCheck className="h-4 w-4 text-muted" aria-hidden />
                   Moderation
+                </Link>
+              </DropdownMenuItem>
+            ) : null}
+            {props.canModerate ? (
+              <DropdownMenuItem asChild>
+                <Link href="/admin/audit-log">
+                  <FileClock className="h-4 w-4 text-muted" aria-hidden />
+                  Audit log
                 </Link>
               </DropdownMenuItem>
             ) : null}

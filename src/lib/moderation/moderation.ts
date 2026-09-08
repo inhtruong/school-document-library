@@ -1,6 +1,8 @@
 import "server-only";
 import type { DocumentModerationStatus, FileCategory } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
+import type { AuditActor } from "@/lib/audit/audit";
+import { writeAuditLog } from "@/lib/audit/audit";
 import { MODERATION_PAGE_SIZE } from "@/lib/moderation/moderation-config";
 import {
   clearPendingReviewNotifications,
@@ -174,11 +176,11 @@ export type ModerationActionResult =
  * purely to produce a friendlier 404-vs-409 distinction for the caller — it
  * plays no role in the atomicity/correctness guarantee itself.
  */
-export async function approveDocument(documentId: string, reviewerId: string): Promise<ModerationActionResult> {
+export async function approveDocument(documentId: string, reviewer: AuditActor): Promise<ModerationActionResult> {
   const transitioned = await prisma.$transaction(async (tx) => {
     const result = await tx.document.updateMany({
       where: { id: documentId, moderationStatus: "PENDING" },
-      data: { moderationStatus: "APPROVED", reviewedAt: new Date(), reviewedById: reviewerId, rejectionReason: null },
+      data: { moderationStatus: "APPROVED", reviewedAt: new Date(), reviewedById: reviewer.id, rejectionReason: null },
     });
     if (result.count !== 1) return false;
 
@@ -205,9 +207,25 @@ export async function approveDocument(documentId: string, reviewerId: string): P
 
     await createNewDocumentNotifications(document, document.uploadedBy, tx);
 
-    if (document.uploadedBy && document.uploadedBy.id !== reviewerId) {
+    if (document.uploadedBy && document.uploadedBy.id !== reviewer.id) {
       await createModerationResultNotification(document, document.uploadedBy.id, "APPROVED", tx);
     }
+
+    // FEAT-11 §17/§37: part of the SAME transaction as the transition —
+    // a failure here rolls back the approval too, so a document can never
+    // end up APPROVED with no audit trail of who approved it. Unlike
+    // Notification's replace-on-repeat semantics, every approval cycle
+    // for this Document gets its OWN row here, never overwritten.
+    await writeAuditLog(
+      {
+        actor: reviewer,
+        action: "DOCUMENT_APPROVED",
+        entityType: "DOCUMENT",
+        entityId: document.id,
+        metadata: { documentTitle: document.title, fromStatus: "PENDING", toStatus: "APPROVED" },
+      },
+      tx
+    );
 
     return true;
   });
@@ -233,7 +251,7 @@ export async function approveDocument(documentId: string, reviewerId: string): P
  */
 export async function rejectDocument(
   documentId: string,
-  reviewerId: string,
+  reviewer: AuditActor,
   input: unknown
 ): Promise<ModerationActionResult> {
   const parsed = rejectDocumentSchema.safeParse(input);
@@ -247,7 +265,7 @@ export async function rejectDocument(
       data: {
         moderationStatus: "REJECTED",
         reviewedAt: new Date(),
-        reviewedById: reviewerId,
+        reviewedById: reviewer.id,
         rejectionReason: parsed.data.reason,
       },
     });
@@ -264,9 +282,25 @@ export async function rejectDocument(
     // DOCUMENT_PENDING_REVIEW row (see this function's own doc comment).
     await clearPendingReviewNotifications(documentId, tx);
 
-    if (document.uploadedBy && document.uploadedBy.id !== reviewerId) {
+    if (document.uploadedBy && document.uploadedBy.id !== reviewer.id) {
       await createModerationResultNotification(document, document.uploadedBy.id, "REJECTED", tx);
     }
+
+    // FEAT-11 §17/§37: same in-transaction guarantee as approveDocument's
+    // audit write above. Deliberately does NOT include the free-text
+    // rejectionReason in metadata (FEAT-11 §13) — the Document row itself
+    // already carries the current reason, and this history only needs the
+    // status transition, not a duplicate of potentially sensitive free text.
+    await writeAuditLog(
+      {
+        actor: reviewer,
+        action: "DOCUMENT_REJECTED",
+        entityType: "DOCUMENT",
+        entityId: document.id,
+        metadata: { documentTitle: document.title, fromStatus: "PENDING", toStatus: "REJECTED" },
+      },
+      tx
+    );
 
     return true;
   });

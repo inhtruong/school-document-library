@@ -1,8 +1,16 @@
 import { beforeEach, describe, expect, test, vi } from "vitest";
 
-vi.mock("@/lib/prisma", () => ({
-  prisma: { user: { findUnique: vi.fn(), update: vi.fn() } },
-}));
+vi.mock("@/lib/prisma", () => {
+  const mockPrisma = {
+    user: { findUnique: vi.fn(), update: vi.fn() },
+    auditLog: { create: vi.fn() },
+    // Same test-double pattern as moderation.test.ts — the callback runs
+    // against this SAME mocked client, so `tx.user.update`/`tx.auditLog.create`
+    // inside changePassword()'s transaction hit these exact mocks.
+    $transaction: vi.fn((callback: (tx: unknown) => unknown) => callback(mockPrisma)),
+  };
+  return { prisma: mockPrisma };
+});
 
 import { prisma } from "@/lib/prisma";
 import { changePassword } from "@/lib/auth/change-password";
@@ -15,8 +23,11 @@ beforeEach(async () => {
   vi.clearAllMocks();
   vi.mocked(prisma.user.findUnique).mockResolvedValue({
     passwordHash: await hashPassword(OLD_PASSWORD),
+    email: "user@example.com",
+    role: "STUDENT",
   } as never);
   vi.mocked(prisma.user.update).mockResolvedValue({} as never);
+  vi.mocked(prisma.auditLog.create).mockResolvedValue({} as never);
 });
 
 describe("changePassword", () => {

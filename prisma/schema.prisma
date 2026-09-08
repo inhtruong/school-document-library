@@ -40,7 +40,7 @@ model Document {
   mimeType     String?
   fileCategory FileCategory?
   uploadedById String?
-  uploadedBy   User?    @relation(fields: [uploadedById], references: [id], onDelete: SetNull)
+  uploadedBy   User?         @relation(fields: [uploadedById], references: [id], onDelete: SetNull)
 
   // Moderation foundation (FEAT-10A). `@default(APPROVED)` is deliberate:
   // it backfills every pre-existing row to APPROVED as part of this
@@ -58,8 +58,8 @@ model Document {
   reviewedBy       User?                    @relation("DocumentReviewer", fields: [reviewedById], references: [id], onDelete: SetNull)
   rejectionReason  String?
 
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   ratings       DocumentRating[]
   comments      DocumentComment[]
@@ -105,7 +105,9 @@ model DocumentRating {
   userId     String
   user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  /** 1-5, enforced at the application layer (zod) — see src/lib/validation/rating.ts. */
+  /**
+   * 1-5, enforced at the application layer (zod) — see src/lib/validation/rating.ts.
+   */
   value Int
 
   createdAt DateTime @default(now())
@@ -182,8 +184,10 @@ model DocumentReport {
   userId     String
   user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  reason ReportReason
-  /** Optional except when reason is OTHER — enforced at the application layer (zod), see src/lib/validation/report.ts. */
+  reason      ReportReason
+  /**
+   * Optional except when reason is OTHER — enforced at the application layer (zod), see src/lib/validation/report.ts.
+   */
   description String?
   status      ReportStatus @default(OPEN)
 
@@ -217,7 +221,9 @@ enum Role {
   ADMIN
 }
 
-/** FEAT-10A moderation foundation. Deliberately only these 3 states — see schema comment on Document.moderationStatus. */
+/**
+ * FEAT-10A moderation foundation. Deliberately only these 3 states — see schema comment on Document.moderationStatus.
+ */
 enum DocumentModerationStatus {
   PENDING
   APPROVED
@@ -232,7 +238,9 @@ enum FileCategory {
   VIDEO
 }
 
-/** Controlled classification for what a Document actually is — replaces free-text documentType. */
+/**
+ * Controlled classification for what a Document actually is — replaces free-text documentType.
+ */
 enum DocumentType {
   LECTURE
   EXERCISE
@@ -242,7 +250,9 @@ enum DocumentType {
   OTHER
 }
 
-/** School grade/class level — the root of the education taxonomy. */
+/**
+ * School grade/class level — the root of the education taxonomy.
+ */
 model Grade {
   id        String   @id @default(cuid())
   name      String
@@ -257,7 +267,9 @@ model Grade {
   @@index([sortOrder])
 }
 
-/** A Subject belongs to exactly one Grade for this MVP (no many-to-many yet). */
+/**
+ * A Subject belongs to exactly one Grade for this MVP (no many-to-many yet).
+ */
 model Subject {
   id      String @id @default(cuid())
   name    String
@@ -277,7 +289,9 @@ model Subject {
   @@index([name(ops: raw("gin_trgm_ops"))], type: Gin, map: "Subject_name_trgm_idx")
 }
 
-/** A Lesson/Topic belongs to exactly one Subject. */
+/**
+ * A Lesson/Topic belongs to exactly one Subject.
+ */
 model Lesson {
   id        String  @id @default(cuid())
   name      String
@@ -298,27 +312,31 @@ model Lesson {
 }
 
 model User {
-  id           String   @id @default(cuid())
-  name         String
-  email        String   @unique
-  passwordHash String
-  role         Role     @default(STUDENT)
+  id             String   @id @default(cuid())
+  name           String
+  email          String   @unique
+  passwordHash   String
+  role           Role     @default(STUDENT)
   /// CORE-1: incremented on password change to invalidate every JWT issued
   /// before it (see src/lib/auth/session.ts) — never exposed to the client.
-  sessionVersion Int    @default(0)
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  sessionVersion Int      @default(0)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
 
   uploadedDocuments Document[]
-  reviewedDocuments Document[] @relation("DocumentReviewer")
+  reviewedDocuments Document[]         @relation("DocumentReviewer")
   ratings           DocumentRating[]
   comments          DocumentComment[]
   reports           DocumentReport[]
   bookmarks         DocumentBookmark[]
-  teacherFollowing  TeacherFollow[] @relation("TeacherFollowFollower")
-  followedByUsers   TeacherFollow[] @relation("TeacherFollowTeacher")
+  teacherFollowing  TeacherFollow[]    @relation("TeacherFollowFollower")
+  followedByUsers   TeacherFollow[]    @relation("TeacherFollowTeacher")
   lessonFollows     LessonFollow[]
   notifications     Notification[]
+  /**
+   * SetNull, not Cascade — a deleted User's history must remain (see AuditLog's doc comment).
+   */
+  auditLogs         AuditLog[]
 
   @@index([role])
 }
@@ -411,13 +429,114 @@ model Notification {
   @@index([documentId])
 }
 
-/** Kept intentionally small — see Notification's doc comment. */
+/**
+ * Kept intentionally small — see Notification's doc comment.
+ */
 enum NotificationType {
   NEW_DOCUMENT
-  /** A document just entered PENDING (fresh Teacher upload, or a Resubmit) — sent to every ADMIN, never to followers. */
+  /**
+   * A document just entered PENDING (fresh Teacher upload, or a Resubmit) — sent to every ADMIN, never to followers.
+   */
   DOCUMENT_PENDING_REVIEW
-  /** PENDING → APPROVED — sent to the document's uploader only (FEAT-10F). */
+  /**
+   * PENDING → APPROVED — sent to the document's uploader only (FEAT-10F).
+   */
   DOCUMENT_APPROVED
-  /** PENDING → REJECTED — sent to the document's uploader only (FEAT-10F). */
+  /**
+   * PENDING → REJECTED — sent to the document's uploader only (FEAT-10F).
+   */
   DOCUMENT_REJECTED
+}
+
+/**
+ * Append-only administrative history (FEAT-11) — deliberately NOT the same
+ * thing as Notification above. Notification is a user-facing, replaceable
+ * workflow inbox (see its own doc comment: "current-work-inbox, not
+ * immutable history"); AuditLog is the opposite — every row is permanent,
+ * never edited, never deleted, and never replaced because a newer event
+ * superseded it (three rejections of the same Document produce three rows
+ * here, where Notification would only ever show the latest one).
+ * `entityId` is a plain, unconstrained String — deliberately NOT a foreign
+ * key to Document/DocumentComment/DocumentReport. A real FK would force an
+ * `onDelete` choice that either cascades (destroying the audit trail the
+ * moment the entity it documents is deleted — the opposite of "history")
+ * or blocks deletion entirely (letting an audit table dictate whether a
+ * Document can be removed). A logical reference that simply outlives its
+ * target is the correct shape for a history table.
+ * `actorUserId` DOES keep a real (SetNull) relation to User, for the rare
+ * live-join convenience — but display code must never depend on it: the
+ * `actorEmail`/`actorRole` snapshot fields are the source of truth for
+ * rendering history, since a User can be renamed, re-roled, or deleted
+ * long after the row was written and the history must still read
+ * correctly. No password/hash/token/secret is ever stored on this model
+ * (see `writeAuditLog()` in src/lib/audit/audit.ts, which is the only
+ * place allowed to insert rows here).
+ */
+model AuditLog {
+  id String @id @default(cuid())
+
+  actorUserId String?
+  actor       User?   @relation(fields: [actorUserId], references: [id], onDelete: SetNull)
+  /**
+   * Snapshotted at write time — the display source of truth, independent of whether `actor`/`actorUserId` still resolves.
+   */
+  actorEmail  String?
+  actorRole   Role?
+
+  action AuditAction
+
+  /**
+   * Logical reference only — see this model's doc comment. Both null for an action with no single affected entity (none currently defined, but kept optional for forward compatibility).
+   */
+  entityType AuditEntityType?
+  entityId   String?
+
+  status   AuditStatus @default(SUCCESS)
+  /**
+   * Safe, compact, server-authored only — never raw request bodies, never secrets. See writeAuditLog()'s doc comment for the enforced shape.
+   */
+  metadata Json?
+
+  createdAt DateTime @default(now())
+
+  @@index([createdAt])
+  @@index([action, createdAt])
+  @@index([actorUserId, createdAt])
+  @@index([entityType, entityId])
+}
+
+/**
+ * First version, deliberately focused — see FEAT-11's final report for the MUST/SHOULD/DEFER classification behind this exact list.
+ */
+enum AuditAction {
+  USER_REGISTERED
+  USER_LOGGED_IN
+  USER_LOGIN_FAILED
+  PASSWORD_CHANGED
+  PROFILE_UPDATED
+  DOCUMENT_UPLOADED
+  DOCUMENT_UPDATED
+  DOCUMENT_DELETED
+  DOCUMENT_APPROVED
+  DOCUMENT_REJECTED
+  DOCUMENT_RESUBMITTED
+  COMMENT_CREATED
+  COMMENT_UPDATED
+  COMMENT_DELETED
+  REPORT_CREATED
+}
+
+/**
+ * A small stable set — not one entry per UI component (FEAT-11 §10).
+ */
+enum AuditEntityType {
+  USER
+  DOCUMENT
+  COMMENT
+  REPORT
+}
+
+enum AuditStatus {
+  SUCCESS
+  FAILURE
 }

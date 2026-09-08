@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { writeAuditLog } from "@/lib/audit/audit";
 import { hashPassword } from "@/lib/auth/password";
 import { registerSchema } from "@/lib/validation/auth";
 
@@ -39,6 +40,20 @@ export async function registerStudent(input: unknown): Promise<RegisterResult> {
     },
     select: { id: true, name: true, email: true, role: true },
   });
+
+  // Best-effort (FEAT-11 §37) — the account already exists at this point;
+  // a transient audit-write hiccup must never turn a successful
+  // registration into a failed one.
+  try {
+    await writeAuditLog({
+      actor: { id: user.id, email: user.email, role: user.role },
+      action: "USER_REGISTERED",
+      entityType: "USER",
+      entityId: user.id,
+    });
+  } catch (error) {
+    console.error("Audit log write failed for USER_REGISTERED", error);
+  }
 
   return { success: true, user: user as RegisteredUser };
 }

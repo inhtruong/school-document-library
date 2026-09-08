@@ -1,5 +1,7 @@
 import "server-only";
 import { prisma } from "@/lib/prisma";
+import type { AuditActor } from "@/lib/audit/audit";
+import { writeAuditLog } from "@/lib/audit/audit";
 import { COMMENTS_PAGE_SIZE } from "@/lib/documents/comment-config";
 
 export type CommentAuthor = { id: string; name: string; role: "STUDENT" | "TEACHER" | "ADMIN" };
@@ -73,14 +75,33 @@ export async function listComments(documentId: string, page: number): Promise<Co
   };
 }
 
+/** `actor` is optional only so existing tests that don't care about auditing keep compiling (matches `uploadDocument`'s established convention) — the real caller always passes it. */
 export async function createComment(
   documentId: string,
   userId: string,
-  content: string
+  content: string,
+  actor?: AuditActor
 ): Promise<DocumentCommentPayload> {
   const row = await prisma.documentComment.create({
     data: { documentId, userId, content },
     select: COMMENT_SELECT,
   });
+
+  // Best-effort (FEAT-11 §22/§37) — comments are a SHOULD-tier action, not
+  // wrapped in a transaction with the create above.
+  if (actor) {
+    try {
+      await writeAuditLog({
+        actor,
+        action: "COMMENT_CREATED",
+        entityType: "COMMENT",
+        entityId: row.id,
+        metadata: { documentId },
+      });
+    } catch (error) {
+      console.error("Audit log write failed for COMMENT_CREATED", error);
+    }
+  }
+
   return toCommentPayload(row);
 }

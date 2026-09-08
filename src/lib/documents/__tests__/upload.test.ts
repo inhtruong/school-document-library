@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, test, vi } from "vitest";
 
-vi.mock("@/lib/prisma", () => ({
-  prisma: {
+vi.mock("@/lib/prisma", () => {
+  const mockPrisma = {
     document: { create: vi.fn() },
     grade: { findUnique: vi.fn() },
     subject: { findUnique: vi.fn() },
@@ -10,8 +10,15 @@ vi.mock("@/lib/prisma", () => ({
     lessonFollow: { findMany: vi.fn() },
     user: { findMany: vi.fn() },
     notification: { createMany: vi.fn(), deleteMany: vi.fn() },
-  },
-}));
+    auditLog: { create: vi.fn() },
+    // Test double for prisma.$transaction — same pattern as
+    // moderation.test.ts: the callback runs against this SAME mocked
+    // client, so `tx.document.create`/`tx.auditLog.create` inside
+    // uploadDocument()'s transaction hit these exact mocks.
+    $transaction: vi.fn((callback: (tx: unknown) => unknown) => callback(mockPrisma)),
+  };
+  return { prisma: mockPrisma };
+});
 
 // Keep the real (pure) format/key logic — only mock the actual filesystem I/O.
 vi.mock("@/lib/storage/local-storage", async (importOriginal) => {
@@ -161,6 +168,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   vi.mocked(writeLocalFile).mockResolvedValue({ success: true });
   vi.mocked(prisma.document.create).mockResolvedValue(mockCreatedDocument as never);
+  vi.mocked(prisma.auditLog.create).mockResolvedValue({} as never);
   vi.mocked(prisma.grade.findUnique).mockImplementation(
     ({ where }) => Promise.resolve(GRADES[where.id as string] ?? null) as never
   );
@@ -448,5 +456,48 @@ describe("uploadDocument — moderation status (FEAT-10A)", () => {
 
     const createCall = vi.mocked(prisma.document.create).mock.calls[0][0] as { data: Record<string, unknown> };
     expect(createCall.data.moderationStatus).toBe("PENDING");
+  });
+});
+
+describe("uploadDocument — FEAT-11 audit log", () => {
+  test("writes a DOCUMENT_UPLOADED audit row with the document title", async () => {
+    await uploadDocument({
+      uploaderId: "user_1",
+      uploaderRole: "TEACHER",
+      uploaderEmail: "teacher@example.com",
+      formData: buildFormData(),
+    });
+
+    expect(prisma.auditLog.create).toHaveBeenCalledWith({
+      data: {
+        actorUserId: "user_1",
+        actorEmail: "teacher@example.com",
+        actorRole: "TEACHER",
+        action: "DOCUMENT_UPLOADED",
+        entityType: "DOCUMENT",
+        entityId: "doc_1",
+        status: "SUCCESS",
+        metadata: { documentTitle: "Midterm Exam" },
+      },
+    });
+  });
+
+  test("omitting uploaderEmail writes a null actorEmail rather than fabricating one", async () => {
+    await uploadDocument({ uploaderId: "user_1", uploaderRole: "TEACHER", formData: buildFormData() });
+
+    const call = vi.mocked(prisma.auditLog.create).mock.calls[0][0];
+    expect(call.data.actorEmail).toBeNull();
+  });
+
+  test("a failing audit write rolls back the Document creation AND cleans up the orphan file — unlike the best-effort notification path", async () => {
+    vi.mocked(prisma.auditLog.create).mockRejectedValue(new Error("audit db unavailable"));
+
+    const result = await uploadDocument({ uploaderId: "user_1", formData: buildFormData() });
+
+    expect(result.success).toBe(false);
+    if (result.success) return;
+    expect(result.status).toBe(500);
+    const [writtenKey] = vi.mocked(writeLocalFile).mock.calls[0];
+    expect(deleteLocalFile).toHaveBeenCalledWith(writtenKey);
   });
 });

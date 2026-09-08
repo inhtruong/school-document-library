@@ -2,16 +2,23 @@ import { NextRequest } from "next/server";
 import type { Session } from "next-auth";
 import { beforeEach, describe, expect, test, vi } from "vitest";
 
-vi.mock("@/lib/prisma", () => ({
-  prisma: {
+vi.mock("@/lib/prisma", () => {
+  const mockPrisma = {
     document: {
       findUnique: vi.fn(),
       update: vi.fn(),
       updateMany: vi.fn(),
       delete: vi.fn(),
     },
-  },
-}));
+    auditLog: { create: vi.fn() },
+    // Test double for prisma.$transaction — same pattern as
+    // moderation.test.ts: the callback runs against this SAME mocked
+    // client, so `tx.document.*`/`tx.auditLog.create` inside PUT/DELETE's
+    // transactions hit these exact mocks.
+    $transaction: vi.fn((callback: (tx: unknown) => unknown) => callback(mockPrisma)),
+  };
+  return { prisma: mockPrisma };
+});
 
 vi.mock("@/auth", () => ({ auth: vi.fn() }));
 
@@ -74,6 +81,7 @@ const context = { params: Promise.resolve({ id: "doc_1" }) };
 beforeEach(() => {
   vi.clearAllMocks();
   mockAuth.mockResolvedValue(OWNER_SESSION);
+  vi.mocked(prisma.auditLog.create).mockResolvedValue({} as never);
 });
 
 describe("GET /api/documents/:id", () => {
@@ -412,6 +420,87 @@ describe("PUT /api/documents/:id — FEAT-10E edit/re-review rules", () => {
   });
 });
 
+describe("PUT /api/documents/:id — FEAT-11 audit log", () => {
+  function putRequest(body: unknown) {
+    return new NextRequest("http://localhost/api/documents/doc_1", { method: "PUT", body: JSON.stringify(body) });
+  }
+
+  test("a minor edit writes DOCUMENT_UPDATED with changedFields, no moderationTransition", async () => {
+    vi.mocked(prisma.document.findUnique).mockResolvedValue(mockDocument);
+    vi.mocked(prisma.document.update).mockResolvedValue({ ...mockDocument, title: "Corrected title" });
+
+    await PUT(putRequest({ title: "Corrected title" }), context);
+
+    expect(prisma.auditLog.create).toHaveBeenCalledWith({
+      data: {
+        actorUserId: "teacher_1",
+        actorEmail: "teacher@example.com",
+        actorRole: "TEACHER",
+        action: "DOCUMENT_UPDATED",
+        entityType: "DOCUMENT",
+        entityId: "doc_1",
+        status: "SUCCESS",
+        metadata: { documentTitle: "Corrected title", changedFields: ["title"] },
+      },
+    });
+  });
+
+  test("a material edit writes DOCUMENT_UPDATED WITH a moderationTransition APPROVED→PENDING", async () => {
+    vi.mocked(prisma.document.findUnique)
+      .mockResolvedValueOnce(mockDocument)
+      .mockResolvedValueOnce({ ...mockDocument, documentType: "REFERENCE", moderationStatus: "PENDING" });
+    vi.mocked(prisma.document.updateMany).mockResolvedValue({ count: 1 });
+
+    await PUT(putRequest({ documentType: "REFERENCE" }), context);
+
+    expect(prisma.auditLog.create).toHaveBeenCalledWith({
+      data: {
+        actorUserId: "teacher_1",
+        actorEmail: "teacher@example.com",
+        actorRole: "TEACHER",
+        action: "DOCUMENT_UPDATED",
+        entityType: "DOCUMENT",
+        entityId: "doc_1",
+        status: "SUCCESS",
+        metadata: {
+          documentTitle: mockDocument.title,
+          changedFields: ["documentType"],
+          moderationTransition: { from: "APPROVED", to: "PENDING" },
+        },
+      },
+    });
+  });
+
+  test("a true no-op edit (resubmitting the identical value) writes NO audit row", async () => {
+    vi.mocked(prisma.document.findUnique).mockResolvedValue(mockDocument);
+    vi.mocked(prisma.document.update).mockResolvedValue(mockDocument);
+
+    await PUT(putRequest({ documentType: "EXAM" }), context);
+
+    expect(prisma.auditLog.create).not.toHaveBeenCalled();
+  });
+
+  test("a failing audit write rolls back a minor edit too — the document is left unchanged", async () => {
+    vi.mocked(prisma.document.findUnique).mockResolvedValue(mockDocument);
+    vi.mocked(prisma.document.update).mockResolvedValue({ ...mockDocument, title: "Corrected title" });
+    vi.mocked(prisma.auditLog.create).mockRejectedValue(new Error("audit db unavailable"));
+
+    const response = await PUT(putRequest({ title: "Corrected title" }), context);
+
+    expect(response.status).toBe(500);
+  });
+
+  test("a failing audit write rolls back a material edit — the document stays APPROVED", async () => {
+    vi.mocked(prisma.document.findUnique).mockResolvedValue(mockDocument);
+    vi.mocked(prisma.document.updateMany).mockResolvedValue({ count: 1 });
+    vi.mocked(prisma.auditLog.create).mockRejectedValue(new Error("audit db unavailable"));
+
+    const response = await PUT(putRequest({ documentType: "REFERENCE" }), context);
+
+    expect(response.status).toBe(500);
+  });
+});
+
 describe("DELETE /api/documents/:id", () => {
   test("deletes an existing document and returns its id", async () => {
     vi.mocked(prisma.document.findUnique).mockResolvedValue(mockDocument);
@@ -463,5 +552,37 @@ describe("DELETE /api/documents/:id", () => {
 
     expect(response.status).toBe(200);
     expect(prisma.document.delete).toHaveBeenCalled();
+  });
+});
+
+describe("DELETE /api/documents/:id — FEAT-11 audit log", () => {
+  test("writes DOCUMENT_DELETED with the title/moderationStatus snapshotted BEFORE the row is gone", async () => {
+    vi.mocked(prisma.document.findUnique).mockResolvedValue(mockDocument);
+    vi.mocked(prisma.document.delete).mockResolvedValue(mockDocument);
+
+    await DELETE(new NextRequest("http://localhost/api/documents/doc_1"), context);
+
+    expect(prisma.auditLog.create).toHaveBeenCalledWith({
+      data: {
+        actorUserId: "teacher_1",
+        actorEmail: "teacher@example.com",
+        actorRole: "TEACHER",
+        action: "DOCUMENT_DELETED",
+        entityType: "DOCUMENT",
+        entityId: "doc_1",
+        status: "SUCCESS",
+        metadata: { documentTitle: mockDocument.title, moderationStatus: mockDocument.moderationStatus },
+      },
+    });
+  });
+
+  test("a failing audit write rolls back the deletion too", async () => {
+    vi.mocked(prisma.document.findUnique).mockResolvedValue(mockDocument);
+    vi.mocked(prisma.document.delete).mockResolvedValue(mockDocument);
+    vi.mocked(prisma.auditLog.create).mockRejectedValue(new Error("audit db unavailable"));
+
+    const response = await DELETE(new NextRequest("http://localhost/api/documents/doc_1"), context);
+
+    expect(response.status).toBe(500);
   });
 });

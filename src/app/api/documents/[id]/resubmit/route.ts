@@ -1,6 +1,7 @@
 import type { NextRequest } from "next/server";
 import { auth } from "@/auth";
 import { apiError, apiSuccess } from "@/lib/api-response";
+import { actorFromSessionUser } from "@/lib/audit/audit";
 import { resubmitDocument } from "@/lib/documents/teacher-uploads";
 
 type RouteContext = { params: Promise<{ id: string }> };
@@ -20,7 +21,7 @@ export async function POST(_request: NextRequest, { params }: RouteContext) {
   if (!session?.user) return apiError("Authentication required", 401);
 
   try {
-    const result = await resubmitDocument(session.user.id, id);
+    const result = await resubmitDocument(actorFromSessionUser(session.user), id);
 
     if (result.outcome === "not-found") return apiError("Document not found", 404);
     if (result.outcome === "forbidden") {

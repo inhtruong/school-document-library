@@ -1,6 +1,7 @@
 import type { NextRequest } from "next/server";
 import { auth } from "@/auth";
 import { apiError, apiSuccess } from "@/lib/api-response";
+import { actorFromSessionUser } from "@/lib/audit/audit";
 import { hasRole } from "@/lib/auth/authorize";
 import { rejectDocument } from "@/lib/moderation/moderation";
 
@@ -22,7 +23,7 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
   }
 
   try {
-    const result = await rejectDocument(id, session.user.id, body);
+    const result = await rejectDocument(id, actorFromSessionUser(session.user), body);
 
     if (result.outcome === "invalid") return apiError(result.error, 400);
     if (result.outcome === "not-found") return apiError("Document not found", 404);

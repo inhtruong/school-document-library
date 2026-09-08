@@ -1,6 +1,7 @@
 import type { NextRequest } from "next/server";
 import { auth } from "@/auth";
 import { apiError, apiSuccess } from "@/lib/api-response";
+import { actorFromSessionUser } from "@/lib/audit/audit";
 import { hasRole } from "@/lib/auth/authorize";
 import { approveDocument } from "@/lib/moderation/moderation";
 
@@ -15,7 +16,7 @@ export async function POST(_request: NextRequest, { params }: RouteContext) {
   if (!hasRole(session, "ADMIN")) return apiError("Admin access required", 403);
 
   try {
-    const result = await approveDocument(id, session.user.id);
+    const result = await approveDocument(id, actorFromSessionUser(session.user));
 
     if (result.outcome === "not-found") return apiError("Document not found", 404);
     if (result.outcome === "not-pending") {

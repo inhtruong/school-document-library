@@ -22,7 +22,7 @@ export type DocumentRecord = {
   fileName: string | null;
   fileSize: number | null;
   mimeType: string | null;
-  fileCategory: "PDF" | "WORD" | "EXCEL" | "IMAGE" | "VIDEO" | null;
+  fileCategory: "PDF" | "WORD" | "EXCEL" | "IMAGE" | "VIDEO" | "POWERPOINT" | null;
   uploadedById: string | null;
   /** FEAT-10A. `reviewedById`/`rejectionReason` are deliberately NOT part of this public-facing type — see get-document.ts/search.ts's `omit`. */
   moderationStatus: "PENDING" | "APPROVED" | "REJECTED";

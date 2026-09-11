@@ -35,9 +35,14 @@ export function FilePreview({ documentId, fileCategory, mimeType, fileName }: Fi
 
     case "pdf":
       return (
-        <Card className="overflow-hidden p-0">
-          <iframe src={previewUrl} title={fileName ?? "Document preview"} className="h-[70vh] w-full" />
-        </Card>
+        <div className="flex flex-col gap-2">
+          {fileCategory === "POWERPOINT" ? (
+            <p className="text-xs text-muted">This preview is a PDF version generated from the PowerPoint file.</p>
+          ) : null}
+          <Card className="overflow-hidden p-0">
+            <iframe src={previewUrl} title={fileName ?? "Document preview"} className="h-[70vh] w-full" />
+          </Card>
+        </div>
       );
 
     case "image":

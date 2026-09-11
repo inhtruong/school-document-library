@@ -48,6 +48,7 @@ const mockDocument = {
   subjectId: null,
   lessonId: null,
   fileKey: null,
+  previewFileKey: null,
   fileName: null,
   fileSize: null,
   mimeType: null,

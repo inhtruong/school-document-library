@@ -5,7 +5,7 @@ import { mkdir, stat, unlink, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { getStorageRoot as getConfiguredStorageRoot } from "@/lib/env";
 
-export const FILE_CATEGORIES = ["PDF", "WORD", "EXCEL", "IMAGE", "VIDEO"] as const;
+export const FILE_CATEGORIES = ["PDF", "WORD", "EXCEL", "IMAGE", "VIDEO", "POWERPOINT"] as const;
 export type FileCategory = (typeof FILE_CATEGORIES)[number];
 
 const CATEGORY_FOLDERS: Record<FileCategory, string> = {
@@ -14,6 +14,7 @@ const CATEGORY_FOLDERS: Record<FileCategory, string> = {
   EXCEL: "excel",
   IMAGE: "images",
   VIDEO: "videos",
+  POWERPOINT: "powerpoint",
 };
 
 type FormatRule = { category: FileCategory; mimeTypes: readonly string[] };
@@ -37,6 +38,11 @@ const FORMAT_ALLOWLIST: Record<string, FormatRule> = {
   ".webp": { category: "IMAGE", mimeTypes: ["image/webp"] },
   ".mp4": { category: "VIDEO", mimeTypes: ["video/mp4"] },
   ".webm": { category: "VIDEO", mimeTypes: ["video/webm"] },
+  ".ppt": { category: "POWERPOINT", mimeTypes: ["application/vnd.ms-powerpoint"] },
+  ".pptx": {
+    category: "POWERPOINT",
+    mimeTypes: ["application/vnd.openxmlformats-officedocument.presentationml.presentation"],
+  },
 };
 
 /**
@@ -66,6 +72,10 @@ const SIGNATURES: Partial<Record<string, SignatureCheck[]>> = {
   ".xls": [{ offset: 0, bytes: [0xd0, 0xcf, 0x11, 0xe0, 0xa1, 0xb1, 0x1a, 0xe1] }],
   ".mp4": [{ offset: 4, bytes: [0x66, 0x74, 0x79, 0x70] }], // "ftyp"
   ".webm": [{ offset: 0, bytes: [0x1a, 0x45, 0xdf, 0xa3] }],
+  // Same container formats as .docx/.doc respectively — OOXML (zip) for
+  // .pptx, OLE compound file for legacy .ppt.
+  ".pptx": [{ offset: 0, bytes: [0x50, 0x4b, 0x03, 0x04] }],
+  ".ppt": [{ offset: 0, bytes: [0xd0, 0xcf, 0x11, 0xe0, 0xa1, 0xb1, 0x1a, 0xe1] }],
 };
 
 export type FormatCheckResult =
@@ -98,6 +108,19 @@ export function matchesFileSignature(buffer: Buffer, extension: string): boolean
 /** Server-generated, unpredictable relative path — never derived from the original filename. */
 export function buildFileKey(category: FileCategory, extension: string): string {
   return path.posix.join(CATEGORY_FOLDERS[category], `${randomUUID()}${extension}`);
+}
+
+/**
+ * FEAT-12A: a server-generated PDF preview lives under its own top-level
+ * `previews/` folder — deliberately NOT inside `pdf/` (which is reserved
+ * for genuine PDF originals) — so generated content is trivially
+ * distinguishable from uploaded originals on disk, never collides with a
+ * real PDF upload's key, and could be bulk-cleared independently if ever
+ * needed. Same "unpredictable, server-generated, never from user input"
+ * contract as `buildFileKey`.
+ */
+export function buildPreviewFileKey(): string {
+  return path.posix.join("previews", `${randomUUID()}.pdf`);
 }
 
 /**

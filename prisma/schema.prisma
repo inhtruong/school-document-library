@@ -34,13 +34,20 @@ model Document {
   lesson     Lesson?  @relation(fields: [lessonId], references: [id], onDelete: SetNull)
 
   // File metadata — nullable so existing (fileless) documents keep working.
-  fileKey      String?
-  fileName     String?
-  fileSize     Int?
-  mimeType     String?
-  fileCategory FileCategory?
-  uploadedById String?
-  uploadedBy   User?         @relation(fields: [uploadedById], references: [id], onDelete: SetNull)
+  fileKey        String?
+  fileName       String?
+  fileSize       Int?
+  mimeType       String?
+  fileCategory   FileCategory?
+  // FEAT-12A: the storage key of a server-generated PDF preview — currently
+  // only ever set for `fileCategory: POWERPOINT` (LibreOffice-converted).
+  // Null for every other category and for every pre-FEAT-12A row. Never the
+  // same key as `fileKey` — the original PowerPoint file is never touched,
+  // and this is a plain logical reference (same shape/contract as
+  // `fileKey` itself), not a foreign key to any other table.
+  previewFileKey String?
+  uploadedById   String?
+  uploadedBy     User?         @relation(fields: [uploadedById], references: [id], onDelete: SetNull)
 
   // Moderation foundation (FEAT-10A). `@default(APPROVED)` is deliberate:
   // it backfills every pre-existing row to APPROVED as part of this
@@ -236,6 +243,7 @@ enum FileCategory {
   EXCEL
   IMAGE
   VIDEO
+  POWERPOINT
 }
 
 /**

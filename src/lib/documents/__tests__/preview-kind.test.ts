@@ -34,6 +34,16 @@ describe("resolvePreviewKind", () => {
   test("no fileCategory (no file on the document) is none", () => {
     expect(resolvePreviewKind(null, null)).toBe("none");
   });
+
+  test("POWERPOINT is classified as pdf (the generated preview), regardless of .ppt vs .pptx mimeType", () => {
+    expect(resolvePreviewKind("POWERPOINT", "application/vnd.ms-powerpoint")).toBe("pdf");
+    expect(
+      resolvePreviewKind(
+        "POWERPOINT",
+        "application/vnd.openxmlformats-officedocument.presentationml.presentation"
+      )
+    ).toBe("pdf");
+  });
 });
 
 describe("STREAMABLE_PREVIEW_KINDS", () => {

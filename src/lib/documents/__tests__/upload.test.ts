@@ -30,7 +30,17 @@ vi.mock("@/lib/storage/local-storage", async (importOriginal) => {
   };
 });
 
+// FEAT-12A: conversion itself is covered by its own dedicated test file
+// (powerpoint-conversion.test.ts, which mocks the LibreOffice subprocess
+// directly) — here it's mocked at the module boundary so upload.ts's own
+// orchestration (call it, handle success/failure, clean up) can be tested
+// in isolation.
+vi.mock("@/lib/documents/powerpoint-conversion", () => ({
+  convertPowerPointToPdf: vi.fn(),
+}));
+
 import { prisma } from "@/lib/prisma";
+import { convertPowerPointToPdf } from "@/lib/documents/powerpoint-conversion";
 import { deleteLocalFile, writeLocalFile } from "@/lib/storage/local-storage";
 import { MAX_UPLOAD_SIZE_BYTES } from "@/lib/documents/upload-config";
 import { uploadDocument } from "@/lib/documents/upload";
@@ -61,6 +71,14 @@ const SAMPLES = {
   webp: () => makeFile("photo.webp", "image/webp", [0x52, 0x49, 0x46, 0x46, 0, 0, 0, 0, 0x57, 0x45, 0x42, 0x50]),
   mp4: () => makeFile("clip.mp4", "video/mp4", [0, 0, 0, 0, 0x66, 0x74, 0x79, 0x70, 0, 0]),
   webm: () => makeFile("clip.webm", "video/webm", [0x1a, 0x45, 0xdf, 0xa3, 0, 0]),
+  ppt: () =>
+    makeFile("deck.ppt", "application/vnd.ms-powerpoint", [0xd0, 0xcf, 0x11, 0xe0, 0xa1, 0xb1, 0x1a, 0xe1, 0, 0]),
+  pptx: () =>
+    makeFile(
+      "deck.pptx",
+      "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+      [0x50, 0x4b, 0x03, 0x04, 0, 0]
+    ),
 };
 
 // A consistent, valid Grade→Subject→Lesson combo, plus a second one nested
@@ -183,6 +201,7 @@ beforeEach(() => {
   vi.mocked(prisma.user.findMany).mockResolvedValue([] as never);
   vi.mocked(prisma.notification.createMany).mockResolvedValue({ count: 0 } as never);
   vi.mocked(prisma.notification.deleteMany).mockResolvedValue({ count: 0 } as never);
+  vi.mocked(convertPowerPointToPdf).mockResolvedValue({ success: true, pdf: Buffer.from("%PDF-1.4 fake preview") });
 });
 
 describe("uploadDocument — accepted formats", () => {
@@ -213,6 +232,125 @@ describe("uploadDocument — accepted formats", () => {
     expect(createCall.data.fileName).toBe(file.name);
     expect(createCall.data.mimeType).toBe(file.type);
     expect(createCall.data.uploadedById).toBe("user_1");
+  });
+});
+
+describe("uploadDocument — PowerPoint (FEAT-12A)", () => {
+  test.each(["ppt", "pptx"] as const)(
+    "accepts a valid %s, converts it, and stores both the original and the generated preview",
+    async (sample) => {
+      const file = SAMPLES[sample]();
+
+      const result = await uploadDocument({ uploaderId: "user_1", formData: buildFormData({ file }) });
+
+      expect(result.success).toBe(true);
+      expect(convertPowerPointToPdf).toHaveBeenCalledTimes(1);
+      const [, extensionArg] = vi.mocked(convertPowerPointToPdf).mock.calls[0];
+      expect(extensionArg).toBe(sample === "ppt" ? ".ppt" : ".pptx");
+
+      // Original + generated preview — two distinct writes.
+      expect(writeLocalFile).toHaveBeenCalledTimes(2);
+      const [originalKey] = vi.mocked(writeLocalFile).mock.calls[0];
+      const [previewKey, previewBytes] = vi.mocked(writeLocalFile).mock.calls[1];
+      expect(originalKey.startsWith("powerpoint/")).toBe(true);
+      expect(previewKey.startsWith("previews/")).toBe(true);
+      expect(previewKey.endsWith(".pdf")).toBe(true);
+      expect((previewBytes as Buffer).toString()).toBe("%PDF-1.4 fake preview");
+
+      const createCall = vi.mocked(prisma.document.create).mock.calls[0][0] as { data: Record<string, unknown> };
+      expect(createCall.data.fileCategory).toBe("POWERPOINT");
+      expect(createCall.data.fileKey).toBe(originalKey);
+      expect(createCall.data.previewFileKey).toBe(previewKey);
+    }
+  );
+
+  test("rejects a forged .pptx (wrong signature) before ever attempting conversion", async () => {
+    const forged = makeFile(
+      "fake.pptx",
+      "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+      "this is not a real zip/OOXML file"
+    );
+
+    const result = await uploadDocument({ uploaderId: "user_1", formData: buildFormData({ file: forged }) });
+
+    expect(result.success).toBe(false);
+    expect(convertPowerPointToPdf).not.toHaveBeenCalled();
+    expect(writeLocalFile).not.toHaveBeenCalled();
+  });
+
+  test("a conversion failure fails the whole upload and cleans up the original file — never silently 'successful'", async () => {
+    vi.mocked(convertPowerPointToPdf).mockResolvedValue({
+      success: false,
+      error: "LibreOffice is not installed or not found on this server",
+    });
+
+    const result = await uploadDocument({ uploaderId: "user_1", formData: buildFormData({ file: SAMPLES.pptx() }) });
+
+    expect(result.success).toBe(false);
+    if (result.success) return;
+    expect(result.error).toContain("LibreOffice is not installed");
+    expect(prisma.document.create).not.toHaveBeenCalled();
+    // Only ONE writeLocalFile call happened (the original) — the preview
+    // write is never attempted after a conversion failure.
+    expect(writeLocalFile).toHaveBeenCalledTimes(1);
+    const [originalKey] = vi.mocked(writeLocalFile).mock.calls[0];
+    expect(deleteLocalFile).toHaveBeenCalledWith(originalKey);
+    expect(deleteLocalFile).toHaveBeenCalledTimes(1);
+  });
+
+  test("a failure writing the generated preview to storage also cleans up the original", async () => {
+    vi.mocked(writeLocalFile)
+      .mockResolvedValueOnce({ success: true }) // original write succeeds
+      .mockResolvedValueOnce({ success: false, error: "disk full" }); // preview write fails
+
+    const result = await uploadDocument({ uploaderId: "user_1", formData: buildFormData({ file: SAMPLES.pptx() }) });
+
+    expect(result.success).toBe(false);
+    expect(prisma.document.create).not.toHaveBeenCalled();
+    const [originalKey] = vi.mocked(writeLocalFile).mock.calls[0];
+    expect(deleteLocalFile).toHaveBeenCalledWith(originalKey);
+  });
+
+  test("a DB creation failure after a successful conversion cleans up BOTH the original and the generated preview", async () => {
+    vi.mocked(prisma.document.create).mockRejectedValue(new Error("db unavailable"));
+
+    const result = await uploadDocument({ uploaderId: "user_1", formData: buildFormData({ file: SAMPLES.pptx() }) });
+
+    expect(result.success).toBe(false);
+    const [originalKey] = vi.mocked(writeLocalFile).mock.calls[0];
+    const [previewKey] = vi.mocked(writeLocalFile).mock.calls[1];
+    expect(deleteLocalFile).toHaveBeenCalledWith(originalKey);
+    expect(deleteLocalFile).toHaveBeenCalledWith(previewKey);
+    expect(deleteLocalFile).toHaveBeenCalledTimes(2);
+  });
+
+  test("a Teacher's PowerPoint upload lands PENDING, same moderation rule as every other format", async () => {
+    await uploadDocument({ uploaderId: "user_1", uploaderRole: "TEACHER", formData: buildFormData({ file: SAMPLES.pptx() }) });
+
+    const createCall = vi.mocked(prisma.document.create).mock.calls[0][0] as { data: Record<string, unknown> };
+    expect(createCall.data.moderationStatus).toBe("PENDING");
+  });
+
+  test("an Admin's PowerPoint upload lands APPROVED, same moderation rule as every other format", async () => {
+    await uploadDocument({ uploaderId: "user_1", uploaderRole: "ADMIN", formData: buildFormData({ file: SAMPLES.pptx() }) });
+
+    const createCall = vi.mocked(prisma.document.create).mock.calls[0][0] as { data: Record<string, unknown> };
+    expect(createCall.data.moderationStatus).toBe("APPROVED");
+  });
+
+  test("writes a DOCUMENT_UPLOADED audit row for a PowerPoint upload, same as every other format", async () => {
+    await uploadDocument({
+      uploaderId: "user_1",
+      uploaderRole: "TEACHER",
+      uploaderEmail: "teacher@example.com",
+      formData: buildFormData({ file: SAMPLES.pptx() }),
+    });
+
+    expect(prisma.auditLog.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ action: "DOCUMENT_UPLOADED", entityType: "DOCUMENT" }),
+      })
+    );
   });
 });
 

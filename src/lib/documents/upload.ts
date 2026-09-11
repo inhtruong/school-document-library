@@ -3,10 +3,12 @@ import type { Document, DocumentModerationStatus, Grade, Lesson, Role, Subject }
 import { prisma } from "@/lib/prisma";
 import { writeAuditLog } from "@/lib/audit/audit";
 import { MAX_UPLOAD_SIZE_BYTES, MAX_UPLOAD_SIZE_MB } from "@/lib/documents/upload-config";
+import { convertPowerPointToPdf } from "@/lib/documents/powerpoint-conversion";
 import { validateTaxonomySelection } from "@/lib/documents/taxonomy";
 import { createDocumentPendingReviewNotifications, createNewDocumentNotifications } from "@/lib/notifications/notification";
 import {
   buildFileKey,
+  buildPreviewFileKey,
   deleteLocalFile,
   matchesFileSignature,
   resolveFileFormat,
@@ -112,6 +114,35 @@ export async function uploadDocument(input: {
     return { success: false, error: "Failed to save the file. Please try again.", status: 500 };
   }
 
+  // FEAT-12A: PowerPoint gets a server-side PDF preview, generated here —
+  // BEFORE the Document row is ever created — so a Document can never exist
+  // in a state where "preview should be available" silently isn't. A
+  // conversion failure (including LibreOffice being unavailable at all)
+  // fails the whole upload and cleans up the original we just wrote, rather
+  // than quietly falling back to "no preview" the way legacy .doc/.xls
+  // already do — this format's whole point is an in-browser preview.
+  let previewFileKey: string | null = null;
+  if (format.category === "POWERPOINT") {
+    const conversion = await convertPowerPointToPdf(buffer, format.extension as ".ppt" | ".pptx");
+    if (!conversion.success) {
+      console.error("PowerPoint conversion failed:", conversion.error);
+      await deleteLocalFile(fileKey);
+      return {
+        success: false,
+        error: `Could not generate a preview for this PowerPoint file (${conversion.error}). Please try again.`,
+        status: 500,
+      };
+    }
+
+    previewFileKey = buildPreviewFileKey();
+    const previewWriteResult = await writeLocalFile(previewFileKey, conversion.pdf);
+    if (!previewWriteResult.success) {
+      console.error("Failed to store the generated PowerPoint preview:", previewWriteResult.error);
+      await deleteLocalFile(fileKey);
+      return { success: false, error: "Failed to save the generated preview. Please try again.", status: 500 };
+    }
+  }
+
   let document: UploadedDocument;
   try {
     // FEAT-11 §16: the file write already happened above, so wrapping just
@@ -135,6 +166,7 @@ export async function uploadDocument(input: {
           subjectId: taxonomy.subject.id,
           lessonId: taxonomy.lesson.id,
           fileKey,
+          previewFileKey,
           fileName: file.name.trim().slice(0, 200) || `document${format.extension}`,
           fileSize: file.size,
           mimeType: file.type,
@@ -165,10 +197,11 @@ export async function uploadDocument(input: {
     });
   } catch (error) {
     console.error(
-      "Document creation failed after a successful file write; cleaning up orphan file",
+      "Document creation failed after a successful file write; cleaning up orphan file(s)",
       error
     );
     await deleteLocalFile(fileKey);
+    if (previewFileKey) await deleteLocalFile(previewFileKey);
     return { success: false, error: "Failed to save the document. Please try again.", status: 500 };
   }
 

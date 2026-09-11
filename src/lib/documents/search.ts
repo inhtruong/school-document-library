@@ -7,7 +7,7 @@ import { SEARCH_PAGE_SIZE, SORT_ORDER_BY, type SortValue } from "@/lib/documents
 import { APPROVED_DOCUMENT_WHERE } from "@/lib/documents/visibility";
 import type { DocumentRecord } from "@/types/document";
 
-type DocumentWithTaxonomy = Omit<Document, "fileKey" | "reviewedById" | "rejectionReason"> & {
+type DocumentWithTaxonomy = Omit<Document, "fileKey" | "previewFileKey" | "reviewedById" | "rejectionReason"> & {
   grade: Grade | null;
   subjectRef: Subject | null;
   lesson: Lesson | null;
@@ -102,7 +102,7 @@ export async function searchDocuments(params: SearchDocumentsParams): Promise<Se
       orderBy: SORT_ORDER_BY[params.sort],
       take,
       skip,
-      omit: { fileKey: true, reviewedById: true, rejectionReason: true },
+      omit: { fileKey: true, previewFileKey: true, reviewedById: true, rejectionReason: true },
       include: { grade: true, subjectRef: true, lesson: true },
     }),
     prisma.document.count({ where }),

@@ -7,12 +7,18 @@ import { getDocumentChangeClassification } from "@/lib/documents/document-change
 import { getDocumentById } from "@/lib/documents/get-document";
 import { isDocumentVisibleTo } from "@/lib/documents/visibility";
 import { prisma } from "@/lib/prisma";
+import { deleteLocalFile } from "@/lib/storage/local-storage";
 import { updateDocumentSchema } from "@/lib/validation/document";
 
 type RouteContext = { params: Promise<{ id: string }> };
 
 /** Matches getDocumentById's omission exactly — a document-returning response, even to the owner/ADMIN caller of PUT, must never carry internal moderation fields (FEAT-10A/10C's established boundary). */
-const DOCUMENT_RESPONSE_OMIT = { fileKey: true, reviewedById: true, rejectionReason: true } as const;
+const DOCUMENT_RESPONSE_OMIT = {
+  fileKey: true,
+  previewFileKey: true,
+  reviewedById: true,
+  rejectionReason: true,
+} as const;
 
 export async function GET(_request: NextRequest, { params }: RouteContext) {
   const { id } = await params;
@@ -212,6 +218,17 @@ export async function DELETE(_request: NextRequest, { params }: RouteContext) {
         tx
       );
     });
+
+    // FEAT-12A: physical cleanup runs AFTER the DB transaction commits —
+    // best-effort, matching the same philosophy as upload's notification
+    // step (a storage-layer hiccup here must never roll back an already-
+    // committed deletion the caller has been told succeeded). Only ever
+    // targets this exact document's own two keys (never a filename/pattern
+    // match), so no unrelated file can be affected. `previewFileKey` is
+    // only ever non-null for a PowerPoint document; every other category
+    // simply has nothing extra to remove here.
+    if (existing.fileKey) await deleteLocalFile(existing.fileKey);
+    if (existing.previewFileKey) await deleteLocalFile(existing.previewFileKey);
 
     return apiSuccess({ id });
   } catch (error) {

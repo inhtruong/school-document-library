@@ -25,6 +25,12 @@ export function resolvePreviewKind(
   switch (fileCategory) {
     case "PDF":
       return "pdf";
+    // FEAT-12A: a PowerPoint document's preview is a server-generated PDF
+    // (see previewFileKey) — reuses the existing "pdf" kind/UI rather than
+    // inventing a second viewer. mimeType is irrelevant here (unlike WORD's
+    // docx/doc split): both .ppt and .pptx get converted identically.
+    case "POWERPOINT":
+      return "pdf";
     case "IMAGE":
       return "image";
     case "VIDEO":

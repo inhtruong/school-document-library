@@ -11,8 +11,8 @@ import { uploadDocument } from "@/lib/documents/upload";
 import { TOAST_KEYS } from "@/lib/toast-messages";
 
 const ACCEPTED_FILE_EXTENSIONS =
-  ".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png,.webp,.mp4,.webm";
-const ACCEPTED_FORMATS_LABEL = "PDF, Word, Excel, images, or video";
+  ".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.jpg,.jpeg,.png,.webp,.mp4,.webm";
+const ACCEPTED_FORMATS_LABEL = "PDF, Word, Excel, PowerPoint, images, or video";
 
 type UploadPageProps = {
   searchParams: Promise<{ error?: string }>;

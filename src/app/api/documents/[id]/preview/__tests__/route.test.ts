@@ -273,6 +273,44 @@ describe("GET /api/documents/:id/preview — unsupported and missing files", () 
     expect(JSON.stringify(body)).not.toMatch(/storage_local|\/Users\//);
   });
 
+  test("a PowerPoint document with a generated preview streams the PREVIEW pdf, not the original file", async () => {
+    vi.mocked(prisma.document.findUnique).mockResolvedValue({
+      moderationStatus: "APPROVED",
+      fileKey: "powerpoint/original.pptx",
+      previewFileKey: "previews/generated.pdf",
+      fileCategory: "POWERPOINT",
+      mimeType: "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+    } as never);
+    vi.mocked(statLocalFile).mockResolvedValue({
+      exists: true,
+      absolutePath: "/fake/previews/generated.pdf",
+      size: FAKE_CONTENT.length,
+    });
+    vi.mocked(createLocalFileReadStream).mockReturnValue(fakeStream() as never);
+
+    const response = await GET(requestWith(), context);
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get("content-type")).toBe("application/pdf");
+    expect(statLocalFile).toHaveBeenCalledWith("previews/generated.pdf");
+    expect(statLocalFile).not.toHaveBeenCalledWith("powerpoint/original.pptx");
+  });
+
+  test("a PowerPoint document with no generated preview (previewFileKey null) returns 404 instead of falling back to the original", async () => {
+    vi.mocked(prisma.document.findUnique).mockResolvedValue({
+      moderationStatus: "APPROVED",
+      fileKey: "powerpoint/original.pptx",
+      previewFileKey: null,
+      fileCategory: "POWERPOINT",
+      mimeType: "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+    } as never);
+
+    const response = await GET(requestWith(), context);
+
+    expect(response.status).toBe(404);
+    expect(statLocalFile).not.toHaveBeenCalled();
+  });
+
   test("returns 404 when the document itself does not exist", async () => {
     vi.mocked(prisma.document.findUnique).mockResolvedValue(null);
 

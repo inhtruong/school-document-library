@@ -5,6 +5,7 @@ import path from "node:path";
 import { afterAll, beforeAll, describe, expect, test } from "vitest";
 import {
   buildFileKey,
+  buildPreviewFileKey,
   createLocalFileReadStream,
   deleteLocalFile,
   matchesFileSignature,
@@ -39,6 +40,12 @@ describe("resolveFileFormat", () => {
     ["photo.webp", "image/webp", "IMAGE"],
     ["clip.mp4", "video/mp4", "VIDEO"],
     ["clip.webm", "video/webm", "VIDEO"],
+    ["deck.ppt", "application/vnd.ms-powerpoint", "POWERPOINT"],
+    [
+      "deck.pptx",
+      "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+      "POWERPOINT",
+    ],
   ] as const)("accepts %s (%s) as %s", (fileName, mimeType, category) => {
     const result = resolveFileFormat(fileName, mimeType);
     expect(result).toEqual({ valid: true, category, extension: path.extname(fileName) });
@@ -83,6 +90,24 @@ describe("matchesFileSignature", () => {
     expect(matchesFileSignature(ole, ".doc")).toBe(true);
     expect(matchesFileSignature(ole, ".xls")).toBe(true);
   });
+
+  test("accepts a zip-based .pptx signature (same OOXML container as .docx/.xlsx)", () => {
+    const zip = Buffer.from([0x50, 0x4b, 0x03, 0x04, 0, 0]);
+    expect(matchesFileSignature(zip, ".pptx")).toBe(true);
+  });
+
+  test("accepts a real OLE compound file signature for legacy .ppt", () => {
+    const ole = Buffer.from([0xd0, 0xcf, 0x11, 0xe0, 0xa1, 0xb1, 0x1a, 0xe1, 0, 0]);
+    expect(matchesFileSignature(ole, ".ppt")).toBe(true);
+  });
+
+  test("rejects a forged .pptx that doesn't actually contain a zip signature", () => {
+    expect(matchesFileSignature(Buffer.from("this is not a real pptx file"), ".pptx")).toBe(false);
+  });
+
+  test("rejects a forged .ppt that doesn't actually contain an OLE signature", () => {
+    expect(matchesFileSignature(Buffer.from("this is not a real ppt file"), ".ppt")).toBe(false);
+  });
 });
 
 describe("buildFileKey", () => {
@@ -92,10 +117,21 @@ describe("buildFileKey", () => {
     expect(buildFileKey("EXCEL", ".xlsx")).toMatch(/^excel\/[0-9a-f-]{36}\.xlsx$/);
     expect(buildFileKey("IMAGE", ".png")).toMatch(/^images\/[0-9a-f-]{36}\.png$/);
     expect(buildFileKey("VIDEO", ".mp4")).toMatch(/^videos\/[0-9a-f-]{36}\.mp4$/);
+    expect(buildFileKey("POWERPOINT", ".pptx")).toMatch(/^powerpoint\/[0-9a-f-]{36}\.pptx$/);
   });
 
   test("generates a unique key on every call", () => {
     expect(buildFileKey("PDF", ".pdf")).not.toBe(buildFileKey("PDF", ".pdf"));
+  });
+});
+
+describe("buildPreviewFileKey", () => {
+  test("scopes generated previews under their own top-level folder, distinct from the pdf/ originals folder", () => {
+    expect(buildPreviewFileKey()).toMatch(/^previews\/[0-9a-f-]{36}\.pdf$/);
+  });
+
+  test("generates a unique key on every call", () => {
+    expect(buildPreviewFileKey()).not.toBe(buildPreviewFileKey());
   });
 });
 

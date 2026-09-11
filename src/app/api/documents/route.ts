@@ -101,7 +101,7 @@ export async function POST(request: NextRequest) {
     const moderationStatus = session.user.role === "ADMIN" ? "APPROVED" : "PENDING";
     const document = await prisma.document.create({
       data: { ...parsed.data, moderationStatus },
-      omit: { fileKey: true },
+      omit: { fileKey: true, previewFileKey: true },
     });
     return apiSuccess(document, { status: 201 });
   } catch (error) {

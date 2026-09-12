@@ -7,3 +7,6 @@ next-env.d.ts
 .env*
 !.env.example
 storage_local/
+
+# graft's local graph cache — regenerable, not committed (run `graft build`).
+/graft/

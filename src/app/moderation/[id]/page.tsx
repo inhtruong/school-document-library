@@ -138,6 +138,8 @@ export default async function ModerationDetailPage({ params }: ModerationDetailP
             fileCategory={doc.fileCategory}
             mimeType={doc.mimeType}
             fileName={doc.fileName}
+            sourceType={doc.sourceType}
+            externalVideoId={doc.externalVideoId}
           />
         </div>
       </div>

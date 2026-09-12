@@ -5,7 +5,7 @@ import { SAVED_PAGE_SIZE } from "@/lib/documents/bookmark-config";
 import { APPROVED_DOCUMENT_WHERE } from "@/lib/documents/visibility";
 import type { DocumentRecord } from "@/types/document";
 
-type DocumentWithTaxonomy = Omit<Document, "fileKey" | "reviewedById" | "rejectionReason"> & {
+type DocumentWithTaxonomy = Omit<Document, "fileKey" | "previewFileKey" | "reviewedById" | "rejectionReason"> & {
   grade: Grade | null;
   subjectRef: Subject | null;
   lesson: Lesson | null;
@@ -69,7 +69,7 @@ export async function listUserBookmarks(userId: string, page: number): Promise<S
       take: SAVED_PAGE_SIZE,
       include: {
         document: {
-          omit: { fileKey: true, reviewedById: true, rejectionReason: true },
+          omit: { fileKey: true, previewFileKey: true, reviewedById: true, rejectionReason: true },
           include: { grade: true, subjectRef: true, lesson: true },
         },
       },

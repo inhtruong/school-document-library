@@ -22,7 +22,11 @@ export type DocumentRecord = {
   fileName: string | null;
   fileSize: number | null;
   mimeType: string | null;
-  fileCategory: "PDF" | "WORD" | "EXCEL" | "IMAGE" | "VIDEO" | null;
+  fileCategory: "PDF" | "WORD" | "EXCEL" | "IMAGE" | "VIDEO" | "POWERPOINT" | null;
+  /** FEAT-12B: whether this document is a locally-stored FILE (the only kind before this feature) or an external YOUTUBE video. */
+  sourceType: "FILE" | "YOUTUBE";
+  /** FEAT-12B: the validated 11-character YouTube video id — null for every FILE document. See src/lib/documents/youtube.ts. */
+  externalVideoId: string | null;
   uploadedById: string | null;
   /** FEAT-10A. `reviewedById`/`rejectionReason` are deliberately NOT part of this public-facing type — see get-document.ts/search.ts's `omit`. */
   moderationStatus: "PENDING" | "APPROVED" | "REJECTED";

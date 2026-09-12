@@ -29,7 +29,15 @@ export async function GET(request: NextRequest, { params }: RouteContext) {
   try {
     document = await prisma.document.findUnique({
       where: { id },
-      select: { fileKey: true, fileCategory: true, mimeType: true, moderationStatus: true, uploadedById: true },
+      select: {
+        fileKey: true,
+        previewFileKey: true,
+        fileCategory: true,
+        mimeType: true,
+        moderationStatus: true,
+        uploadedById: true,
+        sourceType: true,
+      },
     });
   } catch (error) {
     console.error(`GET /api/documents/${id}/preview failed to load document`, error);
@@ -46,12 +54,27 @@ export async function GET(request: NextRequest, { params }: RouteContext) {
   if (!document.fileKey || !document.fileCategory || !document.mimeType) {
     return apiError("No file available for this document", 404);
   }
-  const kind = resolvePreviewKind(document.fileCategory as DocumentRecord["fileCategory"], document.mimeType);
+  const kind = resolvePreviewKind(
+    document.sourceType as DocumentRecord["sourceType"],
+    document.fileCategory as DocumentRecord["fileCategory"],
+    document.mimeType
+  );
   if (!STREAMABLE_PREVIEW_KINDS.has(kind)) {
     return apiError("Preview is not available for this file type", 415);
   }
 
-  const info = await statLocalFile(document.fileKey);
+  // FEAT-12A: a PowerPoint document's preview is the server-generated PDF
+  // (previewFileKey), never the original .ppt/.pptx bytes — the original
+  // is reserved for Download only. Every other category streams its own
+  // fileKey/mimeType exactly as before this feature.
+  const isConvertedPreview = document.fileCategory === "POWERPOINT";
+  const streamKey = isConvertedPreview ? document.previewFileKey : document.fileKey;
+  const streamMimeType = isConvertedPreview ? "application/pdf" : document.mimeType;
+  if (!streamKey) {
+    return apiError("No file available for this document", 404);
+  }
+
+  const info = await statLocalFile(streamKey);
   if (!info.exists) {
     return apiError("File is not available", 404);
   }
@@ -79,7 +102,7 @@ export async function GET(request: NextRequest, { params }: RouteContext) {
   return new NextResponse(Readable.toWeb(nodeStream) as ReadableStream, {
     status: isPartial ? 206 : 200,
     headers: {
-      "Content-Type": document.mimeType,
+      "Content-Type": streamMimeType,
       "Content-Length": String(end - start + 1),
       "Accept-Ranges": "bytes",
       "Cache-Control": "public, max-age=3600",

@@ -22,8 +22,13 @@ vi.mock("@/lib/prisma", () => {
 
 vi.mock("@/auth", () => ({ auth: vi.fn() }));
 
+vi.mock("@/lib/storage/local-storage", () => ({
+  deleteLocalFile: vi.fn(),
+}));
+
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
+import { deleteLocalFile } from "@/lib/storage/local-storage";
 import { DELETE, GET, PUT } from "@/app/api/documents/[id]/route";
 
 const OWNER_SESSION: Session = {
@@ -57,10 +62,13 @@ const mockDocument = {
   subjectId: null,
   lessonId: null,
   fileKey: null,
+  previewFileKey: null,
   fileName: null,
   fileSize: null,
   mimeType: null,
   fileCategory: null,
+  sourceType: "FILE" as const,
+  externalVideoId: null,
   uploadedById: "teacher_1",
   moderationStatus: "APPROVED" as const,
   reviewedAt: null,
@@ -82,6 +90,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   mockAuth.mockResolvedValue(OWNER_SESSION);
   vi.mocked(prisma.auditLog.create).mockResolvedValue({} as never);
+  vi.mocked(deleteLocalFile).mockResolvedValue(undefined);
 });
 
 describe("GET /api/documents/:id", () => {
@@ -263,7 +272,7 @@ describe("PUT /api/documents/:id — FEAT-10E edit/re-review rules", () => {
     expect(prisma.document.update).toHaveBeenCalledWith({
       where: { id: "doc_1" },
       data: { title: "Corrected title" },
-      omit: { fileKey: true, reviewedById: true, rejectionReason: true },
+      omit: { fileKey: true, previewFileKey: true, reviewedById: true, rejectionReason: true },
     });
     expect(prisma.document.updateMany).not.toHaveBeenCalled();
   });
@@ -398,7 +407,7 @@ describe("PUT /api/documents/:id — FEAT-10E edit/re-review rules", () => {
     await PUT(putRequest({ title: "Corrected title" }), context);
 
     const call = vi.mocked(prisma.document.update).mock.calls[0][0] as { omit: Record<string, unknown> };
-    expect(call.omit).toEqual({ fileKey: true, reviewedById: true, rejectionReason: true });
+    expect(call.omit).toEqual({ fileKey: true, previewFileKey: true, reviewedById: true, rejectionReason: true });
   });
 
   test("the client cannot smuggle moderation fields through the request body — updateDocumentSchema strips them", async () => {
@@ -584,5 +593,68 @@ describe("DELETE /api/documents/:id — FEAT-11 audit log", () => {
     const response = await DELETE(new NextRequest("http://localhost/api/documents/doc_1"), context);
 
     expect(response.status).toBe(500);
+  });
+});
+
+describe("DELETE /api/documents/:id — FEAT-12A physical file cleanup", () => {
+  test("deletes the original file from storage", async () => {
+    const doc = { ...mockDocument, fileKey: "pdf/original.pdf", previewFileKey: null };
+    vi.mocked(prisma.document.findUnique).mockResolvedValue(doc);
+    vi.mocked(prisma.document.delete).mockResolvedValue(doc);
+
+    await DELETE(new NextRequest("http://localhost/api/documents/doc_1"), context);
+
+    expect(deleteLocalFile).toHaveBeenCalledWith("pdf/original.pdf");
+    expect(deleteLocalFile).toHaveBeenCalledTimes(1);
+  });
+
+  test("a PowerPoint document deletes BOTH the original and the generated preview — never affects any other key", async () => {
+    const doc = { ...mockDocument, fileCategory: "POWERPOINT", fileKey: "powerpoint/original.pptx", previewFileKey: "previews/generated.pdf" };
+    vi.mocked(prisma.document.findUnique).mockResolvedValue(doc as never);
+    vi.mocked(prisma.document.delete).mockResolvedValue(doc as never);
+
+    await DELETE(new NextRequest("http://localhost/api/documents/doc_1"), context);
+
+    expect(deleteLocalFile).toHaveBeenCalledWith("powerpoint/original.pptx");
+    expect(deleteLocalFile).toHaveBeenCalledWith("previews/generated.pdf");
+    expect(deleteLocalFile).toHaveBeenCalledTimes(2);
+  });
+
+  test("a legacy fileless document (fileKey null) never calls deleteLocalFile", async () => {
+    const doc = { ...mockDocument, fileKey: null, previewFileKey: null };
+    vi.mocked(prisma.document.findUnique).mockResolvedValue(doc);
+    vi.mocked(prisma.document.delete).mockResolvedValue(doc);
+
+    await DELETE(new NextRequest("http://localhost/api/documents/doc_1"), context);
+
+    expect(deleteLocalFile).not.toHaveBeenCalled();
+  });
+
+  test("FEAT-12B: deleting a YouTube document never calls deleteLocalFile — there was never a physical file to begin with", async () => {
+    const doc = {
+      ...mockDocument,
+      fileKey: null,
+      previewFileKey: null,
+      sourceType: "YOUTUBE",
+      externalVideoId: "dQw4w9WgXcQ",
+    };
+    vi.mocked(prisma.document.findUnique).mockResolvedValue(doc as never);
+    vi.mocked(prisma.document.delete).mockResolvedValue(doc as never);
+
+    const response = await DELETE(new NextRequest("http://localhost/api/documents/doc_1"), context);
+
+    expect(response.status).toBe(200);
+    expect(deleteLocalFile).not.toHaveBeenCalled();
+  });
+
+  test("physical cleanup only runs after the DB transaction actually commits", async () => {
+    const doc = { ...mockDocument, fileKey: "pdf/original.pdf", previewFileKey: null };
+    vi.mocked(prisma.document.findUnique).mockResolvedValue(doc);
+    vi.mocked(prisma.auditLog.create).mockRejectedValue(new Error("audit db unavailable"));
+
+    const response = await DELETE(new NextRequest("http://localhost/api/documents/doc_1"), context);
+
+    expect(response.status).toBe(500);
+    expect(deleteLocalFile).not.toHaveBeenCalled();
   });
 });

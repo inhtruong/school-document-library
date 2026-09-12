@@ -30,10 +30,17 @@
  *   needed at all.
  * - `connect-src 'self'` — DOCX preview `fetch()`s its own preview URL;
  *   Auth.js/Server Actions/API calls are all same-origin.
- * - `frame-src 'self'` — the PDF preview embeds `/api/documents/[id]/preview`
- *   in an `<iframe>`; this is "this app embedding its own file response",
- *   a different concern from `frame-ancestors` below (this app being
- *   embedded by someone else).
+ * - `frame-src 'self' https://www.youtube-nocookie.com` — the PDF preview
+ *   embeds `/api/documents/[id]/preview` in an `<iframe>` (`'self'`); this
+ *   is "this app embedding its own file response", a different concern
+ *   from `frame-ancestors` below (this app being embedded by someone else).
+ *   FEAT-12B adds exactly one external origin here — the privacy-enhanced
+ *   YouTube embed domain — since a YOUTUBE document's preview is a plain
+ *   iframe pointed at it with no additional script/connect/img/media
+ *   requirement, so no other directive needed to change.
+ * - `frame-src`'s new host is not the plain `youtube.com` — see
+ *   `src/lib/documents/youtube.ts`'s `buildYouTubeEmbedUrl`, which always
+ *   generates a `youtube-nocookie.com` URL, never anything else.
  * - `frame-ancestors 'self'` — clickjacking protection; paired with
  *   `X-Frame-Options: SAMEORIGIN` in the static headers for older-browser
  *   compatibility. The app has no need to be embedded in third-party sites.
@@ -66,7 +73,7 @@ export function buildContentSecurityPolicy(nonce: string): string {
     `media-src 'self'`,
     `font-src 'self'`,
     `connect-src 'self'`,
-    `frame-src 'self'`,
+    `frame-src 'self' https://www.youtube-nocookie.com`,
     `frame-ancestors 'self'`,
     `object-src 'none'`,
     `base-uri 'self'`,

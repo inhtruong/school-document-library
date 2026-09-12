@@ -64,3 +64,42 @@ describe("searchDocuments — moderation visibility (FEAT-10A)", () => {
     expect(call?.omit).toMatchObject({ reviewedById: true, rejectionReason: true });
   });
 });
+
+describe("searchDocuments — FEAT-12B YouTube compatibility", () => {
+  test("a YouTube document row's sourceType/externalVideoId pass through unchanged — no special-casing", async () => {
+    const now = new Date("2025-01-01T00:00:00.000Z");
+    vi.mocked(prisma.document.findMany).mockResolvedValue([
+      {
+        id: "doc_yt",
+        title: "Intro video",
+        description: null,
+        subject: "Mathematics",
+        documentType: "LECTURE",
+        academicYear: "2024-2025",
+        gradeId: null,
+        subjectId: null,
+        lessonId: null,
+        grade: null,
+        subjectRef: null,
+        lesson: null,
+        fileName: null,
+        fileSize: null,
+        mimeType: null,
+        fileCategory: null,
+        sourceType: "YOUTUBE",
+        externalVideoId: "dQw4w9WgXcQ",
+        uploadedById: "teacher_1",
+        moderationStatus: "APPROVED",
+        reviewedAt: null,
+        uploadedBy: null,
+        createdAt: now,
+        updatedAt: now,
+      } as never,
+    ]);
+
+    const result = await searchDocuments({ sort: "newest", page: 1 });
+
+    expect(result.documents[0].sourceType).toBe("YOUTUBE");
+    expect(result.documents[0].externalVideoId).toBe("dQw4w9WgXcQ");
+  });
+});

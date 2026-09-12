@@ -1,5 +1,5 @@
 import "server-only";
-import type { DocumentModerationStatus, FileCategory } from "@prisma/client";
+import type { DocumentModerationStatus, DocumentSourceType, FileCategory } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import type { AuditActor } from "@/lib/audit/audit";
 import { writeAuditLog } from "@/lib/audit/audit";
@@ -20,6 +20,8 @@ const MODERATION_SELECT = {
   fileName: true,
   fileSize: true,
   fileCategory: true,
+  sourceType: true,
+  externalVideoId: true,
   createdAt: true,
   reviewedAt: true,
   uploadedBy: { select: { id: true, name: true, role: true } },
@@ -38,6 +40,8 @@ export type ModerationListItem = {
   fileName: string | null;
   fileSize: number | null;
   fileCategory: FileCategory | null;
+  sourceType: DocumentSourceType;
+  externalVideoId: string | null;
   createdAt: string;
   reviewedAt: string | null;
   uploadedBy: { id: string; name: string; role: string } | null;
@@ -64,6 +68,8 @@ function toListItem(row: {
   fileName: string | null;
   fileSize: number | null;
   fileCategory: FileCategory | null;
+  sourceType: DocumentSourceType;
+  externalVideoId: string | null;
   createdAt: Date;
   reviewedAt: Date | null;
   uploadedBy: { id: string; name: string; role: string } | null;

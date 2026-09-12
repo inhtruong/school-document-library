@@ -244,6 +244,8 @@ export default async function DocumentDetailPage({ params, searchParams }: Docum
                 fileCategory={doc.fileCategory}
                 mimeType={doc.mimeType}
                 fileName={doc.fileName}
+                sourceType={doc.sourceType}
+                externalVideoId={doc.externalVideoId}
               />
             </div>
           </div>
@@ -286,11 +288,17 @@ export default async function DocumentDetailPage({ params, searchParams }: Docum
           ) : null}
 
           <div className="flex flex-col gap-2.5">
-            <DownloadButton
-              documentId={doc.id}
-              hasFile={Boolean(doc.fileName)}
-              isAuthenticated={isAuthenticated}
-            />
+            {/* FEAT-12B: a YouTube document has no downloadable file at all —
+                no Download control is rendered for it, rather than a
+                disabled button (the "Open on YouTube" action already lives
+                in the preview card above). */}
+            {doc.sourceType === "FILE" ? (
+              <DownloadButton
+                documentId={doc.id}
+                hasFile={Boolean(doc.fileName)}
+                isAuthenticated={isAuthenticated}
+              />
+            ) : null}
             <BookmarkAction
               documentId={doc.id}
               isAuthenticated={isAuthenticated}

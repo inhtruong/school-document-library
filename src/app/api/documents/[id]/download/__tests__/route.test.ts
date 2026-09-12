@@ -200,6 +200,26 @@ describe("GET /api/documents/:id/download — missing cases", () => {
     expect(statLocalFile).not.toHaveBeenCalled();
   });
 
+  test("FEAT-12B: a YouTube document (no file at all) returns 404 without leaking internals, never a 200", async () => {
+    vi.mocked(prisma.document.findUnique).mockResolvedValue({
+      fileKey: null,
+      fileName: null,
+      mimeType: null,
+      moderationStatus: "APPROVED",
+      uploadedById: null,
+      sourceType: "YOUTUBE",
+      externalVideoId: "dQw4w9WgXcQ",
+    } as never);
+
+    const response = await GET(requestWith(), context);
+    const body = await response.json();
+
+    expect(response.status).toBe(404);
+    expect(body.success).toBe(false);
+    expect(statLocalFile).not.toHaveBeenCalled();
+    expect(createLocalFileReadStream).not.toHaveBeenCalled();
+  });
+
   test("a fileKey pointing at a missing physical file returns 404 instead of crashing", async () => {
     vi.mocked(prisma.document.findUnique).mockResolvedValue(mockDocument as never);
     vi.mocked(statLocalFile).mockResolvedValue({ exists: false });

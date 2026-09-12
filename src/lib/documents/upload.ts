@@ -1,10 +1,20 @@
 import "server-only";
-import type { Document, DocumentModerationStatus, Grade, Lesson, Role, Subject } from "@prisma/client";
+import type {
+  Document,
+  DocumentModerationStatus,
+  DocumentSourceType,
+  FileCategory,
+  Grade,
+  Lesson,
+  Role,
+  Subject,
+} from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { writeAuditLog } from "@/lib/audit/audit";
 import { MAX_UPLOAD_SIZE_BYTES, MAX_UPLOAD_SIZE_MB } from "@/lib/documents/upload-config";
 import { convertPowerPointToPdf } from "@/lib/documents/powerpoint-conversion";
 import { validateTaxonomySelection } from "@/lib/documents/taxonomy";
+import { extractYouTubeVideoId } from "@/lib/documents/youtube";
 import { createDocumentPendingReviewNotifications, createNewDocumentNotifications } from "@/lib/notifications/notification";
 import {
   buildFileKey,
@@ -15,6 +25,23 @@ import {
   writeLocalFile,
 } from "@/lib/storage/local-storage";
 import { uploadDocumentSchema } from "@/lib/validation/document";
+
+/**
+ * The file-related columns that differ between a FILE upload (a real stored
+ * object, possibly with a generated preview) and a YOUTUBE "upload" (no
+ * file at all — only a validated external video id). Kept as one object so
+ * both source-type branches build the exact same shape and the shared
+ * `$transaction` below never needs to know which branch produced it.
+ */
+type FileFields = {
+  fileKey: string | null;
+  previewFileKey: string | null;
+  fileName: string | null;
+  fileSize: number | null;
+  mimeType: string | null;
+  fileCategory: FileCategory | null;
+  externalVideoId: string | null;
+};
 
 export type UploadedDocument = Document & {
   uploadedBy: { id: string; name: string; role: Role } | null;
@@ -80,27 +107,6 @@ export async function uploadDocument(input: {
     return { success: false, error: taxonomy.error, status: 400 };
   }
 
-  const file = input.formData.get("file");
-  if (!(file instanceof File) || file.size === 0) {
-    return { success: false, error: "A file is required", status: 400 };
-  }
-
-  if (file.size > MAX_UPLOAD_SIZE_BYTES) {
-    return { success: false, error: `File exceeds the ${MAX_UPLOAD_SIZE_MB} MB limit`, status: 400 };
-  }
-
-  const format = resolveFileFormat(file.name, file.type);
-  if (!format.valid) {
-    return { success: false, error: format.error, status: 400 };
-  }
-
-  const buffer = Buffer.from(await file.arrayBuffer());
-  if (!matchesFileSignature(buffer, format.extension)) {
-    return { success: false, error: "File content does not match its declared type", status: 400 };
-  }
-
-  const fileKey = buildFileKey(format.category, format.extension);
-
   // Business rule (FEAT-10A): Admins are already the moderation authority
   // and don't need to approve their own upload; Teachers require review.
   // Never derived from `formData` — only from the caller's authenticated
@@ -108,39 +114,105 @@ export async function uploadDocument(input: {
   // even for the APPROVED case (Prisma leaves unset nullable fields null).
   const moderationStatus: DocumentModerationStatus = input.uploaderRole === "ADMIN" ? "APPROVED" : "PENDING";
 
-  const writeResult = await writeLocalFile(fileKey, buffer);
-  if (!writeResult.success) {
-    console.error("Local file write failed:", writeResult.error);
-    return { success: false, error: "Failed to save the file. Please try again.", status: 500 };
-  }
+  // FEAT-12B: a new orthogonal axis — WHERE the content lives — read directly
+  // out of `formData` the same way `file` always has been (it's not part of
+  // `uploadDocumentSchema`, which only covers shared metadata). Anything
+  // other than the literal string "YOUTUBE" is treated as the pre-existing
+  // FILE flow, so this never breaks a form that doesn't send the field at all.
+  const sourceType: DocumentSourceType = getFormString(input.formData, "sourceType") === "YOUTUBE" ? "YOUTUBE" : "FILE";
 
-  // FEAT-12A: PowerPoint gets a server-side PDF preview, generated here —
-  // BEFORE the Document row is ever created — so a Document can never exist
-  // in a state where "preview should be available" silently isn't. A
-  // conversion failure (including LibreOffice being unavailable at all)
-  // fails the whole upload and cleans up the original we just wrote, rather
-  // than quietly falling back to "no preview" the way legacy .doc/.xls
-  // already do — this format's whole point is an in-browser preview.
-  let previewFileKey: string | null = null;
-  if (format.category === "POWERPOINT") {
-    const conversion = await convertPowerPointToPdf(buffer, format.extension as ".ppt" | ".pptx");
-    if (!conversion.success) {
-      console.error("PowerPoint conversion failed:", conversion.error);
-      await deleteLocalFile(fileKey);
-      return {
-        success: false,
-        error: `Could not generate a preview for this PowerPoint file (${conversion.error}). Please try again.`,
-        status: 500,
-      };
+  let fileFields: FileFields;
+  let cleanupOnDbFailure: () => Promise<void>;
+
+  if (sourceType === "YOUTUBE") {
+    const rawUrl = getFormString(input.formData, "youtubeUrl");
+    const videoId = extractYouTubeVideoId(rawUrl);
+    if (!videoId) {
+      return { success: false, error: "Enter a valid YouTube video URL", status: 400 };
     }
 
-    previewFileKey = buildPreviewFileKey();
-    const previewWriteResult = await writeLocalFile(previewFileKey, conversion.pdf);
-    if (!previewWriteResult.success) {
-      console.error("Failed to store the generated PowerPoint preview:", previewWriteResult.error);
-      await deleteLocalFile(fileKey);
-      return { success: false, error: "Failed to save the generated preview. Please try again.", status: 500 };
+    fileFields = {
+      fileKey: null,
+      previewFileKey: null,
+      fileName: null,
+      fileSize: null,
+      mimeType: null,
+      fileCategory: null,
+      externalVideoId: videoId,
+    };
+    // No file was ever written to storage for a YOUTUBE document, so there is
+    // nothing to clean up if the DB transaction below fails.
+    cleanupOnDbFailure = async () => {};
+  } else {
+    const file = input.formData.get("file");
+    if (!(file instanceof File) || file.size === 0) {
+      return { success: false, error: "A file is required", status: 400 };
     }
+
+    if (file.size > MAX_UPLOAD_SIZE_BYTES) {
+      return { success: false, error: `File exceeds the ${MAX_UPLOAD_SIZE_MB} MB limit`, status: 400 };
+    }
+
+    const format = resolveFileFormat(file.name, file.type);
+    if (!format.valid) {
+      return { success: false, error: format.error, status: 400 };
+    }
+
+    const buffer = Buffer.from(await file.arrayBuffer());
+    if (!matchesFileSignature(buffer, format.extension)) {
+      return { success: false, error: "File content does not match its declared type", status: 400 };
+    }
+
+    const fileKey = buildFileKey(format.category, format.extension);
+
+    const writeResult = await writeLocalFile(fileKey, buffer);
+    if (!writeResult.success) {
+      console.error("Local file write failed:", writeResult.error);
+      return { success: false, error: "Failed to save the file. Please try again.", status: 500 };
+    }
+
+    // FEAT-12A: PowerPoint gets a server-side PDF preview, generated here —
+    // BEFORE the Document row is ever created — so a Document can never exist
+    // in a state where "preview should be available" silently isn't. A
+    // conversion failure (including LibreOffice being unavailable at all)
+    // fails the whole upload and cleans up the original we just wrote, rather
+    // than quietly falling back to "no preview" the way legacy .doc/.xls
+    // already do — this format's whole point is an in-browser preview.
+    let previewFileKey: string | null = null;
+    if (format.category === "POWERPOINT") {
+      const conversion = await convertPowerPointToPdf(buffer, format.extension as ".ppt" | ".pptx");
+      if (!conversion.success) {
+        console.error("PowerPoint conversion failed:", conversion.error);
+        await deleteLocalFile(fileKey);
+        return {
+          success: false,
+          error: `Could not generate a preview for this PowerPoint file (${conversion.error}). Please try again.`,
+          status: 500,
+        };
+      }
+
+      previewFileKey = buildPreviewFileKey();
+      const previewWriteResult = await writeLocalFile(previewFileKey, conversion.pdf);
+      if (!previewWriteResult.success) {
+        console.error("Failed to store the generated PowerPoint preview:", previewWriteResult.error);
+        await deleteLocalFile(fileKey);
+        return { success: false, error: "Failed to save the generated preview. Please try again.", status: 500 };
+      }
+    }
+
+    fileFields = {
+      fileKey,
+      previewFileKey,
+      fileName: file.name.trim().slice(0, 200) || `document${format.extension}`,
+      fileSize: file.size,
+      mimeType: file.type,
+      fileCategory: format.category,
+      externalVideoId: null,
+    };
+    cleanupOnDbFailure = async () => {
+      await deleteLocalFile(fileKey);
+      if (previewFileKey) await deleteLocalFile(previewFileKey);
+    };
   }
 
   let document: UploadedDocument;
@@ -165,12 +237,8 @@ export async function uploadDocument(input: {
           gradeId: taxonomy.grade.id,
           subjectId: taxonomy.subject.id,
           lessonId: taxonomy.lesson.id,
-          fileKey,
-          previewFileKey,
-          fileName: file.name.trim().slice(0, 200) || `document${format.extension}`,
-          fileSize: file.size,
-          mimeType: file.type,
-          fileCategory: format.category,
+          sourceType,
+          ...fileFields,
           uploadedById: input.uploaderId,
           moderationStatus,
         },
@@ -200,8 +268,7 @@ export async function uploadDocument(input: {
       "Document creation failed after a successful file write; cleaning up orphan file(s)",
       error
     );
-    await deleteLocalFile(fileKey);
-    if (previewFileKey) await deleteLocalFile(previewFileKey);
+    await cleanupOnDbFailure();
     return { success: false, error: "Failed to save the document. Please try again.", status: 500 };
   }
 

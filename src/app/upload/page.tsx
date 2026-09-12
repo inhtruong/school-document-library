@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import { AlertCircle, Info } from "lucide-react";
 import { TaxonomySelectFields } from "@/components/TaxonomySelectFields";
-import { FileDropzone } from "@/components/upload/FileDropzone";
+import { SourceTypeSelector } from "@/components/upload/SourceTypeSelector";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { requireRole } from "@/lib/auth/authorize";
@@ -109,14 +109,11 @@ export default async function UploadPage({ searchParams }: UploadPageProps) {
         </div>
 
         <div className="flex flex-col gap-4">
-          <h2 className="text-xs font-medium uppercase tracking-wide text-muted">Attach the file</h2>
+          <h2 className="text-xs font-medium uppercase tracking-wide text-muted">Content</h2>
 
-          <FileDropzone
-            id="upload-file"
-            name="file"
-            accept={ACCEPTED_FILE_EXTENSIONS}
-            required
-            acceptedFormatsLabel={ACCEPTED_FORMATS_LABEL}
+          <SourceTypeSelector
+            fileAccept={ACCEPTED_FILE_EXTENSIONS}
+            fileFormatsLabel={ACCEPTED_FORMATS_LABEL}
             maxSizeMB={MAX_UPLOAD_SIZE_MB}
           />
         </div>

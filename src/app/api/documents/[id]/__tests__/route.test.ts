@@ -67,6 +67,8 @@ const mockDocument = {
   fileSize: null,
   mimeType: null,
   fileCategory: null,
+  sourceType: "FILE" as const,
+  externalVideoId: null,
   uploadedById: "teacher_1",
   moderationStatus: "APPROVED" as const,
   reviewedAt: null,
@@ -625,6 +627,23 @@ describe("DELETE /api/documents/:id — FEAT-12A physical file cleanup", () => {
 
     await DELETE(new NextRequest("http://localhost/api/documents/doc_1"), context);
 
+    expect(deleteLocalFile).not.toHaveBeenCalled();
+  });
+
+  test("FEAT-12B: deleting a YouTube document never calls deleteLocalFile — there was never a physical file to begin with", async () => {
+    const doc = {
+      ...mockDocument,
+      fileKey: null,
+      previewFileKey: null,
+      sourceType: "YOUTUBE",
+      externalVideoId: "dQw4w9WgXcQ",
+    };
+    vi.mocked(prisma.document.findUnique).mockResolvedValue(doc as never);
+    vi.mocked(prisma.document.delete).mockResolvedValue(doc as never);
+
+    const response = await DELETE(new NextRequest("http://localhost/api/documents/doc_1"), context);
+
+    expect(response.status).toBe(200);
     expect(deleteLocalFile).not.toHaveBeenCalled();
   });
 

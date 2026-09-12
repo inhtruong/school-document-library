@@ -354,6 +354,125 @@ describe("uploadDocument — PowerPoint (FEAT-12A)", () => {
   });
 });
 
+describe("uploadDocument — YouTube (FEAT-12B)", () => {
+  function buildYouTubeFormData(youtubeUrl: string) {
+    return buildFormData({ file: null, extra: { sourceType: "YOUTUBE", youtubeUrl } });
+  }
+
+  test("accepts a valid YouTube watch URL and stores only the validated video id — no file I/O at all", async () => {
+    const result = await uploadDocument({
+      uploaderId: "user_1",
+      formData: buildYouTubeFormData("https://www.youtube.com/watch?v=dQw4w9WgXcQ"),
+    });
+
+    expect(result.success).toBe(true);
+    expect(writeLocalFile).not.toHaveBeenCalled();
+
+    const createCall = vi.mocked(prisma.document.create).mock.calls[0][0] as { data: Record<string, unknown> };
+    expect(createCall.data.sourceType).toBe("YOUTUBE");
+    expect(createCall.data.externalVideoId).toBe("dQw4w9WgXcQ");
+    expect(createCall.data.fileKey).toBeNull();
+    expect(createCall.data.previewFileKey).toBeNull();
+    expect(createCall.data.fileName).toBeNull();
+    expect(createCall.data.fileSize).toBeNull();
+    expect(createCall.data.mimeType).toBeNull();
+    expect(createCall.data.fileCategory).toBeNull();
+  });
+
+  test("accepts a youtu.be short URL, normalizing to the same stored video id", async () => {
+    const result = await uploadDocument({
+      uploaderId: "user_1",
+      formData: buildYouTubeFormData("https://youtu.be/dQw4w9WgXcQ"),
+    });
+
+    expect(result.success).toBe(true);
+    const createCall = vi.mocked(prisma.document.create).mock.calls[0][0] as { data: Record<string, unknown> };
+    expect(createCall.data.externalVideoId).toBe("dQw4w9WgXcQ");
+  });
+
+  test("rejects an invalid/non-YouTube URL without ever touching storage or the database", async () => {
+    const result = await uploadDocument({
+      uploaderId: "user_1",
+      formData: buildYouTubeFormData("https://vimeo.com/12345"),
+    });
+
+    expect(result.success).toBe(false);
+    if (result.success) return;
+    expect(result.status).toBe(400);
+    expect(writeLocalFile).not.toHaveBeenCalled();
+    expect(prisma.document.create).not.toHaveBeenCalled();
+  });
+
+  test("rejects a malicious/arbitrary iframe-style URL on an unrelated host", async () => {
+    const result = await uploadDocument({
+      uploaderId: "user_1",
+      formData: buildYouTubeFormData("https://evil.example.com/embed/malicious"),
+    });
+
+    expect(result.success).toBe(false);
+    if (result.success) return;
+    expect(result.status).toBe(400);
+    expect(prisma.document.create).not.toHaveBeenCalled();
+  });
+
+  test("a Teacher's YouTube submission lands PENDING, same moderation rule as every other source", async () => {
+    await uploadDocument({
+      uploaderId: "user_1",
+      uploaderRole: "TEACHER",
+      formData: buildYouTubeFormData("https://youtu.be/dQw4w9WgXcQ"),
+    });
+
+    const createCall = vi.mocked(prisma.document.create).mock.calls[0][0] as { data: Record<string, unknown> };
+    expect(createCall.data.moderationStatus).toBe("PENDING");
+  });
+
+  test("an Admin's YouTube submission lands APPROVED, same moderation rule as every other source", async () => {
+    await uploadDocument({
+      uploaderId: "user_1",
+      uploaderRole: "ADMIN",
+      formData: buildYouTubeFormData("https://youtu.be/dQw4w9WgXcQ"),
+    });
+
+    const createCall = vi.mocked(prisma.document.create).mock.calls[0][0] as { data: Record<string, unknown> };
+    expect(createCall.data.moderationStatus).toBe("APPROVED");
+  });
+
+  test("writes a DOCUMENT_UPLOADED audit row for a YouTube submission, same action as every other source", async () => {
+    await uploadDocument({
+      uploaderId: "user_1",
+      uploaderRole: "TEACHER",
+      uploaderEmail: "teacher@example.com",
+      formData: buildYouTubeFormData("https://youtu.be/dQw4w9WgXcQ"),
+    });
+
+    expect(prisma.auditLog.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ action: "DOCUMENT_UPLOADED", entityType: "DOCUMENT" }),
+      })
+    );
+  });
+
+  test("a DB creation failure for a YouTube submission never attempts any filesystem cleanup (there was never a file)", async () => {
+    vi.mocked(prisma.document.create).mockRejectedValue(new Error("db unavailable"));
+
+    const result = await uploadDocument({
+      uploaderId: "user_1",
+      formData: buildYouTubeFormData("https://youtu.be/dQw4w9WgXcQ"),
+    });
+
+    expect(result.success).toBe(false);
+    expect(deleteLocalFile).not.toHaveBeenCalled();
+  });
+
+  test("omitting the sourceType field entirely defaults to the pre-existing FILE flow", async () => {
+    const result = await uploadDocument({ uploaderId: "user_1", formData: buildFormData() });
+
+    expect(result.success).toBe(true);
+    const createCall = vi.mocked(prisma.document.create).mock.calls[0][0] as { data: Record<string, unknown> };
+    expect(createCall.data.sourceType).toBe("FILE");
+  });
+});
+
 describe("uploadDocument — taxonomy", () => {
   test("accepts a valid, correctly-nested Grade/Subject/Lesson combination", async () => {
     const result = await uploadDocument({ uploaderId: "user_1", formData: buildFormData() });

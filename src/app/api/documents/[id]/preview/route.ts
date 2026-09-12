@@ -36,6 +36,7 @@ export async function GET(request: NextRequest, { params }: RouteContext) {
         mimeType: true,
         moderationStatus: true,
         uploadedById: true,
+        sourceType: true,
       },
     });
   } catch (error) {
@@ -53,7 +54,11 @@ export async function GET(request: NextRequest, { params }: RouteContext) {
   if (!document.fileKey || !document.fileCategory || !document.mimeType) {
     return apiError("No file available for this document", 404);
   }
-  const kind = resolvePreviewKind(document.fileCategory as DocumentRecord["fileCategory"], document.mimeType);
+  const kind = resolvePreviewKind(
+    document.sourceType as DocumentRecord["sourceType"],
+    document.fileCategory as DocumentRecord["fileCategory"],
+    document.mimeType
+  );
   if (!STREAMABLE_PREVIEW_KINDS.has(kind)) {
     return apiError("Preview is not available for this file type", 415);
   }

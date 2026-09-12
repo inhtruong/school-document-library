@@ -1,5 +1,6 @@
 import { DocxPreview } from "@/components/DocxPreview";
 import { Card } from "@/components/ui/card";
+import { buildYouTubeEmbedUrl, buildYouTubeWatchUrl } from "@/lib/documents/youtube";
 import { resolvePreviewKind } from "@/lib/documents/preview-kind";
 import type { DocumentRecord } from "@/types/document";
 
@@ -8,6 +9,10 @@ type FilePreviewProps = {
   fileCategory: DocumentRecord["fileCategory"];
   mimeType: string | null;
   fileName: string | null;
+  /** FEAT-12B */
+  sourceType: DocumentRecord["sourceType"];
+  /** FEAT-12B: the validated video id — only ever read when sourceType is YOUTUBE. */
+  externalVideoId: string | null;
 };
 
 function PlaceholderCard({ message }: { message: string }) {
@@ -19,13 +24,52 @@ function PlaceholderCard({ message }: { message: string }) {
 }
 
 /** Renders the right preview UI for a document's file. Public — the preview API it points at requires no auth. */
-export function FilePreview({ documentId, fileCategory, mimeType, fileName }: FilePreviewProps) {
-  const kind = resolvePreviewKind(fileCategory, mimeType);
+export function FilePreview({
+  documentId,
+  fileCategory,
+  mimeType,
+  fileName,
+  sourceType,
+  externalVideoId,
+}: FilePreviewProps) {
+  const kind = resolvePreviewKind(sourceType, fileCategory, mimeType);
   const previewUrl = `/api/documents/${documentId}/preview`;
 
   switch (kind) {
     case "none":
       return <PlaceholderCard message="File preview is not available for this document." />;
+
+    case "youtube": {
+      // Defensive only — every YOUTUBE document is created with a validated
+      // video id (see uploadDocument), so this null case should be
+      // unreachable in practice.
+      if (!externalVideoId) {
+        return <PlaceholderCard message="This video is not available." />;
+      }
+      const embedUrl = buildYouTubeEmbedUrl(externalVideoId);
+      const watchUrl = buildYouTubeWatchUrl(externalVideoId);
+      return (
+        <div className="flex flex-col gap-2">
+          <Card className="overflow-hidden bg-ink p-0">
+            <iframe
+              src={embedUrl}
+              title={fileName ?? "YouTube video"}
+              className="aspect-video w-full"
+              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+              allowFullScreen
+            />
+          </Card>
+          <a
+            href={watchUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-sm font-medium text-accent hover:underline"
+          >
+            Open on YouTube
+          </a>
+        </div>
+      );
+    }
 
     case "word-legacy":
       return <PlaceholderCard message="Preview is not available for legacy Word (.doc) files yet." />;

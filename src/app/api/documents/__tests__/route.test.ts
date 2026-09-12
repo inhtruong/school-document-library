@@ -53,6 +53,8 @@ const mockDocument = {
   fileSize: null,
   mimeType: null,
   fileCategory: null,
+  sourceType: "FILE" as const,
+  externalVideoId: null,
   uploadedById: null,
   moderationStatus: "APPROVED" as const,
   reviewedAt: null,

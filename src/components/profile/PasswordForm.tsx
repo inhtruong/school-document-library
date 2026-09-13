@@ -2,6 +2,7 @@
 
 import { useState, type FormEvent } from "react";
 import { KeyRound, Lock } from "lucide-react";
+import { useTranslations } from "next-intl";
 import { SettingsRow, settingsGroupClassName } from "@/components/profile/settings-row";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -21,6 +22,7 @@ const MIN_PASSWORD_LENGTH = 8;
  * technically-dead session sitting on the page.
  */
 export function PasswordForm() {
+  const tProfile = useTranslations("profile");
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -76,7 +78,7 @@ export function PasswordForm() {
 
   return (
     <form onSubmit={handleSubmit} className={settingsGroupClassName}>
-      <SettingsRow icon={Lock} label="Current password" htmlFor="current-password">
+      <SettingsRow icon={Lock} label={tProfile("currentPassword")} htmlFor="current-password">
         <Input
           id="current-password"
           name="currentPassword"
@@ -92,7 +94,7 @@ export function PasswordForm() {
         />
       </SettingsRow>
 
-      <SettingsRow icon={KeyRound} label="New password" htmlFor="new-password">
+      <SettingsRow icon={KeyRound} label={tProfile("newPassword")} htmlFor="new-password">
         <Input
           id="new-password"
           name="newPassword"
@@ -109,7 +111,7 @@ export function PasswordForm() {
         />
       </SettingsRow>
 
-      <SettingsRow icon={KeyRound} label="Confirm new password" htmlFor="confirm-password">
+      <SettingsRow icon={KeyRound} label={tProfile("confirmPassword")} htmlFor="confirm-password">
         <Input
           id="confirm-password"
           name="confirmPassword"
@@ -135,7 +137,7 @@ export function PasswordForm() {
 
       <div className="flex justify-end px-4 py-3.5">
         <Button type="submit" disabled={!canSubmit}>
-          {submitting ? "Changing…" : "Change password"}
+          {submitting ? tProfile("changing") : tProfile("changePassword")}
         </Button>
       </div>
     </form>

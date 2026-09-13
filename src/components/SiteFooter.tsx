@@ -1,3 +1,5 @@
+import { getTranslations } from "next-intl/server";
+
 /**
  * Extracted from the root layout (UI-1) — same reasoning as SiteHeader
  * having its own file. Server Component, no interactivity needed.
@@ -10,8 +12,9 @@
  * no bundle presence in production; this is a presentational change only,
  * nothing about build/deploy config is touched).
  */
-export default function SiteFooter() {
+export default async function SiteFooter() {
   const year = new Date().getFullYear();
+  const t = await getTranslations("footer");
 
   return (
     <footer className="border-t border-line bg-paper">
@@ -24,11 +27,11 @@ export default function SiteFooter() {
           </span>
           <div className="leading-tight">
             <p className="font-display text-sm font-semibold text-ink">Stacks</p>
-            <p className="text-xs text-muted">A document library for students and teachers.</p>
+            <p className="text-xs text-muted">{t("tagline")}</p>
           </div>
         </div>
 
-        <p className="text-xs text-muted">© {year} Stacks</p>
+        <p className="text-xs text-muted">{t("copyright", { year })}</p>
       </div>
 
       {process.env.NODE_ENV === "development" ? (

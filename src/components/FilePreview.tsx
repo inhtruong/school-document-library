@@ -1,3 +1,4 @@
+import { getTranslations } from "next-intl/server";
 import { DocxPreview } from "@/components/DocxPreview";
 import { Card } from "@/components/ui/card";
 import { buildYouTubeEmbedUrl, buildYouTubeWatchUrl } from "@/lib/documents/youtube";
@@ -24,7 +25,7 @@ function PlaceholderCard({ message }: { message: string }) {
 }
 
 /** Renders the right preview UI for a document's file. Public — the preview API it points at requires no auth. */
-export function FilePreview({
+export async function FilePreview({
   documentId,
   fileCategory,
   mimeType,
@@ -34,17 +35,18 @@ export function FilePreview({
 }: FilePreviewProps) {
   const kind = resolvePreviewKind(sourceType, fileCategory, mimeType);
   const previewUrl = `/api/documents/${documentId}/preview`;
+  const tPreview = await getTranslations("preview");
 
   switch (kind) {
     case "none":
-      return <PlaceholderCard message="File preview is not available for this document." />;
+      return <PlaceholderCard message={tPreview("notAvailable")} />;
 
     case "youtube": {
       // Defensive only — every YOUTUBE document is created with a validated
       // video id (see uploadDocument), so this null case should be
       // unreachable in practice.
       if (!externalVideoId) {
-        return <PlaceholderCard message="This video is not available." />;
+        return <PlaceholderCard message={tPreview("videoNotAvailable")} />;
       }
       const embedUrl = buildYouTubeEmbedUrl(externalVideoId);
       const watchUrl = buildYouTubeWatchUrl(externalVideoId);
@@ -53,7 +55,7 @@ export function FilePreview({
           <Card className="overflow-hidden bg-ink p-0">
             <iframe
               src={embedUrl}
-              title={fileName ?? "YouTube video"}
+              title={fileName ?? tPreview("youtubeVideoTitle")}
               className="aspect-video w-full"
               allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
               allowFullScreen
@@ -65,26 +67,26 @@ export function FilePreview({
             rel="noopener noreferrer"
             className="text-sm font-medium text-accent hover:underline"
           >
-            Open on YouTube
+            {tPreview("openOnYouTube")}
           </a>
         </div>
       );
     }
 
     case "word-legacy":
-      return <PlaceholderCard message="Preview is not available for legacy Word (.doc) files yet." />;
+      return <PlaceholderCard message={tPreview("wordLegacyNotAvailable")} />;
 
     case "excel":
-      return <PlaceholderCard message="Excel spreadsheet preview is not available yet." />;
+      return <PlaceholderCard message={tPreview("excelNotAvailable")} />;
 
     case "pdf":
       return (
         <div className="flex flex-col gap-2">
           {fileCategory === "POWERPOINT" ? (
-            <p className="text-xs text-muted">This preview is a PDF version generated from the PowerPoint file.</p>
+            <p className="text-xs text-muted">{tPreview("powerpointPdfNotice")}</p>
           ) : null}
           <Card className="overflow-hidden p-0">
-            <iframe src={previewUrl} title={fileName ?? "Document preview"} className="h-[70vh] w-full" />
+            <iframe src={previewUrl} title={fileName ?? tPreview("documentPreviewTitle")} className="h-[70vh] w-full" />
           </Card>
         </div>
       );
@@ -95,7 +97,7 @@ export function FilePreview({
           {/* eslint-disable-next-line @next/next/no-img-element -- served from our own preview API, not a static asset Next can optimize */}
           <img
             src={previewUrl}
-            alt={fileName ?? "Document preview"}
+            alt={fileName ?? tPreview("documentPreviewTitle")}
             className="max-h-[70vh] w-auto max-w-full object-contain"
           />
         </Card>
@@ -105,7 +107,7 @@ export function FilePreview({
       return (
         <Card className="overflow-hidden bg-ink p-0">
           <video controls preload="metadata" className="max-h-[70vh] w-full" src={previewUrl}>
-            Your browser does not support video playback.
+            {tPreview("browserNoVideoSupport")}
           </video>
         </Card>
       );

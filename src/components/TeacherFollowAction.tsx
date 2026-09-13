@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { UserCheck, UserPlus } from "lucide-react";
+import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 import { loginHrefFor } from "@/lib/auth/document-login-href";
 import { cn } from "@/lib/utils";
@@ -43,6 +44,8 @@ export function TeacherFollowAction({
 }: TeacherFollowActionProps) {
   const [following, setFollowing] = useState(initialFollowing);
   const [submitting, setSubmitting] = useState(false);
+  const tFollowing = useTranslations("following");
+  const tToast = useTranslations("toast");
 
   if (isSelf) return null;
 
@@ -50,7 +53,7 @@ export function TeacherFollowAction({
     return (
       <a href={loginHrefFor(callbackPath)} className={actionClassName(false)}>
         <UserPlus className="h-3.5 w-3.5" aria-hidden />
-        Follow
+        {tFollowing("follow")}
       </a>
     );
   }
@@ -68,7 +71,7 @@ export function TeacherFollowAction({
       if (!response.ok || !body.success) throw new Error(body.error ?? "Failed to update follow status");
 
       setFollowing(nextFollowing);
-      toast.success(nextFollowing ? "Teacher followed" : "Teacher unfollowed");
+      toast.success(nextFollowing ? tToast("teacherFollowed") : tToast("teacherUnfollowed"));
     } catch {
       toast.error("Unable to update follow status");
     } finally {
@@ -85,7 +88,7 @@ export function TeacherFollowAction({
       className={actionClassName(following)}
     >
       {following ? <UserCheck className="h-3.5 w-3.5" aria-hidden /> : <UserPlus className="h-3.5 w-3.5" aria-hidden />}
-      {following ? "Following" : "Follow"}
+      {following ? tFollowing("followingLabel") : tFollowing("follow")}
     </button>
   );
 }

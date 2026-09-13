@@ -1,10 +1,11 @@
 import Link from "next/link";
+import { getTranslations } from "next-intl/server";
 import { SlidersHorizontal, X } from "lucide-react";
 import DocumentCard from "@/components/DocumentCard";
 import SearchBar from "@/components/SearchBar";
 import { SearchFilters } from "@/components/SearchFilters";
 import { getUploaderSummaries } from "@/lib/documents/document-uploaders";
-import { DOCUMENT_TYPE_LABELS } from "@/lib/documents/document-type";
+import { documentTypeMessageKey } from "@/lib/documents/document-type";
 import { listGrades } from "@/lib/documents/grades";
 import { searchDocuments } from "@/lib/documents/search";
 import { parseSearchQuery } from "@/lib/documents/search-query";
@@ -65,6 +66,11 @@ export default async function SearchPage({ searchParams: searchParamsPromise }: 
   // One batched lookup for the whole page of results — never one query per
   // card (see document-uploaders.ts).
   const uploaderByDocumentId = await getUploaderSummaries(results.map((doc) => doc.id));
+  const [tSearch, tCommon, tDocumentType] = await Promise.all([
+    getTranslations("search"),
+    getTranslations("common"),
+    getTranslations("documentType"),
+  ]);
 
   const clearFiltersHref = query.search ? `/search?q=${encodeURIComponent(query.search)}` : "/search";
 
@@ -93,7 +99,7 @@ export default async function SearchPage({ searchParams: searchParamsPromise }: 
   if (query.documentType) {
     activeFilters.push({
       key: "documentType",
-      label: DOCUMENT_TYPE_LABELS[query.documentType],
+      label: tDocumentType(documentTypeMessageKey(query.documentType)),
       removeHref: hrefWithoutFilter(currentParams, ["documentType"]),
     });
   }
@@ -108,7 +114,7 @@ export default async function SearchPage({ searchParams: searchParamsPromise }: 
   return (
     <div className="mx-auto max-w-5xl px-5 py-8 sm:py-10">
       <h1 className="font-display text-2xl font-semibold tracking-tight sm:text-3xl">
-        Search documents
+        {tSearch("heading")}
       </h1>
 
       <div className="mt-5 max-w-2xl">
@@ -118,7 +124,7 @@ export default async function SearchPage({ searchParams: searchParamsPromise }: 
       <div className="mt-6 flex flex-wrap items-end gap-x-3 gap-y-2">
         <span className="mb-2 hidden shrink-0 items-center gap-1.5 text-sm font-medium text-muted sm:flex">
           <SlidersHorizontal className="h-4 w-4" aria-hidden />
-          Filters
+          {tSearch("filters")}
         </span>
         <SearchFilters grades={grades} />
       </div>
@@ -133,23 +139,25 @@ export default async function SearchPage({ searchParams: searchParamsPromise }: 
             >
               {filter.label}
               <X className="h-3 w-3" aria-hidden />
-              <span className="sr-only">Remove filter</span>
+              <span className="sr-only">{tSearch("removeFilter")}</span>
             </Link>
           ))}
           <Link
             href={clearFiltersHref}
             className="text-xs font-medium text-muted underline-offset-2 hover:text-ink hover:underline"
           >
-            Clear all
+            {tSearch("clearAll")}
           </Link>
         </div>
       ) : null}
 
       <div className="mt-8 flex flex-wrap items-baseline gap-x-2 border-t border-line pt-6">
         <p className="font-display text-lg font-semibold tracking-tight text-ink">
-          {total} {total === 1 ? "document" : "documents"}
+          {tCommon("documentCount", { count: total })}
         </p>
-        {query.search ? <p className="text-sm text-muted">for &ldquo;{query.search}&rdquo;</p> : null}
+        {query.search ? (
+          <p className="text-sm text-muted">{tSearch("resultsFor", { query: query.search })}</p>
+        ) : null}
       </div>
 
       {results.length > 0 ? (
@@ -161,7 +169,7 @@ export default async function SearchPage({ searchParams: searchParamsPromise }: 
           </div>
 
           {totalPages > 1 ? (
-            <nav aria-label="Pagination" className="mt-8 flex flex-wrap items-center justify-center gap-2">
+            <nav aria-label={tCommon("pagination")} className="mt-8 flex flex-wrap items-center justify-center gap-2">
               <Link
                 href={hrefForPage(currentParams, page - 1)}
                 aria-disabled={page <= 1}
@@ -172,7 +180,7 @@ export default async function SearchPage({ searchParams: searchParamsPromise }: 
                     : "border-line text-ink hover:border-ink/25"
                 }`}
               >
-                Previous
+                {tCommon("previous")}
               </Link>
 
               {Array.from({ length: totalPages }, (_, index) => index + 1).map((pageNumber) => (
@@ -200,24 +208,24 @@ export default async function SearchPage({ searchParams: searchParamsPromise }: 
                     : "border-line text-ink hover:border-ink/25"
                 }`}
               >
-                Next
+                {tCommon("next")}
               </Link>
             </nav>
           ) : null}
         </>
       ) : (
         <div className="mt-5 rounded-xl border border-dashed border-line bg-surface p-8 text-center sm:p-10">
-          <p className="font-display text-base font-medium text-ink">No documents found</p>
-          <p className="mx-auto mt-2 max-w-sm text-sm text-muted">Try:</p>
+          <p className="font-display text-base font-medium text-ink">{tSearch("noResults")}</p>
+          <p className="mx-auto mt-2 max-w-sm text-sm text-muted">{tSearch("tryPrefix")}</p>
           <ul className="mx-auto mt-1 max-w-sm list-inside list-disc text-left text-sm text-muted sm:text-center sm:list-none">
-            <li>removing some filters</li>
-            <li>using a broader keyword</li>
+            <li>{tSearch("tryRemoveFilters")}</li>
+            <li>{tSearch("tryBroaderKeyword")}</li>
           </ul>
           <Link
             href="/search"
             className="mt-5 inline-flex h-10 items-center rounded-xl bg-accent px-4 text-sm font-medium text-paper transition-colors hover:bg-accent-strong"
           >
-            Clear filters
+            {tSearch("clearFilters")}
           </Link>
         </div>
       )}

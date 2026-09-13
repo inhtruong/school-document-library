@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useState } from "react";
 import { Bell, BellOff } from "lucide-react";
+import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 import { NotificationItem } from "@/components/NotificationItem";
 import {
@@ -33,6 +34,8 @@ export function NotificationBell({ initialNotifications, initialUnreadCount }: N
   const [notifications, setNotifications] = useState(initialNotifications);
   const [unreadCount, setUnreadCount] = useState(initialUnreadCount);
   const [markingAll, setMarkingAll] = useState(false);
+  const tNotifications = useTranslations("notifications");
+  const tToast = useTranslations("toast");
 
   function handleItemRead(id: string) {
     setNotifications((prev) =>
@@ -59,7 +62,7 @@ export function NotificationBell({ initialNotifications, initialUnreadCount }: N
         prev.map((notification) => (notification.readAt ? notification : { ...notification, readAt: now }))
       );
       setUnreadCount(0);
-      toast.success("All notifications marked as read");
+      toast.success(tToast("notificationsMarkedAllRead"));
     } catch {
       toast.error("Unable to update notifications");
     } finally {
@@ -70,7 +73,7 @@ export function NotificationBell({ initialNotifications, initialUnreadCount }: N
   return (
     <DropdownMenu open={open} onOpenChange={setOpen}>
       <DropdownMenuTrigger
-        aria-label={unreadCount > 0 ? `Notifications (${unreadCount} unread)` : "Notifications"}
+        aria-label={unreadCount > 0 ? tNotifications("ariaLabelUnread", { count: unreadCount }) : tNotifications("ariaLabel")}
         className="relative inline-flex h-11 w-11 items-center justify-center rounded-xl border border-line bg-card text-ink outline-none transition-colors hover:bg-surface focus-visible:ring-2 focus-visible:ring-accent"
       >
         <Bell className="h-4 w-4" aria-hidden />
@@ -83,7 +86,7 @@ export function NotificationBell({ initialNotifications, initialUnreadCount }: N
 
       <DropdownMenuContent className="w-80 p-0 sm:w-96">
         <div className="flex items-center justify-between gap-2 border-b border-line px-4 py-3">
-          <span className="text-sm font-semibold text-ink">Notifications</span>
+          <span className="text-sm font-semibold text-ink">{tNotifications("heading")}</span>
           {unreadCount > 0 ? (
             <button
               type="button"
@@ -91,7 +94,7 @@ export function NotificationBell({ initialNotifications, initialUnreadCount }: N
               onClick={handleMarkAllRead}
               className="text-xs font-medium text-accent outline-none transition-colors hover:text-accent-strong focus-visible:underline disabled:opacity-50"
             >
-              Mark all as read
+              {tNotifications("markAllAsRead")}
             </button>
           ) : null}
         </div>
@@ -99,7 +102,7 @@ export function NotificationBell({ initialNotifications, initialUnreadCount }: N
         {notifications.length === 0 ? (
           <div className="flex flex-col items-center gap-2 px-4 py-10 text-center">
             <BellOff className="h-5 w-5 text-muted" aria-hidden />
-            <p className="text-sm text-muted">You&apos;re all caught up.</p>
+            <p className="text-sm text-muted">{tNotifications("allCaughtUp")}</p>
           </div>
         ) : (
           <ul className="max-h-80 divide-y divide-line overflow-y-auto">
@@ -119,7 +122,7 @@ export function NotificationBell({ initialNotifications, initialUnreadCount }: N
           onClick={() => setOpen(false)}
           className="block border-t border-line px-4 py-2.5 text-center text-sm font-medium text-accent outline-none transition-colors hover:bg-surface hover:text-accent-strong focus-visible:bg-surface"
         >
-          View all notifications
+          {tNotifications("viewAll")}
         </Link>
       </DropdownMenuContent>
     </DropdownMenu>

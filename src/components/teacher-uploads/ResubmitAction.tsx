@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { RotateCcw } from "lucide-react";
+import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import {
@@ -34,6 +35,9 @@ export function ResubmitAction({ documentId, size = "default" }: ResubmitActionP
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const tDocumentActions = useTranslations("documentActions");
+  const tActions = useTranslations("actions");
+  const tToast = useTranslations("toast");
 
   async function handleResubmit() {
     setSubmitting(true);
@@ -43,7 +47,7 @@ export function ResubmitAction({ documentId, size = "default" }: ResubmitActionP
       if (!response.ok || !body.success) throw new Error(body.error ?? "Failed to resubmit document");
 
       setOpen(false);
-      toast.success("Document resubmitted for review.");
+      toast.success(tToast("documentResubmitted"));
       router.refresh();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Failed to resubmit document");
@@ -57,22 +61,22 @@ export function ResubmitAction({ documentId, size = "default" }: ResubmitActionP
       <DialogTrigger asChild>
         <Button type="button" variant="outline" size={size}>
           <RotateCcw className="h-4 w-4" aria-hidden />
-          Resubmit for review
+          {tDocumentActions("resubmitForReview")}
         </Button>
       </DialogTrigger>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Resubmit document?</DialogTitle>
-          <DialogDescription>This will send the document back to the moderation queue.</DialogDescription>
+          <DialogTitle>{tDocumentActions("resubmitDocumentTitle")}</DialogTitle>
+          <DialogDescription>{tDocumentActions("resubmitDescription")}</DialogDescription>
         </DialogHeader>
         <DialogFooter>
           <DialogClose asChild>
             <Button type="button" variant="outline" disabled={submitting}>
-              Cancel
+              {tActions("cancel")}
             </Button>
           </DialogClose>
           <Button type="button" onClick={handleResubmit} disabled={submitting}>
-            {submitting ? "Resubmitting…" : "Resubmit"}
+            {submitting ? tDocumentActions("resubmitting") : tDocumentActions("resubmit")}
           </Button>
         </DialogFooter>
       </DialogContent>

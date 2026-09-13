@@ -1,3 +1,4 @@
+import { getTranslations } from "next-intl/server";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { resolveDownloadHref } from "@/components/download-href";
 import { cn } from "@/lib/utils";
@@ -18,20 +19,21 @@ type DownloadButtonProps = {
  * a guest to log in for a document that can't be downloaded anyway would be
  * misleading.
  */
-export function DownloadButton({ documentId, hasFile, isAuthenticated }: DownloadButtonProps) {
+export async function DownloadButton({ documentId, hasFile, isAuthenticated }: DownloadButtonProps) {
   const href = resolveDownloadHref(documentId, hasFile, isAuthenticated);
+  const tDocumentActions = await getTranslations("documentActions");
 
   if (!href) {
     return (
-      <Button disabled title="No file is available for this document">
-        Download
+      <Button disabled title={tDocumentActions("noFileAvailable")}>
+        {tDocumentActions("download")}
       </Button>
     );
   }
 
   return (
     <a href={href} className={cn(buttonVariants({ variant: "default" }))}>
-      Download
+      {tDocumentActions("download")}
     </a>
   );
 }

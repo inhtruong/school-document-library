@@ -1,14 +1,15 @@
 import Link from "next/link";
+import { getTranslations } from "next-intl/server";
 import { FileClock } from "lucide-react";
 import type { AuditAction, AuditEntityType, Prisma } from "@prisma/client";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import {
-  AUDIT_ACTION_LABELS,
   AUDIT_ACTION_VALUES,
-  AUDIT_ENTITY_TYPE_LABELS,
   AUDIT_ENTITY_TYPE_VALUES,
+  auditActionMessageKey,
+  auditEntityTypeMessageKey,
 } from "@/lib/audit/audit-display";
 import { listAuditLogs, type AuditLogListItem } from "@/lib/audit/audit-log-list";
 import { requireRole } from "@/lib/auth/authorize";
@@ -67,7 +68,13 @@ function metadataString(metadata: Prisma.JsonValue | null, key: string): string 
  * mandatory link (FEAT-11 §19/§31): `linkedDocumentExists` is computed by
  * `listAuditLogs()` from a single batched query, not a per-row lookup here.
  */
-function EntityLine({ log }: { log: AuditLogListItem }) {
+function EntityLine({
+  log,
+  t,
+}: {
+  log: AuditLogListItem;
+  t: (key: "deletedDocument" | "attempted", values?: Record<string, string>) => string;
+}) {
   if (log.linkedDocumentId) {
     const title = metadataString(log.metadata, "documentTitle") ?? log.linkedDocumentId;
     if (log.linkedDocumentExists) {
@@ -77,12 +84,12 @@ function EntityLine({ log }: { log: AuditLogListItem }) {
         </Link>
       );
     }
-    return <p className="text-sm text-muted">{title} (deleted)</p>;
+    return <p className="text-sm text-muted">{t("deletedDocument", { title })}</p>;
   }
 
   if (log.action === "USER_LOGIN_FAILED") {
     const attemptedEmail = metadataString(log.metadata, "attemptedEmail");
-    return attemptedEmail ? <p className="text-sm text-muted">Attempted: {attemptedEmail}</p> : null;
+    return attemptedEmail ? <p className="text-sm text-muted">{t("attempted", { email: attemptedEmail })}</p> : null;
   }
 
   return null;
@@ -99,67 +106,72 @@ export default async function AuditLogPage({ searchParams }: AuditLogPageProps) 
   const filter = { action: rawAction, entityType: rawEntityType, actorEmail };
 
   const result = await listAuditLogs({ action, entityType, actorEmail }, page);
+  const [tAuditLog, tAuditLogActions, tAuditLogEntities, tCommon, tActions] = await Promise.all([
+    getTranslations("auditLog"),
+    getTranslations("auditLog.actions"),
+    getTranslations("auditLog.entities"),
+    getTranslations("common"),
+    getTranslations("actions"),
+  ]);
 
   return (
     <div className="mx-auto max-w-3xl px-5 py-8 sm:py-10">
-      <h1 className="font-display text-2xl font-semibold tracking-tight">Audit log</h1>
-      <p className="mt-2 text-sm text-muted">Review important account, document, and moderation activity.</p>
+      <h1 className="font-display text-2xl font-semibold tracking-tight">{tAuditLog("heading")}</h1>
+      <p className="mt-2 text-sm text-muted">{tAuditLog("subtitle")}</p>
 
       <form method="GET" className="mt-6 flex flex-wrap items-end gap-3">
         <label className="flex flex-col gap-1.5 text-sm" htmlFor="audit-filter-action">
-          Action
+          {tAuditLog("action")}
           <select
             id="audit-filter-action"
             name="action"
             defaultValue={action ?? ""}
             className="h-10 rounded-lg border border-line bg-paper px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-accent"
           >
-            <option value="">All actions</option>
+            <option value="">{tAuditLog("allActions")}</option>
             {AUDIT_ACTION_VALUES.map((value) => (
               <option key={value} value={value}>
-                {AUDIT_ACTION_LABELS[value]}
+                {tAuditLogActions(auditActionMessageKey(value))}
               </option>
             ))}
           </select>
         </label>
 
         <label className="flex flex-col gap-1.5 text-sm" htmlFor="audit-filter-entity">
-          Entity
+          {tAuditLog("entity")}
           <select
             id="audit-filter-entity"
             name="entityType"
             defaultValue={entityType ?? ""}
             className="h-10 rounded-lg border border-line bg-paper px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-accent"
           >
-            <option value="">All entities</option>
+            <option value="">{tAuditLog("allEntities")}</option>
             {AUDIT_ENTITY_TYPE_VALUES.map((value) => (
               <option key={value} value={value}>
-                {AUDIT_ENTITY_TYPE_LABELS[value]}
+                {tAuditLogEntities(auditEntityTypeMessageKey(value))}
               </option>
             ))}
           </select>
         </label>
 
         <label className="flex min-w-40 flex-1 flex-col gap-1.5 text-sm" htmlFor="audit-filter-actor">
-          Actor email
+          {tAuditLog("actorEmail")}
           <input
             id="audit-filter-actor"
             type="text"
             name="actorEmail"
             defaultValue={actorEmail ?? ""}
-            placeholder="Search by email"
+            placeholder={tAuditLog("searchByEmail")}
             className="h-10 rounded-lg border border-line bg-paper px-3 text-sm outline-none placeholder:text-muted focus-visible:ring-2 focus-visible:ring-accent"
           />
         </label>
 
         <Button type="submit" variant="outline">
-          Filter
+          {tActions("filter")}
         </Button>
       </form>
 
-      <p className="mt-4 text-sm text-muted">
-        {result.total} {result.total === 1 ? "event" : "events"}
-      </p>
+      <p className="mt-4 text-sm text-muted">{tAuditLog("eventCount", { count: result.total })}</p>
 
       {result.logs.length > 0 ? (
         <>
@@ -172,15 +184,15 @@ export default async function AuditLogPage({ searchParams }: AuditLogPageProps) 
                 >
                   <div className="min-w-0">
                     <div className="flex flex-wrap items-center gap-2">
-                      <p className="font-medium text-ink">{AUDIT_ACTION_LABELS[log.action]}</p>
-                      {log.status === "FAILURE" ? <Badge variant="destructive">Failed</Badge> : null}
+                      <p className="font-medium text-ink">{tAuditLogActions(auditActionMessageKey(log.action))}</p>
+                      {log.status === "FAILURE" ? <Badge variant="destructive">{tAuditLog("failed")}</Badge> : null}
                     </div>
                     <p className="mt-0.5 text-sm text-muted">
-                      {log.actorEmail ?? "System"}
+                      {log.actorEmail ?? tAuditLog("system")}
                       {log.actorRole ? ` · ${log.actorRole}` : ""}
                     </p>
                     <div className="mt-0.5">
-                      <EntityLine log={log} />
+                      <EntityLine log={log} t={tAuditLog} />
                     </div>
                   </div>
                   <p className="shrink-0 text-xs text-muted sm:text-right">{formatDate(log.createdAt)}</p>
@@ -190,7 +202,7 @@ export default async function AuditLogPage({ searchParams }: AuditLogPageProps) 
           </Card>
 
           {result.totalPages > 1 ? (
-            <nav aria-label="Pagination" className="mt-8 flex flex-wrap items-center justify-center gap-2">
+            <nav aria-label={tCommon("pagination")} className="mt-8 flex flex-wrap items-center justify-center gap-2">
               <Link
                 href={pageHref(filter, page - 1)}
                 aria-disabled={page <= 1}
@@ -199,10 +211,10 @@ export default async function AuditLogPage({ searchParams }: AuditLogPageProps) 
                   page <= 1 ? "pointer-events-none border-line text-muted/50" : "border-line text-ink hover:border-ink/25"
                 }`}
               >
-                Previous
+                {tCommon("previous")}
               </Link>
               <span className="text-xs text-muted">
-                Page {page} of {result.totalPages}
+                {tCommon("pageOf", { page, total: result.totalPages })}
               </span>
               <Link
                 href={pageHref(filter, page + 1)}
@@ -214,7 +226,7 @@ export default async function AuditLogPage({ searchParams }: AuditLogPageProps) 
                     : "border-line text-ink hover:border-ink/25"
                 }`}
               >
-                Next
+                {tCommon("next")}
               </Link>
             </nav>
           ) : null}
@@ -222,7 +234,7 @@ export default async function AuditLogPage({ searchParams }: AuditLogPageProps) 
       ) : (
         <div className="mt-4 flex flex-col items-center gap-2 rounded-xl border border-dashed border-line bg-surface p-10 text-center">
           <FileClock className="h-5 w-5 text-muted" aria-hidden />
-          <p className="text-sm text-muted">No activity matches these filters.</p>
+          <p className="text-sm text-muted">{tAuditLog("noActivity")}</p>
         </div>
       )}
     </div>

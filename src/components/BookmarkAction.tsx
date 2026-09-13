@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { Heart } from "lucide-react";
+import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 import { buttonVariants } from "@/components/ui/button";
 import { documentLoginHref } from "@/lib/auth/document-login-href";
@@ -35,12 +36,14 @@ function actionClassName(active: boolean): string {
 export function BookmarkAction({ documentId, isAuthenticated, initialBookmarked }: BookmarkActionProps) {
   const [bookmarked, setBookmarked] = useState(initialBookmarked);
   const [submitting, setSubmitting] = useState(false);
+  const tDocumentActions = useTranslations("documentActions");
+  const tToast = useTranslations("toast");
 
   if (!isAuthenticated) {
     return (
       <a href={documentLoginHref(documentId)} className={actionClassName(false)}>
         <Heart className="h-4 w-4" aria-hidden />
-        Save
+        {tDocumentActions("save")}
       </a>
     );
   }
@@ -58,7 +61,7 @@ export function BookmarkAction({ documentId, isAuthenticated, initialBookmarked 
       if (!response.ok || !body.success) throw new Error(body.error ?? "Failed to update saved document");
 
       setBookmarked(nextBookmarked);
-      toast.success(nextBookmarked ? "Document saved" : "Document removed from saved items");
+      toast.success(nextBookmarked ? tToast("documentSaved") : tToast("documentRemovedFromSaved"));
     } catch {
       toast.error("Unable to update saved document");
     } finally {
@@ -75,7 +78,7 @@ export function BookmarkAction({ documentId, isAuthenticated, initialBookmarked 
       className={actionClassName(bookmarked)}
     >
       <Heart className={cn("h-4 w-4", bookmarked && "fill-accent text-accent")} aria-hidden />
-      {bookmarked ? "Saved" : "Save"}
+      {bookmarked ? tDocumentActions("saved") : tDocumentActions("save")}
     </button>
   );
 }

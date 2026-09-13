@@ -4,7 +4,8 @@ import { ModerationStatusBadge } from "@/components/moderation/ModerationStatusB
 import { ResubmitAction } from "@/components/teacher-uploads/ResubmitAction";
 import { Card } from "@/components/ui/card";
 import { buttonVariants } from "@/components/ui/button";
-import { DOCUMENT_TYPE_LABELS } from "@/lib/documents/document-type";
+import { getTranslations } from "next-intl/server";
+import { documentTypeMessageKey } from "@/lib/documents/document-type";
 import { listTeacherUploads, type TeacherUploadStatusFilter } from "@/lib/documents/teacher-uploads";
 import { requireRole } from "@/lib/auth/authorize";
 import { MODERATION_STATUS_COLOR } from "@/lib/moderation/moderation-status-style";
@@ -16,18 +17,6 @@ type MyUploadsPageProps = {
 };
 
 const FILTER_VALUES: TeacherUploadStatusFilter[] = ["ALL", "PENDING", "APPROVED", "REJECTED"];
-const FILTER_LABELS: Record<TeacherUploadStatusFilter, string> = {
-  ALL: "All",
-  PENDING: "Pending",
-  APPROVED: "Approved",
-  REJECTED: "Rejected",
-};
-const EMPTY_MESSAGES: Record<TeacherUploadStatusFilter, string> = {
-  ALL: "You haven't uploaded any documents yet.",
-  PENDING: "No documents are waiting for review.",
-  APPROVED: "No approved documents yet.",
-  REJECTED: "No rejected documents.",
-};
 
 function parseFilter(value: string | undefined): TeacherUploadStatusFilter {
   return (FILTER_VALUES as string[]).includes(value ?? "") ? (value as TeacherUploadStatusFilter) : "ALL";
@@ -74,13 +63,32 @@ export default async function MyUploadsPage({ searchParams }: MyUploadsPageProps
   const page = parsePage(rawPage);
 
   const result = await listTeacherUploads(session.user.id, filter, page);
+  const [tDocumentType, tMyUploads, tModeration, tCommon, tUpload] = await Promise.all([
+    getTranslations("documentType"),
+    getTranslations("myUploads"),
+    getTranslations("moderation"),
+    getTranslations("common"),
+    getTranslations("upload"),
+  ]);
+  const FILTER_LABELS: Record<TeacherUploadStatusFilter, string> = {
+    ALL: tMyUploads("all"),
+    PENDING: tModeration("status.pending"),
+    APPROVED: tModeration("status.approved"),
+    REJECTED: tModeration("status.rejected"),
+  };
+  const EMPTY_MESSAGES: Record<TeacherUploadStatusFilter, string> = {
+    ALL: tMyUploads("emptyAll"),
+    PENDING: tModeration("emptyPending"),
+    APPROVED: tMyUploads("emptyApproved"),
+    REJECTED: tMyUploads("emptyRejected"),
+  };
 
   return (
     <div className="mx-auto max-w-3xl px-5 py-8 sm:py-10">
-      <h1 className="font-display text-2xl font-semibold tracking-tight">My uploads</h1>
-      <p className="mt-1 text-sm text-muted">Track the review status of documents you have uploaded.</p>
+      <h1 className="font-display text-2xl font-semibold tracking-tight">{tMyUploads("heading")}</h1>
+      <p className="mt-1 text-sm text-muted">{tMyUploads("subtitle")}</p>
 
-      <nav aria-label="Upload status" className="mt-6 flex flex-wrap gap-2">
+      <nav aria-label={tMyUploads("statusNav")} className="mt-6 flex flex-wrap gap-2">
         {FILTER_VALUES.map((f) => (
           <Link
             key={f}
@@ -102,9 +110,7 @@ export default async function MyUploadsPage({ searchParams }: MyUploadsPageProps
         ))}
       </nav>
 
-      <p className="mt-4 text-sm text-muted">
-        {result.total} {result.total === 1 ? "document" : "documents"}
-      </p>
+      <p className="mt-4 text-sm text-muted">{tCommon("documentCount", { count: result.total })}</p>
 
       {result.documents.length > 0 ? (
         <>
@@ -130,7 +136,7 @@ export default async function MyUploadsPage({ searchParams }: MyUploadsPageProps
                             <ModerationStatusBadge status={doc.moderationStatus} />
                           </div>
                           <p className="mt-1 truncate text-sm text-muted">
-                            {taxonomy || DOCUMENT_TYPE_LABELS[doc.documentType as DocumentTypeValue]}
+                            {taxonomy || tDocumentType(documentTypeMessageKey(doc.documentType as DocumentTypeValue))}
                           </p>
                           <p className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted">
                             {[doc.fileCategory, fileSize].filter(Boolean).length > 0 ? (
@@ -138,7 +144,9 @@ export default async function MyUploadsPage({ searchParams }: MyUploadsPageProps
                             ) : null}
                             <span className="inline-flex items-center gap-1">
                               <CalendarDays className="h-3.5 w-3.5" aria-hidden />
-                              {doc.reviewedAt ? `Reviewed ${formatDate(doc.reviewedAt)}` : `Uploaded ${formatDate(doc.createdAt)}`}
+                              {doc.reviewedAt
+                                ? tModeration("reviewedOn", { date: formatDate(doc.reviewedAt) })
+                                : tModeration("uploadedOn", { date: formatDate(doc.createdAt) })}
                             </span>
                           </p>
                         </div>
@@ -146,13 +154,13 @@ export default async function MyUploadsPage({ searchParams }: MyUploadsPageProps
                           href={`/documents/${doc.id}?from=my-uploads`}
                           className={cn(buttonVariants({ variant: "outline", size: "sm" }), "shrink-0")}
                         >
-                          View
+                          {tMyUploads("view")}
                         </Link>
                       </div>
 
                       {isRejected && doc.rejectionReason ? (
                         <div className="rounded-lg border border-destructive-soft bg-destructive-soft p-3">
-                          <p className="text-xs font-medium uppercase tracking-wide text-destructive">Reason</p>
+                          <p className="text-xs font-medium uppercase tracking-wide text-destructive">{tModeration("reasonLabel")}</p>
                           <p className="mt-1 text-sm text-ink">{doc.rejectionReason}</p>
                         </div>
                       ) : null}
@@ -170,7 +178,7 @@ export default async function MyUploadsPage({ searchParams }: MyUploadsPageProps
           </ul>
 
           {result.totalPages > 1 ? (
-            <nav aria-label="Pagination" className="mt-8 flex flex-wrap items-center justify-center gap-2">
+            <nav aria-label={tCommon("pagination")} className="mt-8 flex flex-wrap items-center justify-center gap-2">
               <Link
                 href={pageHref(filter, page - 1)}
                 aria-disabled={page <= 1}
@@ -179,7 +187,7 @@ export default async function MyUploadsPage({ searchParams }: MyUploadsPageProps
                   page <= 1 ? "pointer-events-none border-line text-muted/50" : "border-line text-ink hover:border-ink/25"
                 }`}
               >
-                Previous
+                {tCommon("previous")}
               </Link>
 
               {Array.from({ length: result.totalPages }, (_, index) => index + 1).map((pageNumber) => (
@@ -207,7 +215,7 @@ export default async function MyUploadsPage({ searchParams }: MyUploadsPageProps
                     : "border-line text-ink hover:border-ink/25"
                 }`}
               >
-                Next
+                {tCommon("next")}
               </Link>
             </nav>
           ) : null}
@@ -220,7 +228,7 @@ export default async function MyUploadsPage({ searchParams }: MyUploadsPageProps
               href="/upload"
               className="mt-5 inline-flex h-10 items-center rounded-xl bg-accent px-4 text-sm font-medium text-paper transition-colors hover:bg-accent-strong"
             >
-              Upload document
+              {tUpload("heading")}
             </Link>
           ) : null}
         </div>

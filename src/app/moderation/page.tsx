@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { getTranslations } from "next-intl/server";
 import { CalendarDays, User } from "lucide-react";
 import type { DocumentModerationStatus } from "@prisma/client";
 import { ModerationStatusBadge } from "@/components/moderation/ModerationStatusBadge";
@@ -14,15 +15,10 @@ type ModerationPageProps = {
 };
 
 const STATUS_VALUES: DocumentModerationStatus[] = ["PENDING", "APPROVED", "REJECTED"];
-const STATUS_LABELS: Record<DocumentModerationStatus, string> = {
-  PENDING: "Pending",
-  APPROVED: "Approved",
-  REJECTED: "Rejected",
-};
-const EMPTY_MESSAGES: Record<DocumentModerationStatus, string> = {
-  PENDING: "No documents are waiting for review.",
-  APPROVED: "No approved moderation records yet.",
-  REJECTED: "No rejected moderation records yet.",
+const STATUS_MESSAGE_KEY: Record<DocumentModerationStatus, "pending" | "approved" | "rejected"> = {
+  PENDING: "pending",
+  APPROVED: "approved",
+  REJECTED: "rejected",
 };
 
 function parseStatus(value: string | undefined): DocumentModerationStatus {
@@ -70,13 +66,19 @@ export default async function ModerationPage({ searchParams }: ModerationPagePro
   const page = parsePage(rawPage);
 
   const result = await listModerationDocuments(status, page);
+  const [tModeration, tCommon] = await Promise.all([getTranslations("moderation"), getTranslations("common")]);
+  const EMPTY_MESSAGES: Record<DocumentModerationStatus, string> = {
+    PENDING: tModeration("emptyPending"),
+    APPROVED: tModeration("emptyApproved"),
+    REJECTED: tModeration("emptyRejected"),
+  };
 
   return (
     <div className="mx-auto max-w-3xl px-5 py-8 sm:py-10">
-      <h1 className="font-display text-2xl font-semibold tracking-tight">Moderation</h1>
-      <p className="mt-1 text-sm text-muted">Review teacher-uploaded documents before they become public.</p>
+      <h1 className="font-display text-2xl font-semibold tracking-tight">{tModeration("heading")}</h1>
+      <p className="mt-1 text-sm text-muted">{tModeration("subtitle")}</p>
 
-      <nav aria-label="Moderation status" className="mt-6 flex flex-wrap gap-2">
+      <nav aria-label={tModeration("statusNav")} className="mt-6 flex flex-wrap gap-2">
         {STATUS_VALUES.map((s) => (
           <Link
             key={s}
@@ -91,14 +93,12 @@ export default async function ModerationPage({ searchParams }: ModerationPagePro
               className="h-1.5 w-1.5 shrink-0 rounded-full"
               style={{ backgroundColor: s === status ? "currentColor" : MODERATION_STATUS_COLOR[s] }}
             />
-            {STATUS_LABELS[s]}
+            {tModeration(`status.${STATUS_MESSAGE_KEY[s]}`)}
           </Link>
         ))}
       </nav>
 
-      <p className="mt-4 text-sm text-muted">
-        {result.total} {result.total === 1 ? "document" : "documents"}
-      </p>
+      <p className="mt-4 text-sm text-muted">{tCommon("documentCount", { count: result.total })}</p>
 
       {result.documents.length > 0 ? (
         <>
@@ -108,8 +108,8 @@ export default async function ModerationPage({ searchParams }: ModerationPagePro
               const fileSize = formatFileSize(doc.fileSize);
               const timestampLabel =
                 status === "PENDING" || !doc.reviewedAt
-                  ? `Uploaded ${formatDate(doc.createdAt)}`
-                  : `Reviewed ${formatDate(doc.reviewedAt)}`;
+                  ? tModeration("uploadedOn", { date: formatDate(doc.createdAt) })
+                  : tModeration("reviewedOn", { date: formatDate(doc.reviewedAt) });
 
               return (
                 <li key={doc.id}>
@@ -129,7 +129,9 @@ export default async function ModerationPage({ searchParams }: ModerationPagePro
                           <span className="inline-flex min-w-0 items-center gap-1">
                             <User className="h-3.5 w-3.5 shrink-0" aria-hidden />
                             <span className="truncate">
-                              {doc.uploadedBy ? `${doc.uploadedBy.name} (${doc.uploadedBy.role})` : "Unknown uploader"}
+                              {doc.uploadedBy
+                                ? `${doc.uploadedBy.name} (${doc.uploadedBy.role})`
+                                : tModeration("unknownUploader")}
                             </span>
                           </span>
                           {taxonomy ? <span className="truncate">{taxonomy}</span> : null}
@@ -145,7 +147,7 @@ export default async function ModerationPage({ searchParams }: ModerationPagePro
                         </p>
                       </div>
                       <Link href={`/moderation/${doc.id}`} className={cn(buttonVariants({ variant: "outline", size: "sm" }), "shrink-0")}>
-                        Review
+                        {tModeration("review")}
                       </Link>
                     </div>
                   </Card>
@@ -155,7 +157,7 @@ export default async function ModerationPage({ searchParams }: ModerationPagePro
           </ul>
 
           {result.totalPages > 1 ? (
-            <nav aria-label="Pagination" className="mt-8 flex flex-wrap items-center justify-center gap-2">
+            <nav aria-label={tCommon("pagination")} className="mt-8 flex flex-wrap items-center justify-center gap-2">
               <Link
                 href={pageHref(status, page - 1)}
                 aria-disabled={page <= 1}
@@ -164,7 +166,7 @@ export default async function ModerationPage({ searchParams }: ModerationPagePro
                   page <= 1 ? "pointer-events-none border-line text-muted/50" : "border-line text-ink hover:border-ink/25"
                 }`}
               >
-                Previous
+                {tCommon("previous")}
               </Link>
 
               {Array.from({ length: result.totalPages }, (_, index) => index + 1).map((pageNumber) => (
@@ -192,7 +194,7 @@ export default async function ModerationPage({ searchParams }: ModerationPagePro
                     : "border-line text-ink hover:border-ink/25"
                 }`}
               >
-                Next
+                {tCommon("next")}
               </Link>
             </nav>
           ) : null}

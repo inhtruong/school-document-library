@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useTranslations } from "next-intl";
 import { Button } from "@/components/ui/button";
 import { COMMENT_MAX_LENGTH } from "@/lib/documents/comment-config";
 
@@ -16,6 +17,7 @@ export const commentTextareaClassName =
 export function CommentForm({ onSubmit }: CommentFormProps) {
   const [content, setContent] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const tComments = useTranslations("comments");
 
   const trimmedLength = content.trim().length;
   const canSubmit = trimmedLength > 0 && content.length <= COMMENT_MAX_LENGTH && !submitting;
@@ -33,13 +35,13 @@ export function CommentForm({ onSubmit }: CommentFormProps) {
   return (
     <form onSubmit={handleSubmit} className="flex flex-col gap-2">
       <label htmlFor="new-comment" className="sr-only">
-        Write a comment
+        {tComments("writeComment")}
       </label>
       <textarea
         id="new-comment"
         value={content}
         onChange={(event) => setContent(event.target.value)}
-        placeholder="Write a comment..."
+        placeholder={tComments("placeholder")}
         rows={3}
         disabled={submitting}
         className={commentTextareaClassName}
@@ -49,7 +51,7 @@ export function CommentForm({ onSubmit }: CommentFormProps) {
           {content.length}/{COMMENT_MAX_LENGTH}
         </span>
         <Button type="submit" size="sm" disabled={!canSubmit}>
-          {submitting ? "Posting…" : "Post comment"}
+          {submitting ? tComments("posting") : tComments("postComment")}
         </Button>
       </div>
     </form>

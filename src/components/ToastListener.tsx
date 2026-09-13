@@ -1,9 +1,10 @@
 "use client";
 
 import { useEffect } from "react";
+import { useTranslations } from "next-intl";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
-import { resolveFeedback } from "@/lib/toast-messages";
+import { TOAST_KEYS, resolveFeedback, type ToastMessages } from "@/lib/toast-messages";
 
 /**
  * Mounted once in the root layout. Server actions communicate feedback by
@@ -22,13 +23,22 @@ export default function ToastListener() {
   const pathname = usePathname();
   const router = useRouter();
   const paramsString = searchParams.toString();
+  const t = useTranslations("toast");
+  const messages: ToastMessages = {
+    [TOAST_KEYS.accountCreated]: t("accountCreated"),
+    [TOAST_KEYS.loggedIn]: t("loggedIn"),
+    [TOAST_KEYS.loggedOut]: t("loggedOut"),
+    [TOAST_KEYS.uploadSuccess]: t("uploadSuccess"),
+    [TOAST_KEYS.uploadPendingReview]: t("uploadPendingReview"),
+    [TOAST_KEYS.passwordChanged]: t("passwordChanged"),
+  };
 
   useEffect(() => {
     const toastKey = searchParams.get("toast");
     const errorText = searchParams.get("error");
     const notify = searchParams.get("notify");
 
-    const actions = resolveFeedback({ toast: toastKey, error: errorText, notify });
+    const actions = resolveFeedback({ toast: toastKey, error: errorText, notify }, messages);
     for (const action of actions) {
       if (action.variant === "warning") toast.warning(action.message);
       else if (action.variant === "error") toast.error(action.message);

@@ -14,11 +14,7 @@ export const DOCUMENT_TYPE_VALUES = [
 
 export type DocumentTypeValue = (typeof DOCUMENT_TYPE_VALUES)[number];
 
-export const DOCUMENT_TYPE_LABELS: Record<DocumentTypeValue, string> = {
-  LECTURE: "Lecture",
-  EXERCISE: "Exercise",
-  EXAM: "Exam",
-  ANSWER: "Answer key",
-  REFERENCE: "Reference",
-  OTHER: "Other",
-};
+/** FEAT-13: the actual label text now lives in the locale message files (`documentType.*` — see src/i18n/messages/*.json). Maps a value to its message key, e.g. "ANSWER" -> "answer" (whose text is "Answer key"/"Đáp án", not literally the key name). */
+export function documentTypeMessageKey(value: DocumentTypeValue): Lowercase<DocumentTypeValue> {
+  return value.toLowerCase() as Lowercase<DocumentTypeValue>;
+}

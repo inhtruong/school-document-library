@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
 import { Suspense } from "react";
+import { NextIntlClientProvider } from "next-intl";
+import { getLocale, getMessages, getTranslations } from "next-intl/server";
 import { Be_Vietnam_Pro, JetBrains_Mono } from "next/font/google";
 import SiteFooter from "@/components/SiteFooter";
 import SiteHeader from "@/components/SiteHeader";
@@ -25,25 +27,39 @@ const mono = JetBrains_Mono({
   display: "swap",
 });
 
-export const metadata: Metadata = {
-  title: "Stacks — School document library",
-  description:
-    "Search lecture notes, past exams, assignments and cheatsheets from your courses.",
-};
+/**
+ * FEAT-13: was a static `export const metadata` — now `generateMetadata`
+ * (the async form Next.js supports for exactly this) so the title/
+ * description can be resolved per-request from the current locale. No
+ * other page defines its own `metadata`/`generateMetadata`, so this is the
+ * only place that needed to change.
+ */
+export async function generateMetadata(): Promise<Metadata> {
+  const t = await getTranslations("metadata");
+  return {
+    title: t("title"),
+    description: t("description"),
+  };
+}
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
+  const locale = await getLocale();
+  const messages = await getMessages();
+
   return (
-    <html lang="en" className={`${beVietnamPro.variable} ${mono.variable}`}>
+    <html lang={locale} className={`${beVietnamPro.variable} ${mono.variable}`}>
       <body className="flex min-h-screen flex-col">
-        <Suspense fallback={null}>
-          <ToastListener />
-        </Suspense>
-        <SiteHeader />
-        <main className="flex-1">{children}</main>
-        <SiteFooter />
-        <Toaster />
+        <NextIntlClientProvider locale={locale} messages={messages}>
+          <Suspense fallback={null}>
+            <ToastListener />
+          </Suspense>
+          <SiteHeader />
+          <main className="flex-1">{children}</main>
+          <SiteFooter />
+          <Toaster />
+        </NextIntlClientProvider>
       </body>
     </html>
   );

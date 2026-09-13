@@ -2,6 +2,7 @@
 
 import { useState, type DragEvent } from "react";
 import { FileText, Upload } from "lucide-react";
+import { useTranslations } from "next-intl";
 import { cn } from "@/lib/utils";
 
 type FileDropzoneProps = {
@@ -32,6 +33,7 @@ function formatFileSize(bytes: number): string {
 export function FileDropzone({ id, name, accept, required, acceptedFormatsLabel, maxSizeMB }: FileDropzoneProps) {
   const [file, setFile] = useState<{ name: string; size: number } | null>(null);
   const [isDragOver, setIsDragOver] = useState(false);
+  const tUpload = useTranslations("upload");
 
   function handleDrag(event: DragEvent<HTMLDivElement>, over: boolean) {
     event.preventDefault();
@@ -40,7 +42,7 @@ export function FileDropzone({ id, name, accept, required, acceptedFormatsLabel,
 
   return (
     <div className="flex flex-col gap-1.5">
-      <span className="text-sm font-medium text-ink">Document file</span>
+      <span className="text-sm font-medium text-ink">{tUpload("documentFile")}</span>
       <div
         onDragEnter={(event) => handleDrag(event, true)}
         onDragOver={(event) => handleDrag(event, true)}
@@ -57,7 +59,7 @@ export function FileDropzone({ id, name, accept, required, acceptedFormatsLabel,
           type="file"
           accept={accept}
           required={required}
-          aria-label="Document file"
+          aria-label={tUpload("documentFile")}
           onChange={(event) => {
             const selected = event.target.files?.[0];
             setFile(selected ? { name: selected.name, size: selected.size } : null);
@@ -69,14 +71,16 @@ export function FileDropzone({ id, name, accept, required, acceptedFormatsLabel,
           <>
             <FileText className="h-6 w-6 text-accent" aria-hidden />
             <p className="max-w-full truncate text-sm font-medium text-ink">{file.name}</p>
-            <p className="text-xs text-muted">{formatFileSize(file.size)} · Click to change file</p>
+            <p className="text-xs text-muted">
+              {formatFileSize(file.size)} · {tUpload("clickToChange")}
+            </p>
           </>
         ) : (
           <>
             <Upload className="h-6 w-6 text-muted" aria-hidden />
-            <p className="text-sm font-medium text-ink">Drag a file here, or click to browse</p>
+            <p className="text-sm font-medium text-ink">{tUpload("dragDropText")}</p>
             <p className="text-xs text-muted">
-              {acceptedFormatsLabel} · up to {maxSizeMB} MB
+              {acceptedFormatsLabel} · {tUpload("upToSize", { size: maxSizeMB })}
             </p>
           </>
         )}

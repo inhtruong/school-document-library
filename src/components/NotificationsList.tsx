@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { BellOff, CheckCheck } from "lucide-react";
+import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 import { NotificationItem } from "@/components/NotificationItem";
 import { Button } from "@/components/ui/button";
@@ -27,6 +28,8 @@ export function NotificationsList({ initialNotifications, initialUnreadCount }: 
   const [notifications, setNotifications] = useState(initialNotifications);
   const [unreadCount, setUnreadCount] = useState(initialUnreadCount);
   const [markingAll, setMarkingAll] = useState(false);
+  const tNotifications = useTranslations("notifications");
+  const tToast = useTranslations("toast");
 
   function handleItemRead(id: string) {
     setNotifications((prev) =>
@@ -54,7 +57,7 @@ export function NotificationsList({ initialNotifications, initialUnreadCount }: 
       );
       setUnreadCount(0);
       router.refresh();
-      toast.success("All notifications marked as read");
+      toast.success(tToast("notificationsMarkedAllRead"));
     } catch {
       toast.error("Unable to update notifications");
     } finally {
@@ -66,10 +69,7 @@ export function NotificationsList({ initialNotifications, initialUnreadCount }: 
     return (
       <div className="mt-6 flex flex-col items-center gap-2 rounded-xl border border-dashed border-line bg-surface p-10 text-center">
         <BellOff className="h-5 w-5 text-muted" aria-hidden />
-        <p className="text-sm text-muted">
-          You don&apos;t have any notifications yet. Follow a teacher or lesson to get notified about new
-          documents.
-        </p>
+        <p className="text-sm text-muted">{tNotifications("emptyTitle")}</p>
       </div>
     );
   }
@@ -80,7 +80,7 @@ export function NotificationsList({ initialNotifications, initialUnreadCount }: 
         <div className="mb-3 flex justify-end">
           <Button type="button" variant="outline" size="sm" disabled={markingAll} onClick={handleMarkAllRead}>
             <CheckCheck className="h-4 w-4" aria-hidden />
-            Mark all as read
+            {tNotifications("markAllAsRead")}
           </Button>
         </div>
       ) : null}

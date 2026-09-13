@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { getTranslations } from "next-intl/server";
 import { redirect } from "next/navigation";
 import { auth } from "@/auth";
 import { FollowedLessonsList } from "@/components/FollowedLessonsList";
@@ -41,31 +42,30 @@ export default async function FollowingPage({ searchParams }: FollowingPageProps
     listFollowedTeachers(session.user.id, teachersPage),
     listFollowedLessons(session.user.id, lessonsPage),
   ]);
+  const [tFollowing, tCommon] = await Promise.all([getTranslations("following"), getTranslations("common")]);
 
   return (
     <div className="mx-auto max-w-3xl px-5 py-8 sm:py-10">
-      <h1 className="font-display text-xl font-semibold tracking-tight sm:text-2xl">Following</h1>
+      <h1 className="font-display text-xl font-semibold tracking-tight sm:text-2xl">{tFollowing("heading")}</h1>
 
       <section className="mt-8">
-        <h2 className="font-display text-lg font-semibold tracking-tight">Teachers</h2>
-        <p className="mt-0.5 text-sm text-muted">
-          {teachersResult.total} {teachersResult.total === 1 ? "teacher" : "teachers"}
-        </p>
+        <h2 className="font-display text-lg font-semibold tracking-tight">{tFollowing("teachers")}</h2>
+        <p className="mt-0.5 text-sm text-muted">{tFollowing("teacherCount", { count: teachersResult.total })}</p>
         <div className="mt-4">
           <FollowedTeachersList initialTeachers={teachersResult.teachers} />
         </div>
         {teachersResult.totalPages > 1 ? (
-          <nav aria-label="Teachers pagination" className="mt-4 flex items-center justify-center gap-2">
+          <nav aria-label={tFollowing("teachersPagination")} className="mt-4 flex items-center justify-center gap-2">
             <Link
               href={hrefFor(teachersPage - 1, lessonsPage)}
               aria-disabled={teachersPage <= 1}
               tabIndex={teachersPage <= 1 ? -1 : undefined}
               className={`${paginationLinkClassName} ${teachersPage <= 1 ? paginationDisabledClassName : ""}`}
             >
-              Previous
+              {tCommon("previous")}
             </Link>
             <span className="text-xs text-muted">
-              Page {teachersPage} of {teachersResult.totalPages}
+              {tCommon("pageOf", { page: teachersPage, total: teachersResult.totalPages })}
             </span>
             <Link
               href={hrefFor(teachersPage + 1, lessonsPage)}
@@ -75,32 +75,30 @@ export default async function FollowingPage({ searchParams }: FollowingPageProps
                 teachersPage >= teachersResult.totalPages ? paginationDisabledClassName : ""
               }`}
             >
-              Next
+              {tCommon("next")}
             </Link>
           </nav>
         ) : null}
       </section>
 
       <section className="mt-10 border-t border-line pt-8">
-        <h2 className="font-display text-lg font-semibold tracking-tight">Lessons</h2>
-        <p className="mt-0.5 text-sm text-muted">
-          {lessonsResult.total} {lessonsResult.total === 1 ? "lesson" : "lessons"}
-        </p>
+        <h2 className="font-display text-lg font-semibold tracking-tight">{tFollowing("lessons")}</h2>
+        <p className="mt-0.5 text-sm text-muted">{tFollowing("lessonCount", { count: lessonsResult.total })}</p>
         <div className="mt-4">
           <FollowedLessonsList initialLessons={lessonsResult.lessons} />
         </div>
         {lessonsResult.totalPages > 1 ? (
-          <nav aria-label="Lessons pagination" className="mt-4 flex items-center justify-center gap-2">
+          <nav aria-label={tFollowing("lessonsPagination")} className="mt-4 flex items-center justify-center gap-2">
             <Link
               href={hrefFor(teachersPage, lessonsPage - 1)}
               aria-disabled={lessonsPage <= 1}
               tabIndex={lessonsPage <= 1 ? -1 : undefined}
               className={`${paginationLinkClassName} ${lessonsPage <= 1 ? paginationDisabledClassName : ""}`}
             >
-              Previous
+              {tCommon("previous")}
             </Link>
             <span className="text-xs text-muted">
-              Page {lessonsPage} of {lessonsResult.totalPages}
+              {tCommon("pageOf", { page: lessonsPage, total: lessonsResult.totalPages })}
             </span>
             <Link
               href={hrefFor(teachersPage, lessonsPage + 1)}
@@ -110,7 +108,7 @@ export default async function FollowingPage({ searchParams }: FollowingPageProps
                 lessonsPage >= lessonsResult.totalPages ? paginationDisabledClassName : ""
               }`}
             >
-              Next
+              {tCommon("next")}
             </Link>
           </nav>
         ) : null}

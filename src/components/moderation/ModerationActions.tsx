@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, type FormEvent } from "react";
+import { useTranslations } from "next-intl";
 import { useRouter } from "next/navigation";
 import { Check, X } from "lucide-react";
 import { toast } from "sonner";
@@ -33,6 +34,9 @@ type ModerationActionsProps = {
  */
 export function ModerationActions({ documentId, documentTitle }: ModerationActionsProps) {
   const router = useRouter();
+  const tModeration = useTranslations("moderation");
+  const tActions = useTranslations("actions");
+  const tToast = useTranslations("toast");
   const [approveOpen, setApproveOpen] = useState(false);
   const [rejectOpen, setRejectOpen] = useState(false);
   const [reason, setReason] = useState("");
@@ -47,7 +51,7 @@ export function ModerationActions({ documentId, documentTitle }: ModerationActio
       if (!response.ok || !body.success) throw new Error(body.error ?? "Failed to approve document");
 
       setApproveOpen(false);
-      toast.success("Document approved — it is now publicly visible");
+      toast.success(tToast("documentApproved"));
       router.refresh();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Failed to approve document");
@@ -77,7 +81,7 @@ export function ModerationActions({ documentId, documentTitle }: ModerationActio
 
       setRejectOpen(false);
       setReason("");
-      toast.success("Document rejected");
+      toast.success(tToast("documentRejected"));
       router.refresh();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Failed to reject document");
@@ -92,24 +96,24 @@ export function ModerationActions({ documentId, documentTitle }: ModerationActio
         <DialogTrigger asChild>
           <Button type="button" className="w-full sm:w-auto">
             <Check className="h-4 w-4" aria-hidden />
-            Approve
+            {tActions("approve")}
           </Button>
         </DialogTrigger>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Approve document?</DialogTitle>
+            <DialogTitle>{tModeration("approveDialogTitle")}</DialogTitle>
             <DialogDescription>
-              &ldquo;{documentTitle}&rdquo; will become publicly visible immediately.
+              {tModeration("approveDialogDescription", { title: documentTitle })}
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
             <DialogClose asChild>
               <Button type="button" variant="outline" disabled={submitting}>
-                Cancel
+                {tActions("cancel")}
               </Button>
             </DialogClose>
             <Button type="button" onClick={handleApprove} disabled={submitting}>
-              {submitting ? "Approving…" : "Approve"}
+              {submitting ? tModeration("approving") : tActions("approve")}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -132,18 +136,18 @@ export function ModerationActions({ documentId, documentTitle }: ModerationActio
             className="w-full text-destructive hover:bg-destructive-soft sm:w-auto"
           >
             <X className="h-4 w-4" aria-hidden />
-            Reject
+            {tActions("reject")}
           </Button>
         </DialogTrigger>
         <DialogContent>
           <form onSubmit={handleReject}>
             <DialogHeader>
-              <DialogTitle>Reject document</DialogTitle>
-              <DialogDescription>Explain why &ldquo;{documentTitle}&rdquo; is being rejected.</DialogDescription>
+              <DialogTitle>{tModeration("rejectDialogTitle")}</DialogTitle>
+              <DialogDescription>{tModeration("rejectDialogDescription", { title: documentTitle })}</DialogDescription>
             </DialogHeader>
             <div className="mt-4">
               <label htmlFor="rejection-reason" className="text-sm font-medium text-ink">
-                Reason
+                {tModeration("reasonLabel")}
               </label>
               <textarea
                 id="rejection-reason"
@@ -154,7 +158,7 @@ export function ModerationActions({ documentId, documentTitle }: ModerationActio
                 }}
                 maxLength={REJECTION_REASON_MAX_LENGTH}
                 rows={4}
-                placeholder="e.g. Wrong grade/subject, unreadable scan, duplicate upload"
+                placeholder={tModeration("reasonPlaceholder")}
                 disabled={submitting}
                 aria-invalid={reasonError ? true : undefined}
                 aria-describedby={reasonError ? "rejection-reason-error" : undefined}
@@ -169,7 +173,7 @@ export function ModerationActions({ documentId, documentTitle }: ModerationActio
             <DialogFooter className="mt-4">
               <DialogClose asChild>
                 <Button type="button" variant="outline" disabled={submitting}>
-                  Cancel
+                  {tActions("cancel")}
                 </Button>
               </DialogClose>
               <Button
@@ -178,7 +182,7 @@ export function ModerationActions({ documentId, documentTitle }: ModerationActio
                 className="text-destructive hover:bg-destructive-soft"
                 disabled={submitting || reason.trim().length === 0}
               >
-                {submitting ? "Rejecting…" : "Reject"}
+                {submitting ? tModeration("rejecting") : tActions("reject")}
               </Button>
             </DialogFooter>
           </form>

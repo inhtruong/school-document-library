@@ -15,17 +15,11 @@ export const TOAST_KEYS = {
 
 export type ToastKey = (typeof TOAST_KEYS)[keyof typeof TOAST_KEYS];
 
-export const TOAST_MESSAGES: Record<ToastKey, string> = {
-  [TOAST_KEYS.accountCreated]: "Account created successfully",
-  [TOAST_KEYS.loggedIn]: "Logged in successfully",
-  [TOAST_KEYS.loggedOut]: "Logged out successfully",
-  [TOAST_KEYS.uploadSuccess]: "Document uploaded successfully",
-  [TOAST_KEYS.uploadPendingReview]: "Document uploaded successfully and is pending review",
-  [TOAST_KEYS.passwordChanged]: "Password changed successfully. Please sign in again.",
-};
+/** FEAT-13: the actual message text now lives in the locale message files (`toast.*` — see src/i18n/messages/*.json), keyed by these same names. Kept here purely as the type this file's own functions are shaped around. */
+export type ToastMessages = Record<ToastKey, string>;
 
 export function isToastKey(value: string | null): value is ToastKey {
-  return value !== null && value in TOAST_MESSAGES;
+  return value !== null && Object.values(TOAST_KEYS).includes(value as ToastKey);
 }
 
 /** Semantic toast variants — mirrors Sonner's toast.success/warning/error calls. */
@@ -37,16 +31,24 @@ export type ResolvedFeedback = { variant: ToastVariant; message: string };
  * Pure classification of the redirect-carried feedback params into the
  * toast(s) to show. Kept side-effect free so it's unit-testable without a
  * DOM; `ToastListener` calls this and dispatches to the matching Sonner API.
+ *
+ * FEAT-13: `messages` is the caller's already-resolved, already-localized
+ * lookup table (built from `useTranslations("toast")` in ToastListener) —
+ * this function stays locale-agnostic and pure, exactly like before, just
+ * with the text source now injected instead of a hardcoded module constant.
  */
-export function resolveFeedback(params: {
-  toast: string | null;
-  error: string | null;
-  notify: string | null;
-}): ResolvedFeedback[] {
+export function resolveFeedback(
+  params: {
+    toast: string | null;
+    error: string | null;
+    notify: string | null;
+  },
+  messages: ToastMessages
+): ResolvedFeedback[] {
   const actions: ResolvedFeedback[] = [];
 
   if (isToastKey(params.toast)) {
-    actions.push({ variant: "success", message: TOAST_MESSAGES[params.toast] });
+    actions.push({ variant: "success", message: messages[params.toast] });
   }
   if (params.error && params.notify) {
     actions.push({ variant: "error", message: params.error });

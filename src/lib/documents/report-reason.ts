@@ -16,12 +16,16 @@ export const REPORT_REASON_VALUES = [
 
 export type ReportReasonValue = (typeof REPORT_REASON_VALUES)[number];
 
-export const REPORT_REASON_LABELS: Record<ReportReasonValue, string> = {
-  BROKEN_FILE: "Broken file",
-  WRONG_CONTENT: "Wrong content",
-  WRONG_TAXONOMY: "Wrong grade/subject/lesson",
-  PREVIEW_ISSUE: "Preview issue",
-  DUPLICATE_DOCUMENT: "Duplicate document",
-  COPYRIGHT: "Copyright issue",
-  OTHER: "Other",
-};
+const REPORT_REASON_MESSAGE_KEYS = {
+  BROKEN_FILE: "brokenFile",
+  WRONG_CONTENT: "wrongContent",
+  WRONG_TAXONOMY: "wrongTaxonomy",
+  PREVIEW_ISSUE: "previewIssue",
+  DUPLICATE_DOCUMENT: "duplicateDocument",
+  COPYRIGHT: "copyright",
+  OTHER: "other",
+} as const satisfies Record<ReportReasonValue, string>;
+
+export function reportReasonMessageKey(value: ReportReasonValue): (typeof REPORT_REASON_MESSAGE_KEYS)[ReportReasonValue] {
+  return REPORT_REASON_MESSAGE_KEYS[value];
+}

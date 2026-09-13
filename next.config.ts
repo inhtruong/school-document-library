@@ -1,4 +1,5 @@
 import type { NextConfig } from "next";
+import createNextIntlPlugin from "next-intl/plugin";
 import { MAX_UPLOAD_SIZE_MB } from "@/lib/documents/upload-config";
 // env-core.ts, not "@/lib/env" — the guarded wrapper imports "server-only",
 // which this loading context can't tolerate. See env-core.ts's top comment.
@@ -31,4 +32,10 @@ const nextConfig: NextConfig = {
   },
 };
 
-export default nextConfig;
+// FEAT-13: wires next-intl's request config (src/i18n/request.ts) into the
+// build. Deliberately NOT next-intl's routing plugin/middleware — this app
+// uses cookie-based locale resolution with no locale-prefixed URLs, so the
+// plugin's only job here is registering the request-config path.
+const withNextIntl = createNextIntlPlugin("./src/i18n/request.ts");
+
+export default withNextIntl(nextConfig);

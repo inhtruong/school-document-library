@@ -1,6 +1,8 @@
 import Link from "next/link";
+import { getLocale, getTranslations } from "next-intl/server";
 import { auth } from "@/auth";
 import { AccountMenu } from "@/components/AccountMenu";
+import { LanguageSwitcher } from "@/components/LanguageSwitcher";
 import { MobileMenu } from "@/components/MobileMenu";
 import { NotificationBell } from "@/components/NotificationBell";
 import { buttonVariants } from "@/components/ui/button";
@@ -27,6 +29,22 @@ export default async function SiteHeader() {
   const canModerate = session?.user ? hasRole(session, "ADMIN") : false;
   const canViewMyUploads = session?.user ? hasRole(session, "TEACHER") : false;
 
+  const locale = await getLocale();
+  const [tNav, tAuth, tLanguage] = await Promise.all([
+    getTranslations("navigation"),
+    getTranslations("auth"),
+    getTranslations("language"),
+  ]);
+  const menuLabels = {
+    saved: tNav("saved"),
+    following: tNav("following"),
+    profile: tNav("profile"),
+    myUploads: tNav("myUploads"),
+    moderation: tNav("moderation"),
+    auditLog: tNav("auditLog"),
+    logout: tAuth("logout"),
+  };
+
   return (
     <header className="sticky top-0 z-40 border-b border-line bg-paper">
       <div className="mx-auto flex max-w-5xl items-center gap-4 px-5 py-3.5">
@@ -42,23 +60,25 @@ export default async function SiteHeader() {
           <span className="flex flex-col leading-tight">
             <span className="font-display text-base font-semibold tracking-tight">Stacks</span>
             <span className="text-[10px] font-medium uppercase tracking-[0.18em] text-muted">
-              School library
+              {tNav("tagline")}
             </span>
           </span>
         </Link>
 
-        <nav aria-label="Primary" className="hidden items-center gap-1 md:flex">
+        <nav aria-label={tNav("primary")} className="hidden items-center gap-1 md:flex">
           <Link href="/search" className={navLinkClassName}>
-            Documents
+            {tNav("documents")}
           </Link>
           {canUpload ? (
             <Link href="/upload" className={navLinkClassName}>
-              Upload
+              {tNav("upload")}
             </Link>
           ) : null}
         </nav>
 
         <div className="ml-auto flex items-center gap-2">
+          <LanguageSwitcher currentLocale={locale} label={tLanguage("label")} />
+
           {session?.user && notificationsPreview ? (
             <NotificationBell
               initialNotifications={notificationsPreview.notifications.slice(0, 5)}
@@ -74,15 +94,16 @@ export default async function SiteHeader() {
                 role={session.user.role}
                 canModerate={canModerate}
                 canViewMyUploads={canViewMyUploads}
+                labels={menuLabels}
               />
             </div>
           ) : (
             <div className="hidden items-center gap-3 md:flex">
               <Link href="/login" className={navLinkClassName}>
-                Log in
+                {tAuth("login")}
               </Link>
               <Link href="/register" className={cn(buttonVariants({ size: "sm" }))}>
-                Register
+                {tAuth("register")}
               </Link>
             </div>
           )}
@@ -97,9 +118,15 @@ export default async function SiteHeader() {
                 canUpload={canUpload}
                 canModerate={canModerate}
                 canViewMyUploads={canViewMyUploads}
+                labels={{ ...menuLabels, documents: tNav("documents"), upload: tNav("upload") }}
+                openMenuLabel={tNav("openMenu")}
               />
             ) : (
-              <MobileMenu isAuthenticated={false} />
+              <MobileMenu
+                isAuthenticated={false}
+                labels={{ documents: tNav("documents"), login: tAuth("login"), register: tAuth("register") }}
+                openMenuLabel={tNav("openMenu")}
+              />
             )}
           </div>
         </div>

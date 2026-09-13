@@ -2,6 +2,7 @@
 
 import { useState, type FormEvent } from "react";
 import { Calendar, Mail, ShieldCheck, User } from "lucide-react";
+import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 import { SettingsRow, settingsGroupClassName } from "@/components/profile/settings-row";
 import { Badge } from "@/components/ui/badge";
@@ -26,6 +27,9 @@ export function ProfileForm({ initialName, email, roleLabel, memberSince }: Prof
   const [name, setName] = useState(initialName);
   const [submitting, setSubmitting] = useState(false);
   const [serverError, setServerError] = useState<string | null>(null);
+  const tAuth = useTranslations("auth");
+  const tProfile = useTranslations("profile");
+  const tToast = useTranslations("toast");
 
   const trimmedName = name.trim();
   const isEmpty = name.length > 0 && trimmedName.length === 0;
@@ -49,7 +53,7 @@ export function ProfileForm({ initialName, email, roleLabel, memberSince }: Prof
       if (!response.ok || !body.success) throw new Error(body.error ?? "Failed to update profile");
 
       setName(body.data.name);
-      toast.success("Profile updated successfully");
+      toast.success(tToast("profileUpdated"));
     } catch (err) {
       setServerError(err instanceof Error ? err.message : "Failed to update profile");
     } finally {
@@ -59,7 +63,7 @@ export function ProfileForm({ initialName, email, roleLabel, memberSince }: Prof
 
   return (
     <form onSubmit={handleSubmit} className={settingsGroupClassName}>
-      <SettingsRow icon={User} label="Name" htmlFor="profile-name">
+      <SettingsRow icon={User} label={tAuth("name")} htmlFor="profile-name">
         <Input
           id="profile-name"
           name="name"
@@ -82,23 +86,23 @@ export function ProfileForm({ initialName, email, roleLabel, memberSince }: Prof
         ) : null}
       </SettingsRow>
 
-      <SettingsRow icon={Mail} label="Email">
+      <SettingsRow icon={Mail} label={tAuth("email")}>
         <p className="text-sm text-ink">{email}</p>
       </SettingsRow>
 
-      <SettingsRow icon={ShieldCheck} label="Role">
+      <SettingsRow icon={ShieldCheck} label={tProfile("role")}>
         <Badge variant="soft" className="w-fit">
           {roleLabel}
         </Badge>
       </SettingsRow>
 
-      <SettingsRow icon={Calendar} label="Member since">
+      <SettingsRow icon={Calendar} label={tProfile("memberSince")}>
         <p className="text-sm text-ink">{memberSince}</p>
       </SettingsRow>
 
       <div className="flex justify-end px-4 py-3.5">
         <Button type="submit" disabled={!canSubmit}>
-          {submitting ? "Saving…" : "Save changes"}
+          {submitting ? tProfile("saving") : tProfile("saveChanges")}
         </Button>
       </div>
     </form>

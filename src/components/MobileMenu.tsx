@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { FileClock, FileStack, LogOut, Menu, ShieldCheck, Sparkles, Upload, User, Users } from "lucide-react";
+import { useTranslations } from "next-intl";
 import { Badge } from "@/components/ui/badge";
 import {
   DropdownMenu,
@@ -15,7 +16,12 @@ import { signOutAction } from "@/lib/auth/sign-out-action";
 import type { Role } from "@prisma/client";
 
 export type MobileMenuProps =
-  | { isAuthenticated: false }
+  | {
+      isAuthenticated: false;
+      /** FEAT-13: pre-translated labels, resolved server-side by SiteHeader. */
+      labels: { documents: string; login: string; register: string };
+      openMenuLabel: string;
+    }
   | {
       isAuthenticated: true;
       name: string;
@@ -26,6 +32,19 @@ export type MobileMenuProps =
       canModerate: boolean;
       /** TEACHER only (FEAT-10C) — server-computed by SiteHeader, same convention as canModerate. */
       canViewMyUploads: boolean;
+      /** FEAT-13: pre-translated labels, resolved server-side by SiteHeader. */
+      labels: {
+        documents: string;
+        upload: string;
+        saved: string;
+        following: string;
+        profile: string;
+        myUploads: string;
+        moderation: string;
+        auditLog: string;
+        logout: string;
+      };
+      openMenuLabel: string;
     };
 
 /**
@@ -41,11 +60,13 @@ export type MobileMenuProps =
  * item is a real ≥44px touch target).
  */
 export function MobileMenu(props: MobileMenuProps) {
+  const tRoles = useTranslations("common.roles");
+
   return (
     <DropdownMenu>
       <DropdownMenuTrigger
         className="flex h-11 w-11 items-center justify-center rounded-xl border border-line bg-card text-ink outline-none transition-colors hover:bg-surface focus-visible:ring-2 focus-visible:ring-accent"
-        aria-label="Open menu"
+        aria-label={props.openMenuLabel}
       >
         <Menu className="h-5 w-5" aria-hidden />
       </DropdownMenuTrigger>
@@ -57,7 +78,7 @@ export function MobileMenu(props: MobileMenuProps) {
               <span className="truncate text-sm font-medium text-ink">{props.name}</span>
               <span className="truncate text-xs font-normal text-muted">{props.email}</span>
               <Badge variant="soft" className="mt-1 w-fit">
-                {props.role}
+                {tRoles(props.role.toLowerCase() as "student" | "teacher" | "admin")}
               </Badge>
             </DropdownMenuLabel>
             <DropdownMenuSeparator />
@@ -65,7 +86,7 @@ export function MobileMenu(props: MobileMenuProps) {
         ) : null}
 
         <DropdownMenuItem asChild>
-          <Link href="/search">Documents</Link>
+          <Link href="/search">{props.labels.documents}</Link>
         </DropdownMenuItem>
 
         {props.isAuthenticated ? (
@@ -74,33 +95,33 @@ export function MobileMenu(props: MobileMenuProps) {
               <DropdownMenuItem asChild>
                 <Link href="/upload">
                   <Upload className="h-4 w-4 text-muted" aria-hidden />
-                  Upload document
+                  {props.labels.upload}
                 </Link>
               </DropdownMenuItem>
             ) : null}
             <DropdownMenuItem asChild>
               <Link href="/saved">
                 <Sparkles className="h-4 w-4 text-muted" aria-hidden />
-                Saved
+                {props.labels.saved}
               </Link>
             </DropdownMenuItem>
             <DropdownMenuItem asChild>
               <Link href="/following">
                 <Users className="h-4 w-4 text-muted" aria-hidden />
-                Following
+                {props.labels.following}
               </Link>
             </DropdownMenuItem>
             <DropdownMenuItem asChild>
               <Link href="/profile">
                 <User className="h-4 w-4 text-muted" aria-hidden />
-                Profile
+                {props.labels.profile}
               </Link>
             </DropdownMenuItem>
             {props.canViewMyUploads ? (
               <DropdownMenuItem asChild>
                 <Link href="/my-uploads">
                   <FileStack className="h-4 w-4 text-muted" aria-hidden />
-                  My uploads
+                  {props.labels.myUploads}
                 </Link>
               </DropdownMenuItem>
             ) : null}
@@ -108,7 +129,7 @@ export function MobileMenu(props: MobileMenuProps) {
               <DropdownMenuItem asChild>
                 <Link href="/moderation">
                   <ShieldCheck className="h-4 w-4 text-muted" aria-hidden />
-                  Moderation
+                  {props.labels.moderation}
                 </Link>
               </DropdownMenuItem>
             ) : null}
@@ -116,7 +137,7 @@ export function MobileMenu(props: MobileMenuProps) {
               <DropdownMenuItem asChild>
                 <Link href="/admin/audit-log">
                   <FileClock className="h-4 w-4 text-muted" aria-hidden />
-                  Audit log
+                  {props.labels.auditLog}
                 </Link>
               </DropdownMenuItem>
             ) : null}
@@ -130,18 +151,18 @@ export function MobileMenu(props: MobileMenuProps) {
               }}
             >
               <LogOut className="h-4 w-4" aria-hidden />
-              Log out
+              {props.labels.logout}
             </DropdownMenuItem>
           </>
         ) : (
           <>
             <DropdownMenuSeparator />
             <DropdownMenuItem asChild>
-              <Link href="/login">Log in</Link>
+              <Link href="/login">{props.labels.login}</Link>
             </DropdownMenuItem>
             <DropdownMenuItem asChild>
               <Link href="/register" className="font-medium text-accent">
-                Register
+                {props.labels.register}
               </Link>
             </DropdownMenuItem>
           </>

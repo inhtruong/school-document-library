@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { getTranslations } from "next-intl/server";
 import { notFound } from "next/navigation";
 import { auth } from "@/auth";
 import { BookmarkAction } from "@/components/BookmarkAction";
@@ -16,7 +17,7 @@ import { Card } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { isBookmarked } from "@/lib/documents/bookmark";
 import { listComments } from "@/lib/documents/comment";
-import { DOCUMENT_TYPE_LABELS } from "@/lib/documents/document-type";
+import { documentTypeMessageKey } from "@/lib/documents/document-type";
 import { getDocumentById } from "@/lib/documents/get-document";
 import { getRatingSummary } from "@/lib/documents/rating";
 import { subjectAccent } from "@/lib/documents/subject-accent";
@@ -43,10 +44,10 @@ type DocumentDetailPageProps = {
  * `?from=` on that page's own links) if another source page needs its own
  * back destination.
  */
-const BACK_DESTINATIONS: Record<string, { href: string; label: string }> = {
-  "my-uploads": { href: "/my-uploads", label: "Back to my uploads" },
+const BACK_DESTINATION_HREFS: Record<string, string> = {
+  "my-uploads": "/my-uploads",
 };
-const DEFAULT_BACK_DESTINATION = { href: "/search", label: "Back to search" };
+const DEFAULT_BACK_DESTINATION_HREF = "/search";
 
 function formatDate(value: string): string | null {
   const date = new Date(value);
@@ -67,11 +68,19 @@ export default async function DocumentDetailPage({ params, searchParams }: Docum
   const { id } = await params;
   const { from } = await searchParams;
   const [doc, session] = await Promise.all([getDocumentById(id), auth()]);
+  const [tDocumentType, tDocuments, tCommon, tModeration, tRoles] = await Promise.all([
+    getTranslations("documentType"),
+    getTranslations("documents"),
+    getTranslations("common"),
+    getTranslations("moderation"),
+    getTranslations("common.roles"),
+  ]);
 
   if (!doc) notFound();
   if (!isDocumentVisibleTo(doc, session)) notFound();
 
-  const backDestination = (from && BACK_DESTINATIONS[from]) || DEFAULT_BACK_DESTINATION;
+  const backDestinationHref = (from && BACK_DESTINATION_HREFS[from]) || DEFAULT_BACK_DESTINATION_HREF;
+  const backDestinationLabel = from && BACK_DESTINATION_HREFS[from] ? tDocuments("backToMyUploads") : tDocuments("backToSearch");
 
   const currentUserId = session?.user?.id ?? null;
   const isAuthenticated = Boolean(session?.user);
@@ -132,12 +141,12 @@ export default async function DocumentDetailPage({ params, searchParams }: Docum
 
   return (
     <div className="mx-auto max-w-5xl px-5 py-8 sm:py-10">
-      <Link href={backDestination.href} className="text-sm text-muted transition-colors hover:text-ink">
-        ← {backDestination.label}
+      <Link href={backDestinationHref} className="text-sm text-muted transition-colors hover:text-ink">
+        ← {backDestinationLabel}
       </Link>
 
       {breadcrumb.length > 0 ? (
-        <nav aria-label="Breadcrumb" className="mt-3">
+        <nav aria-label={tDocuments("breadcrumb")} className="mt-3">
           <ol className="flex flex-wrap items-center gap-x-1.5 gap-y-1 text-sm text-muted">
             {breadcrumb.map((item, index) => (
               <li key={item.href} className="flex items-center gap-1.5">
@@ -172,7 +181,7 @@ export default async function DocumentDetailPage({ params, searchParams }: Docum
               style={{ backgroundColor: subjectAccent(doc.subject) }}
             />
             <div className="min-w-0 flex-1">
-              <Badge variant="soft">{DOCUMENT_TYPE_LABELS[doc.documentType]}</Badge>
+              <Badge variant="soft">{tDocumentType(documentTypeMessageKey(doc.documentType))}</Badge>
 
               <h1 className="mt-2 font-display text-2xl font-semibold leading-tight tracking-tight text-ink sm:text-3xl">
                 {doc.title}
@@ -180,7 +189,7 @@ export default async function DocumentDetailPage({ params, searchParams }: Docum
 
               <p className="mt-2 text-sm text-muted">
                 {doc.academicYear}
-                {createdLabel ? ` · Added ${createdLabel}` : ""}
+                {createdLabel ? ` · ${tDocuments("addedOn", { date: createdLabel })}` : ""}
               </p>
 
               {doc.description ? (
@@ -205,23 +214,23 @@ export default async function DocumentDetailPage({ params, searchParams }: Docum
               />
               <div className="min-w-0 flex-1">
                 <div className="flex flex-wrap items-center gap-2">
-                  <h2 className="font-display text-sm font-semibold tracking-tight text-ink">Moderation status</h2>
+                  <h2 className="font-display text-sm font-semibold tracking-tight text-ink">{tDocuments("moderationStatus")}</h2>
                   <ModerationStatusBadge status={doc.moderationStatus} />
                 </div>
 
                 {doc.moderationStatus === "PENDING" ? (
-                  <p className="mt-2 text-sm text-muted">This document is not public yet.</p>
+                  <p className="mt-2 text-sm text-muted">{tDocuments("notPublicYet")}</p>
                 ) : null}
 
                 {doc.moderationStatus === "APPROVED" ? (
-                  <p className="mt-2 text-sm text-muted">This document is publicly available.</p>
+                  <p className="mt-2 text-sm text-muted">{tDocuments("publiclyAvailable")}</p>
                 ) : null}
 
                 {doc.moderationStatus === "REJECTED" ? (
                   <>
                     {rejectionReason ? (
                       <div className="mt-3 rounded-lg border border-destructive-soft bg-destructive-soft p-3">
-                        <p className="text-xs font-medium uppercase tracking-wide text-destructive">Reason</p>
+                        <p className="text-xs font-medium uppercase tracking-wide text-destructive">{tModeration("reasonLabel")}</p>
                         <p className="mt-1 text-sm text-ink">{rejectionReason}</p>
                       </div>
                     ) : null}
@@ -237,7 +246,7 @@ export default async function DocumentDetailPage({ params, searchParams }: Docum
           ) : null}
 
           <div className="mt-8">
-            <h2 className="font-display text-lg font-semibold tracking-tight text-ink">Preview</h2>
+            <h2 className="font-display text-lg font-semibold tracking-tight text-ink">{tCommon("preview")}</h2>
             <div className="mt-3">
               <FilePreview
                 documentId={doc.id}
@@ -259,7 +268,7 @@ export default async function DocumentDetailPage({ params, searchParams }: Docum
         <aside className="flex flex-col gap-5 lg:sticky lg:top-20 lg:self-start">
           {doc.uploadedBy ? (
             <div>
-              <p className="text-xs font-medium uppercase tracking-wide text-muted">Uploaded by</p>
+              <p className="text-xs font-medium uppercase tracking-wide text-muted">{tDocuments("uploadedBy")}</p>
               <div className="mt-2 flex items-center gap-2.5">
                 <span
                   aria-hidden
@@ -269,7 +278,9 @@ export default async function DocumentDetailPage({ params, searchParams }: Docum
                 </span>
                 <div className="min-w-0">
                   <p className="truncate text-sm font-medium text-ink">{doc.uploadedBy.name}</p>
-                  <p className="text-xs text-muted">{doc.uploadedBy.role}</p>
+                  <p className="text-xs text-muted">
+                    {tRoles(doc.uploadedBy.role.toLowerCase() as "student" | "teacher" | "admin")}
+                  </p>
                 </div>
               </div>
               {isUploaderTeacher ? (
@@ -309,7 +320,7 @@ export default async function DocumentDetailPage({ params, searchParams }: Docum
       </div>
 
       <div className="mt-10 border-t border-line pt-8">
-        <h2 className="font-display text-lg font-semibold tracking-tight text-ink">Rating</h2>
+        <h2 className="font-display text-lg font-semibold tracking-tight text-ink">{tDocuments("rating")}</h2>
         <div className="mt-3">
           <DocumentRatingSection
             documentId={doc.id}

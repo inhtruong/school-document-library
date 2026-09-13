@@ -1,11 +1,12 @@
 "use client";
 
 import { useState } from "react";
+import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { documentLoginHref } from "@/lib/auth/document-login-href";
 import { REPORT_DESCRIPTION_MAX_LENGTH } from "@/lib/documents/report-config";
-import { REPORT_REASON_LABELS, REPORT_REASON_VALUES, type ReportReasonValue } from "@/lib/documents/report-reason";
+import { REPORT_REASON_VALUES, reportReasonMessageKey, type ReportReasonValue } from "@/lib/documents/report-reason";
 
 type ReportDocumentActionProps = {
   documentId: string;
@@ -34,6 +35,12 @@ export function ReportDocumentAction({ documentId, isAuthenticated }: ReportDocu
   const [submitting, setSubmitting] = useState(false);
   const [reportedReasons, setReportedReasons] = useState<Set<ReportReasonValue>>(new Set());
   const [loadedReportedReasons, setLoadedReportedReasons] = useState(false);
+  const tReport = useTranslations("report");
+  const tReportReasons = useTranslations("report.reasons");
+  const tModeration = useTranslations("moderation");
+  const tUpload = useTranslations("upload");
+  const tActions = useTranslations("actions");
+  const tToast = useTranslations("toast");
 
   async function openForm() {
     setIsOpen(true);
@@ -79,7 +86,7 @@ export function ReportDocumentAction({ documentId, isAuthenticated }: ReportDocu
       });
 
       if (response.status === 409) {
-        toast.error("You have already reported this issue");
+        toast.error(tToast("reportAlreadySubmitted"));
         setReportedReasons((prev) => new Set(prev).add(reason));
         return;
       }
@@ -88,7 +95,7 @@ export function ReportDocumentAction({ documentId, isAuthenticated }: ReportDocu
       if (!response.ok || !body.success) throw new Error(body.error ?? "Failed to submit report");
 
       setReportedReasons((prev) => new Set(prev).add(reason));
-      toast.success("Report submitted successfully");
+      toast.success(tToast("reportSubmitted"));
       closeForm();
     } catch {
       toast.error("Unable to submit report");
@@ -100,7 +107,7 @@ export function ReportDocumentAction({ documentId, isAuthenticated }: ReportDocu
   if (!isAuthenticated) {
     return (
       <a href={documentLoginHref(documentId)} className={linkClassName}>
-        Report document
+        {tReport("reportDocument")}
       </a>
     );
   }
@@ -108,7 +115,7 @@ export function ReportDocumentAction({ documentId, isAuthenticated }: ReportDocu
   if (!isOpen) {
     return (
       <button type="button" onClick={openForm} className={linkClassName}>
-        Report document
+        {tReport("reportDocument")}
       </button>
     );
   }
@@ -119,7 +126,7 @@ export function ReportDocumentAction({ documentId, isAuthenticated }: ReportDocu
       className="mt-2 flex max-w-sm flex-col gap-2 rounded-lg border border-line bg-surface p-3"
     >
       <label htmlFor="report-reason" className="text-xs font-medium text-ink">
-        Reason
+        {tModeration("reasonLabel")}
       </label>
       <select
         id="report-reason"
@@ -129,24 +136,24 @@ export function ReportDocumentAction({ documentId, isAuthenticated }: ReportDocu
         className={selectClassName}
       >
         <option value="" disabled>
-          Select a reason
+          {tReport("selectAReason")}
         </option>
         {REPORT_REASON_VALUES.map((value) => (
           <option key={value} value={value}>
-            {REPORT_REASON_LABELS[value]}
-            {reportedReasons.has(value) ? " (already reported)" : ""}
+            {tReportReasons(reportReasonMessageKey(value))}
+            {reportedReasons.has(value) ? tReport("alreadyReported") : ""}
           </option>
         ))}
       </select>
 
       <label htmlFor="report-description" className="text-xs font-medium text-ink">
-        Description {requiresDescription ? "(required)" : "(optional)"}
+        {tReport("description")} {requiresDescription ? tReport("required") : tUpload("optional")}
       </label>
       <textarea
         id="report-description"
         value={description}
         onChange={(event) => setDescription(event.target.value)}
-        placeholder="Describe the problem..."
+        placeholder={tReport("descriptionPlaceholder")}
         rows={3}
         disabled={submitting}
         className={textareaClassName}
@@ -157,10 +164,10 @@ export function ReportDocumentAction({ documentId, isAuthenticated }: ReportDocu
 
       <div className="flex justify-end gap-2">
         <Button type="button" variant="ghost" size="sm" disabled={submitting} onClick={closeForm}>
-          Cancel
+          {tActions("cancel")}
         </Button>
         <Button type="submit" size="sm" disabled={!canSubmit}>
-          {submitting ? "Submitting…" : "Submit report"}
+          {submitting ? tReport("submitting") : tReport("submitReport")}
         </Button>
       </div>
     </form>

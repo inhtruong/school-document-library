@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { DOCUMENT_TYPE_LABELS, DOCUMENT_TYPE_VALUES } from "@/lib/documents/document-type";
+import { useTranslations } from "next-intl";
+import { DOCUMENT_TYPE_VALUES, documentTypeMessageKey } from "@/lib/documents/document-type";
 
 type Option = { id: string; name: string };
 
@@ -20,6 +21,9 @@ const selectClassName =
  * client-side form state management needed beyond the two parent IDs.
  */
 export function TaxonomySelectFields({ grades }: TaxonomySelectFieldsProps) {
+  const tCommon = useTranslations("common");
+  const tUpload = useTranslations("upload");
+  const tDocumentType = useTranslations("documentType");
   const [gradeId, setGradeId] = useState("");
   const [subjectId, setSubjectId] = useState("");
 
@@ -86,7 +90,7 @@ export function TaxonomySelectFields({ grades }: TaxonomySelectFieldsProps) {
   return (
     <>
       <label className="flex flex-col gap-1.5 text-sm" htmlFor="upload-gradeId">
-        Grade
+        {tCommon("grade")}
         <select
           id="upload-gradeId"
           name="gradeId"
@@ -96,7 +100,7 @@ export function TaxonomySelectFields({ grades }: TaxonomySelectFieldsProps) {
           className={selectClassName}
         >
           <option value="" disabled>
-            Select a grade
+            {tUpload("selectGrade")}
           </option>
           {grades.map((grade) => (
             <option key={grade.id} value={grade.id}>
@@ -107,7 +111,7 @@ export function TaxonomySelectFields({ grades }: TaxonomySelectFieldsProps) {
       </label>
 
       <label className="flex flex-col gap-1.5 text-sm" htmlFor="upload-subjectId">
-        Subject
+        {tCommon("subject")}
         {/* key={gradeId} guarantees a full reset (not just the option list) when Grade changes */}
         <select
           key={gradeId}
@@ -120,7 +124,7 @@ export function TaxonomySelectFields({ grades }: TaxonomySelectFieldsProps) {
           className={selectClassName}
         >
           <option value="" disabled>
-            {!gradeId ? "Select a grade first" : subjectsLoading ? "Loading…" : "Select a subject"}
+            {!gradeId ? tUpload("selectGradeFirst") : subjectsLoading ? tCommon("loading") : tUpload("selectSubject")}
           </option>
           {subjects.map((subject) => (
             <option key={subject.id} value={subject.id}>
@@ -129,14 +133,12 @@ export function TaxonomySelectFields({ grades }: TaxonomySelectFieldsProps) {
           ))}
         </select>
         {subjectsError ? (
-          <span className="text-xs text-red-600">
-            Couldn&apos;t load subjects. Try selecting the grade again.
-          </span>
+          <span className="text-xs text-red-600">{tUpload("subjectsLoadError")}</span>
         ) : null}
       </label>
 
       <label className="flex flex-col gap-1.5 text-sm" htmlFor="upload-lessonId">
-        Lesson / Topic
+        {tCommon("lessonTopic")}
         {/* key={subjectId} guarantees a full reset when Subject changes */}
         <select
           key={subjectId}
@@ -148,7 +150,7 @@ export function TaxonomySelectFields({ grades }: TaxonomySelectFieldsProps) {
           className={selectClassName}
         >
           <option value="" disabled>
-            {!subjectId ? "Select a subject first" : lessonsLoading ? "Loading…" : "Select a lesson"}
+            {!subjectId ? tUpload("selectSubjectFirst") : lessonsLoading ? tCommon("loading") : tUpload("selectLesson")}
           </option>
           {lessons.map((lesson) => (
             <option key={lesson.id} value={lesson.id}>
@@ -157,14 +159,12 @@ export function TaxonomySelectFields({ grades }: TaxonomySelectFieldsProps) {
           ))}
         </select>
         {lessonsError ? (
-          <span className="text-xs text-red-600">
-            Couldn&apos;t load lessons. Try selecting the subject again.
-          </span>
+          <span className="text-xs text-red-600">{tUpload("lessonsLoadError")}</span>
         ) : null}
       </label>
 
       <label className="flex flex-col gap-1.5 text-sm" htmlFor="upload-documentType">
-        Document type
+        {tCommon("documentType")}
         <select
           id="upload-documentType"
           name="documentType"
@@ -173,11 +173,11 @@ export function TaxonomySelectFields({ grades }: TaxonomySelectFieldsProps) {
           className={selectClassName}
         >
           <option value="" disabled>
-            Select a document type
+            {tUpload("selectDocumentType")}
           </option>
           {DOCUMENT_TYPE_VALUES.map((value) => (
             <option key={value} value={value}>
-              {DOCUMENT_TYPE_LABELS[value]}
+              {tDocumentType(documentTypeMessageKey(value))}
             </option>
           ))}
         </select>

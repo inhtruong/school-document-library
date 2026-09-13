@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { BookOpen, FlaskConical, Globe, Landmark, Languages, Music, Palette, Sigma } from "lucide-react";
+import { getTranslations } from "next-intl/server";
 import { Card } from "@/components/ui/card";
 import { subjectAccent, subjectIconName, type SubjectIconName } from "@/lib/documents/subject-accent";
 import type { SubjectSummary } from "@/types/document";
@@ -18,9 +19,10 @@ const SUBJECT_ICONS: Record<SubjectIconName, typeof Sigma> = {
   Languages,
 };
 
-export default function SubjectCard({ subject }: { subject: SubjectSummary }) {
+export default async function SubjectCard({ subject }: { subject: SubjectSummary }) {
   const accent = subjectAccent(subject.subject);
   const Icon = SUBJECT_ICONS[subjectIconName(subject.subject)];
+  const tCommon = await getTranslations("common");
 
   return (
     <Link
@@ -39,9 +41,7 @@ export default function SubjectCard({ subject }: { subject: SubjectSummary }) {
           <span className="block truncate font-display text-sm font-medium text-ink sm:text-base">
             {subject.subject}
           </span>
-          <span className="block text-sm text-muted">
-            {subject.count} {subject.count === 1 ? "document" : "documents"}
-          </span>
+          <span className="block text-sm text-muted">{tCommon("documentCount", { count: subject.count })}</span>
         </span>
       </Card>
     </Link>

@@ -1,8 +1,9 @@
 import Link from "next/link";
 import { CalendarDays, User } from "lucide-react";
+import { getTranslations } from "next-intl/server";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
-import { DOCUMENT_TYPE_LABELS } from "@/lib/documents/document-type";
+import { documentTypeMessageKey } from "@/lib/documents/document-type";
 import { subjectAccent } from "@/lib/documents/subject-accent";
 import type { UploaderSummary } from "@/lib/documents/document-uploaders";
 import type { DocumentRecord } from "@/types/document";
@@ -23,8 +24,9 @@ type DocumentCardProps = {
  * nested interactive elements inside it, so this stays valid, accessible
  * HTML while still making the entire card clickable.
  */
-export default function DocumentCard({ doc, uploader }: DocumentCardProps) {
+export default async function DocumentCard({ doc, uploader }: DocumentCardProps) {
   const subjectLabel = doc.subjectRef ? doc.subjectRef.name : doc.subject;
+  const tDocumentType = await getTranslations("documentType");
 
   return (
     <Link
@@ -41,7 +43,7 @@ export default function DocumentCard({ doc, uploader }: DocumentCardProps) {
         <div className="flex min-w-0 flex-1 flex-col">
           <div className="flex items-start justify-between gap-2">
             <Badge variant="soft" className="shrink-0">
-              {DOCUMENT_TYPE_LABELS[doc.documentType]}
+              {tDocumentType(documentTypeMessageKey(doc.documentType))}
             </Badge>
           </div>
 

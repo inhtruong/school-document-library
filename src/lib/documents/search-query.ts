@@ -7,12 +7,17 @@ export const SORT_VALUES = ["newest", "oldest", "title_asc", "title_desc"] as co
 export type SortValue = (typeof SORT_VALUES)[number];
 export const DEFAULT_SORT: SortValue = "newest";
 
-export const SORT_LABELS: Record<SortValue, string> = {
-  newest: "Newest",
-  oldest: "Oldest",
-  title_asc: "Title A-Z",
-  title_desc: "Title Z-A",
+/** FEAT-13: the actual label text now lives in the locale message files (`sort.*` — see src/i18n/messages/*.json). */
+const SORT_MESSAGE_KEYS: Record<SortValue, "newest" | "oldest" | "titleAsc" | "titleDesc"> = {
+  newest: "newest",
+  oldest: "oldest",
+  title_asc: "titleAsc",
+  title_desc: "titleDesc",
 };
+
+export function sortMessageKey(value: SortValue): "newest" | "oldest" | "titleAsc" | "titleDesc" {
+  return SORT_MESSAGE_KEYS[value];
+}
 
 /** Explicit allowlist mapping — never pass a raw query value into Prisma `orderBy`. */
 export const SORT_ORDER_BY: Record<SortValue, { createdAt: "asc" | "desc" } | { title: "asc" | "desc" }> = {

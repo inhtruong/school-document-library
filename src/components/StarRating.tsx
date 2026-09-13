@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { Star } from "lucide-react";
+import { useTranslations } from "next-intl";
 import { cn } from "@/lib/utils";
 
 type StarRatingProps = {
@@ -24,8 +25,9 @@ const SIZE_CLASSES = { sm: "h-4 w-4", md: "h-6 w-6" } as const;
  * Enter/Space works natively, and `onFocus` mirrors hover so keyboard users
  * get the same "preview" feedback mouse users get.
  */
-export function StarRating({ value, onRate, disabled = false, size = "md", label = "Rate this document" }: StarRatingProps) {
+export function StarRating({ value, onRate, disabled = false, size = "md", label }: StarRatingProps) {
   const [hoverValue, setHoverValue] = useState<number | null>(null);
+  const tRating = useTranslations("rating");
   const isInteractive = Boolean(onRate) && !disabled;
   const displayValue = hoverValue ?? value;
   const starClassName = SIZE_CLASSES[size];
@@ -47,7 +49,7 @@ export function StarRating({ value, onRate, disabled = false, size = "md", label
   return (
     <div
       role="radiogroup"
-      aria-label={label}
+      aria-label={label ?? tRating("rateThisDocument")}
       className="inline-flex items-center gap-0.5"
       onMouseLeave={() => setHoverValue(null)}
     >
@@ -57,7 +59,7 @@ export function StarRating({ value, onRate, disabled = false, size = "md", label
           type="button"
           role="radio"
           aria-checked={star === value}
-          aria-label={`${star} star${star > 1 ? "s" : ""}`}
+          aria-label={tRating("starLabel", { count: star })}
           disabled={disabled}
           onMouseEnter={() => setHoverValue(star)}
           onFocus={() => setHoverValue(star)}

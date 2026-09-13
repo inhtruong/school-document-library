@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useTranslations } from "next-intl";
 import { FileDropzone } from "@/components/upload/FileDropzone";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
@@ -25,16 +26,21 @@ type SourceTypeSelectorProps = {
  */
 export function SourceTypeSelector({ fileAccept, fileFormatsLabel, maxSizeMB }: SourceTypeSelectorProps) {
   const [sourceType, setSourceType] = useState<SourceType>("FILE");
+  const tUpload = useTranslations("upload");
 
   return (
     <div className="flex flex-col gap-4">
       <input type="hidden" name="sourceType" value={sourceType} />
 
-      <div className="inline-flex w-fit rounded-lg border border-line bg-surface p-1" role="radiogroup" aria-label="Content source">
+      <div
+        className="inline-flex w-fit rounded-lg border border-line bg-surface p-1"
+        role="radiogroup"
+        aria-label={tUpload("contentSource")}
+      >
         {(
           [
-            { value: "FILE" as const, label: "Upload file" },
-            { value: "YOUTUBE" as const, label: "YouTube video" },
+            { value: "FILE" as const, label: tUpload("uploadFile") },
+            { value: "YOUTUBE" as const, label: tUpload("youtubeVideo") },
           ]
         ).map((option) => (
           <button
@@ -64,7 +70,7 @@ export function SourceTypeSelector({ fileAccept, fileFormatsLabel, maxSizeMB }: 
         />
       ) : (
         <label className="flex flex-col gap-1.5 text-sm" htmlFor="upload-youtubeUrl">
-          YouTube video URL
+          {tUpload("youtubeUrlLabel")}
           <Input
             id="upload-youtubeUrl"
             name="youtubeUrl"
@@ -72,9 +78,7 @@ export function SourceTypeSelector({ fileAccept, fileFormatsLabel, maxSizeMB }: 
             placeholder="https://www.youtube.com/watch?v=..."
             required
           />
-          <span className="text-xs font-normal text-muted">
-            Paste a link to a public or unlisted YouTube video (watch, youtu.be, or Shorts).
-          </span>
+          <span className="text-xs font-normal text-muted">{tUpload("youtubeUrlHelp")}</span>
         </label>
       )}
     </div>

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 import { StarRating } from "@/components/StarRating";
 import { documentLoginHref } from "@/lib/auth/document-login-href";
@@ -11,14 +12,6 @@ type DocumentRatingSectionProps = {
   isAuthenticated: boolean;
   initialSummary: RatingSummary;
 };
-
-function formatAverage(averageRating: number | null): string {
-  return averageRating === null ? "No ratings yet" : averageRating.toFixed(1);
-}
-
-function formatCount(ratingCount: number): string {
-  return `${ratingCount} ${ratingCount === 1 ? "rating" : "ratings"}`;
-}
 
 /**
  * Guests get a read-only star cluster (rounded average) wrapped in a plain
@@ -32,6 +25,8 @@ function formatCount(ratingCount: number): string {
 export function DocumentRatingSection({ documentId, isAuthenticated, initialSummary }: DocumentRatingSectionProps) {
   const [summary, setSummary] = useState(initialSummary);
   const [submitting, setSubmitting] = useState(false);
+  const tRating = useTranslations("rating");
+  const tToast = useTranslations("toast");
 
   async function handleRate(value: number) {
     if (submitting) return;
@@ -53,7 +48,7 @@ export function DocumentRatingSection({ documentId, isAuthenticated, initialSumm
         setSummary(summaryBody.data as RatingSummary);
       }
 
-      toast.success(hadPreviousRating ? "Rating updated successfully" : "Rating submitted successfully");
+      toast.success(hadPreviousRating ? tToast("ratingUpdated") : tToast("ratingSubmitted"));
     } catch {
       toast.error("Unable to save your rating.");
     } finally {
@@ -64,18 +59,18 @@ export function DocumentRatingSection({ documentId, isAuthenticated, initialSumm
   return (
     <div className="flex flex-col gap-5 sm:flex-row sm:gap-10">
       <div>
-        <p className="text-xs font-medium uppercase tracking-wide text-muted">Rating summary</p>
+        <p className="text-xs font-medium uppercase tracking-wide text-muted">{tRating("ratingSummary")}</p>
         <div className="mt-1.5 flex items-baseline gap-2">
           <span className="font-display text-2xl font-semibold tracking-tight text-ink">
-            {formatAverage(summary.averageRating)}
+            {summary.averageRating === null ? tRating("noRatingsYet") : summary.averageRating.toFixed(1)}
           </span>
           <StarRating value={Math.round(summary.averageRating ?? 0)} size="sm" />
         </div>
-        <p className="mt-1 text-sm text-muted">{formatCount(summary.ratingCount)}</p>
+        <p className="mt-1 text-sm text-muted">{tRating("ratingCount", { count: summary.ratingCount })}</p>
       </div>
 
       <div>
-        <p className="text-xs font-medium uppercase tracking-wide text-muted">Your rating</p>
+        <p className="text-xs font-medium uppercase tracking-wide text-muted">{tRating("yourRating")}</p>
         <div className="mt-1.5">
           {isAuthenticated ? (
             <StarRating value={summary.currentUserRating ?? 0} onRate={handleRate} disabled={submitting} />
@@ -84,7 +79,7 @@ export function DocumentRatingSection({ documentId, isAuthenticated, initialSumm
               href={documentLoginHref(documentId)}
               className="text-sm font-medium text-accent underline-offset-2 hover:underline"
             >
-              Log in to rate
+              {tRating("loginToRate")}
             </a>
           )}
         </div>

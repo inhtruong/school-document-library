@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { useTranslations } from "next-intl";
 import { renderDocxPreview } from "@/components/docx-preview-render";
 
 type Status = "loading" | "ready" | "error";
@@ -14,6 +15,7 @@ type Status = "loading" | "ready" | "error";
 export function DocxPreview({ previewUrl }: { previewUrl: string }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [status, setStatus] = useState<Status>("loading");
+  const tPreview = useTranslations("preview");
 
   useEffect(() => {
     const container = containerRef.current;
@@ -37,13 +39,13 @@ export function DocxPreview({ previewUrl }: { previewUrl: string }) {
   }, [previewUrl]);
 
   if (status === "error") {
-    return <p className="p-8 text-center text-sm text-muted">Unable to preview this Word document.</p>;
+    return <p className="p-8 text-center text-sm text-muted">{tPreview("unableToPreviewWord")}</p>;
   }
 
   return (
     <div>
       {status === "loading" ? (
-        <p className="p-8 text-center text-sm text-muted">Loading document preview...</p>
+        <p className="p-8 text-center text-sm text-muted">{tPreview("loadingPreview")}</p>
       ) : null}
       <div
         ref={containerRef}

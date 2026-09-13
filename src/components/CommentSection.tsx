@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 import { CommentForm } from "@/components/CommentForm";
 import { CommentItem } from "@/components/CommentItem";
@@ -39,6 +40,10 @@ export function CommentSection({
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(initialTotalPages);
   const [loadingPage, setLoadingPage] = useState(false);
+  const tComments = useTranslations("comments");
+  const tCommon = useTranslations("common");
+  const tAuth = useTranslations("auth");
+  const tToast = useTranslations("toast");
 
   async function loadPage(nextPage: number) {
     setLoadingPage(true);
@@ -72,7 +77,7 @@ export function CommentSection({
         setComments((prev) => [body.data as DocumentCommentRecord, ...prev]);
       }
       setTotal((prev) => prev + 1);
-      toast.success("Comment posted successfully");
+      toast.success(tToast("commentPosted"));
       return true;
     } catch {
       toast.error("Unable to save comment");
@@ -91,8 +96,8 @@ export function CommentSection({
 
   return (
     <div>
-      <h2 className="font-display text-lg font-semibold tracking-tight text-ink">Comments</h2>
-      <p className="mt-0.5 text-sm text-muted">{total === 0 ? "No comments yet" : `${total} ${total === 1 ? "comment" : "comments"}`}</p>
+      <h2 className="font-display text-lg font-semibold tracking-tight text-ink">{tComments("heading")}</h2>
+      <p className="mt-0.5 text-sm text-muted">{tComments("commentCount", { count: total })}</p>
 
       <div className="mt-4">
         {isAuthenticated ? (
@@ -103,9 +108,9 @@ export function CommentSection({
               href={documentLoginHref(documentId)}
               className="font-medium text-ink underline underline-offset-2 hover:text-accent"
             >
-              Log in
+              {tAuth("login")}
             </a>{" "}
-            to leave a comment.
+            {tComments("loginToComment")}
           </p>
         )}
       </div>
@@ -124,7 +129,7 @@ export function CommentSection({
             />
           ))
         ) : (
-          <p className="py-4 text-sm text-muted">Be the first to comment.</p>
+          <p className="py-4 text-sm text-muted">{tComments("beFirstToComment")}</p>
         )}
       </div>
 
@@ -137,11 +142,9 @@ export function CommentSection({
             disabled={page <= 1 || loadingPage}
             onClick={() => loadPage(page - 1)}
           >
-            Previous
+            {tCommon("previous")}
           </Button>
-          <span className="text-xs text-muted">
-            Page {page} of {totalPages}
-          </span>
+          <span className="text-xs text-muted">{tCommon("pageOf", { page, total: totalPages })}</span>
           <Button
             type="button"
             variant="outline"
@@ -149,7 +152,7 @@ export function CommentSection({
             disabled={page >= totalPages || loadingPage}
             onClick={() => loadPage(page + 1)}
           >
-            Next
+            {tCommon("next")}
           </Button>
         </div>
       ) : null}

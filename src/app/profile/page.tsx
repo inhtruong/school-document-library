@@ -1,16 +1,10 @@
+import { getTranslations } from "next-intl/server";
 import { redirect } from "next/navigation";
 import { PasswordForm } from "@/components/profile/PasswordForm";
 import { ProfileForm } from "@/components/profile/ProfileForm";
 import { Badge } from "@/components/ui/badge";
 import { requireAuth } from "@/lib/auth/authorize";
 import { prisma } from "@/lib/prisma";
-import type { Role } from "@prisma/client";
-
-const ROLE_LABELS: Record<Role, string> = {
-  STUDENT: "Student",
-  TEACHER: "Teacher",
-  ADMIN: "Admin",
-};
 
 function formatMemberSince(date: Date): string {
   return new Intl.DateTimeFormat("en-US", { year: "numeric", month: "long", day: "numeric" }).format(date);
@@ -32,10 +26,12 @@ export default async function ProfilePage() {
   if (!user) redirect("/login");
 
   const initial = user.name.trim().slice(0, 1).toUpperCase() || "?";
+  const [tProfile, tRoles] = await Promise.all([getTranslations("profile"), getTranslations("common.roles")]);
+  const roleLabel = tRoles(user.role.toLowerCase() as "student" | "teacher" | "admin");
 
   return (
     <div className="mx-auto max-w-xl px-5 py-8 sm:py-10">
-      <p className="text-xs font-medium uppercase tracking-wide text-muted">Account</p>
+      <p className="text-xs font-medium uppercase tracking-wide text-muted">{tProfile("account")}</p>
 
       {/* Identity band — the one deliberate color moment on this page; the
           two settings groups below stay quiet/neutral by design. */}
@@ -53,26 +49,24 @@ export default async function ProfilePage() {
           <p className="mt-0.5 truncate text-sm text-muted">{user.email}</p>
         </div>
         <Badge variant="soft" className="shrink-0">
-          {ROLE_LABELS[user.role]}
+          {roleLabel}
         </Badge>
       </div>
 
       <div className="mt-10">
-        <h2 className="font-display text-lg font-semibold tracking-tight">Profile information</h2>
-        <p className="mt-0.5 text-sm text-muted">
-          Update your name — your email stays fixed as your account identity.
-        </p>
+        <h2 className="font-display text-lg font-semibold tracking-tight">{tProfile("profileInformation")}</h2>
+        <p className="mt-0.5 text-sm text-muted">{tProfile("profileInformationSubtitle")}</p>
         <ProfileForm
           initialName={user.name}
           email={user.email}
-          roleLabel={ROLE_LABELS[user.role]}
+          roleLabel={roleLabel}
           memberSince={formatMemberSince(user.createdAt)}
         />
       </div>
 
       <div className="mt-10">
-        <h2 className="font-display text-lg font-semibold tracking-tight">Change password</h2>
-        <p className="mt-0.5 text-sm text-muted">Choose a new password to keep your account secure.</p>
+        <h2 className="font-display text-lg font-semibold tracking-tight">{tProfile("changePassword")}</h2>
+        <p className="mt-0.5 text-sm text-muted">{tProfile("changePasswordSubtitle")}</p>
         <PasswordForm />
       </div>
     </div>

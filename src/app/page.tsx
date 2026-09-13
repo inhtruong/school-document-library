@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { getTranslations } from "next-intl/server";
 import { ArrowRight } from "lucide-react";
 import DocumentCard from "@/components/DocumentCard";
 import GradeCard from "@/components/GradeCard";
@@ -19,20 +20,21 @@ export default async function HomePage() {
     listGradeSummaries(),
   ]);
   const uploaderByDocumentId = await getUploaderSummaries(latestDocuments.map((doc) => doc.id));
+  const tHome = await getTranslations("home");
 
   return (
     <div className="mx-auto max-w-5xl px-5">
       <section className="py-14 sm:py-20">
         <p className="text-[11px] font-medium uppercase tracking-[0.22em] text-muted">
-          School document library
+          {tHome("eyebrow")}
         </p>
 
         <h1 className="mt-4 max-w-2xl font-display text-3xl font-semibold leading-tight tracking-tight sm:text-5xl">
-          Find the notes, exams and cheatsheets from your courses.
+          {tHome("heading")}
         </h1>
 
         <p className="mt-3 max-w-xl text-base text-muted">
-          Lecture notes, exercises, exams and reference material, organized by grade and subject.
+          {tHome("subtitle")}
         </p>
 
         <div className="mt-8 max-w-2xl">
@@ -40,15 +42,14 @@ export default async function HomePage() {
         </div>
 
         <p className="mt-3 text-sm text-muted">
-          {total} {total === 1 ? "document" : "documents"} across {subjects.length}{" "}
-          {subjects.length === 1 ? "subject" : "subjects"}
+          {tHome("summary", { docCount: total, subjectCount: subjects.length })}
         </p>
       </section>
 
       {grades.length > 0 ? (
         <section className="border-t border-line py-10 sm:py-12">
           <h2 className="font-display text-lg font-semibold tracking-tight sm:text-xl">
-            Browse by grade
+            {tHome("browseByGrade")}
           </h2>
 
           <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-7">
@@ -61,7 +62,7 @@ export default async function HomePage() {
 
       <section className="border-t border-line py-10 sm:py-12">
         <h2 className="font-display text-lg font-semibold tracking-tight sm:text-xl">
-          Browse by subject
+          {tHome("browseBySubject")}
         </h2>
 
         {subjects.length > 0 ? (
@@ -71,21 +72,21 @@ export default async function HomePage() {
             ))}
           </div>
         ) : (
-          <p className="mt-5 text-sm text-muted">No subjects yet.</p>
+          <p className="mt-5 text-sm text-muted">{tHome("noSubjectsYet")}</p>
         )}
       </section>
 
       <section className="border-t border-line py-10 sm:py-12">
         <div className="flex flex-wrap items-baseline justify-between gap-2">
           <h2 className="font-display text-lg font-semibold tracking-tight sm:text-xl">
-            Latest documents
+            {tHome("latestDocuments")}
           </h2>
           {latestDocuments.length > 0 ? (
             <Link
               href="/search"
               className="inline-flex items-center gap-1 text-sm font-medium text-accent transition-colors hover:text-accent-strong"
             >
-              View all documents
+              {tHome("viewAllDocuments")}
               <ArrowRight className="h-4 w-4" aria-hidden />
             </Link>
           ) : null}
@@ -98,7 +99,7 @@ export default async function HomePage() {
             ))}
           </div>
         ) : (
-          <p className="mt-5 text-sm text-muted">No documents yet.</p>
+          <p className="mt-5 text-sm text-muted">{tHome("noDocumentsYet")}</p>
         )}
       </section>
     </div>

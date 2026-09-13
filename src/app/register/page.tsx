@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { getTranslations } from "next-intl/server";
 import { redirect } from "next/navigation";
 import { AuthError } from "next-auth";
 import { signIn } from "@/auth";
@@ -13,6 +14,7 @@ type RegisterPageProps = {
 
 export default async function RegisterPage({ searchParams }: RegisterPageProps) {
   const { error } = await searchParams;
+  const tAuth = await getTranslations("auth");
 
   async function register(formData: FormData) {
     "use server";
@@ -50,8 +52,8 @@ export default async function RegisterPage({ searchParams }: RegisterPageProps) 
 
   return (
     <div className="mx-auto max-w-sm px-5 py-16 sm:py-24">
-      <h1 className="font-display text-2xl font-semibold tracking-tight">Create an account</h1>
-      <p className="mt-2 text-sm text-muted">Register as a student to get started.</p>
+      <h1 className="font-display text-2xl font-semibold tracking-tight">{tAuth("createAccountHeading")}</h1>
+      <p className="mt-2 text-sm text-muted">{tAuth("createAccountSubtitle")}</p>
 
       {error ? (
         <p className="mt-4 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
@@ -61,15 +63,15 @@ export default async function RegisterPage({ searchParams }: RegisterPageProps) 
 
       <form action={register} className="mt-6 flex flex-col gap-4">
         <label className="flex flex-col gap-1.5 text-sm" htmlFor="register-name">
-          Name
+          {tAuth("name")}
           <Input id="register-name" name="name" type="text" required autoComplete="name" />
         </label>
         <label className="flex flex-col gap-1.5 text-sm" htmlFor="register-email">
-          Email
+          {tAuth("email")}
           <Input id="register-email" name="email" type="email" required autoComplete="email" />
         </label>
         <label className="flex flex-col gap-1.5 text-sm" htmlFor="register-password">
-          Password
+          {tAuth("password")}
           <Input
             id="register-password"
             name="password"
@@ -79,13 +81,13 @@ export default async function RegisterPage({ searchParams }: RegisterPageProps) 
             autoComplete="new-password"
           />
         </label>
-        <Button type="submit">Create account</Button>
+        <Button type="submit">{tAuth("createAccountButton")}</Button>
       </form>
 
       <p className="mt-6 text-sm text-muted">
-        Already have an account?{" "}
+        {tAuth("haveAccount")}{" "}
         <Link href="/login" className="text-ink underline underline-offset-2">
-          Log in
+          {tAuth("login")}
         </Link>
       </p>
     </div>

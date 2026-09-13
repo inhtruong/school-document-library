@@ -1,9 +1,10 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useTranslations } from "next-intl";
 import { useRouter, useSearchParams } from "next/navigation";
-import { DOCUMENT_TYPE_LABELS, DOCUMENT_TYPE_VALUES } from "@/lib/documents/document-type";
-import { SORT_LABELS, SORT_VALUES, type SortValue } from "@/lib/documents/search-query";
+import { DOCUMENT_TYPE_VALUES, documentTypeMessageKey } from "@/lib/documents/document-type";
+import { SORT_VALUES, sortMessageKey, type SortValue } from "@/lib/documents/search-query";
 
 type Option = { id: string; name: string };
 
@@ -26,6 +27,10 @@ const labelClassName = "flex flex-col gap-1.5 text-sm font-medium text-ink";
 export function SearchFilters({ grades }: SearchFiltersProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const tCommon = useTranslations("common");
+  const tSearch = useTranslations("search");
+  const tDocumentType = useTranslations("documentType");
+  const tSort = useTranslations("sort");
 
   const gradeId = searchParams.get("gradeId") ?? "";
   const subjectId = searchParams.get("subjectId") ?? "";
@@ -109,7 +114,7 @@ export function SearchFilters({ grades }: SearchFiltersProps) {
   return (
     <div className="grid flex-1 grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5 lg:items-end">
       <label className={labelClassName} htmlFor="filter-grade">
-        Grade
+        {tCommon("grade")}
         <select
           id="filter-grade"
           value={gradeId}
@@ -118,7 +123,7 @@ export function SearchFilters({ grades }: SearchFiltersProps) {
           }
           className={selectClassName}
         >
-          <option value="">All grades</option>
+          <option value="">{tSearch("allGrades")}</option>
           {grades.map((grade) => (
             <option key={grade.id} value={grade.id}>
               {grade.name}
@@ -128,7 +133,7 @@ export function SearchFilters({ grades }: SearchFiltersProps) {
       </label>
 
       <label className={labelClassName} htmlFor="filter-subject">
-        Subject
+        {tCommon("subject")}
         <select
           id="filter-subject"
           value={subjectId}
@@ -136,7 +141,7 @@ export function SearchFilters({ grades }: SearchFiltersProps) {
           onChange={(event) => pushQuery({ subjectId: event.target.value, lessonId: undefined })}
           className={selectClassName}
         >
-          <option value="">{subjectsLoading ? "Loading…" : "All subjects"}</option>
+          <option value="">{subjectsLoading ? tCommon("loading") : tSearch("allSubjects")}</option>
           {subjects.map((subject) => (
             <option key={subject.id} value={subject.id}>
               {subject.name}
@@ -144,12 +149,12 @@ export function SearchFilters({ grades }: SearchFiltersProps) {
           ))}
         </select>
         {subjectsError ? (
-          <span className="text-xs text-destructive">Couldn&apos;t load subjects.</span>
+          <span className="text-xs text-destructive">{tSearch("subjectsLoadError")}</span>
         ) : null}
       </label>
 
       <label className={labelClassName} htmlFor="filter-lesson">
-        Lesson / Topic
+        {tCommon("lessonTopic")}
         <select
           id="filter-lesson"
           value={lessonId}
@@ -157,7 +162,7 @@ export function SearchFilters({ grades }: SearchFiltersProps) {
           onChange={(event) => pushQuery({ lessonId: event.target.value })}
           className={selectClassName}
         >
-          <option value="">{lessonsLoading ? "Loading…" : "All lessons"}</option>
+          <option value="">{lessonsLoading ? tCommon("loading") : tSearch("allLessons")}</option>
           {lessons.map((lesson) => (
             <option key={lesson.id} value={lesson.id}>
               {lesson.name}
@@ -165,29 +170,29 @@ export function SearchFilters({ grades }: SearchFiltersProps) {
           ))}
         </select>
         {lessonsError ? (
-          <span className="text-xs text-destructive">Couldn&apos;t load lessons.</span>
+          <span className="text-xs text-destructive">{tSearch("lessonsLoadError")}</span>
         ) : null}
       </label>
 
       <label className={labelClassName} htmlFor="filter-documentType">
-        Document type
+        {tCommon("documentType")}
         <select
           id="filter-documentType"
           value={documentType}
           onChange={(event) => pushQuery({ documentType: event.target.value })}
           className={selectClassName}
         >
-          <option value="">All types</option>
+          <option value="">{tSearch("allTypes")}</option>
           {DOCUMENT_TYPE_VALUES.map((value) => (
             <option key={value} value={value}>
-              {DOCUMENT_TYPE_LABELS[value]}
+              {tDocumentType(documentTypeMessageKey(value))}
             </option>
           ))}
         </select>
       </label>
 
       <label className={labelClassName} htmlFor="filter-sort">
-        Sort
+        {tCommon("sort")}
         <select
           id="filter-sort"
           value={sort}
@@ -196,7 +201,7 @@ export function SearchFilters({ grades }: SearchFiltersProps) {
         >
           {SORT_VALUES.map((value) => (
             <option key={value} value={value}>
-              {SORT_LABELS[value]}
+              {tSort(sortMessageKey(value))}
             </option>
           ))}
         </select>

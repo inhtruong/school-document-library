@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 import { commentTextareaClassName } from "@/components/CommentForm";
 import { Badge } from "@/components/ui/badge";
@@ -40,6 +41,10 @@ export function CommentItem({ comment, documentId, currentUserId, isAdmin, onUpd
   const [mode, setMode] = useState<Mode>("view");
   const [editContent, setEditContent] = useState(comment.content);
   const [submitting, setSubmitting] = useState(false);
+  const tComments = useTranslations("comments");
+  const tRoles = useTranslations("common.roles");
+  const tActions = useTranslations("actions");
+  const tToast = useTranslations("toast");
 
   const isOwner = currentUserId !== null && currentUserId === comment.author.id;
   const canDelete = isOwner || isAdmin;
@@ -69,7 +74,7 @@ export function CommentItem({ comment, documentId, currentUserId, isAdmin, onUpd
 
       onUpdated(body.data as DocumentCommentRecord);
       setMode("view");
-      toast.success("Comment updated successfully");
+      toast.success(tToast("commentUpdated"));
     } catch {
       toast.error("Unable to save comment");
     } finally {
@@ -85,7 +90,7 @@ export function CommentItem({ comment, documentId, currentUserId, isAdmin, onUpd
       if (!response.ok || !body.success) throw new Error(body.error ?? "Failed to delete comment");
 
       onDeleted(comment.id);
-      toast.success("Comment deleted successfully");
+      toast.success(tToast("commentDeleted"));
     } catch {
       toast.error("Unable to delete comment");
       setSubmitting(false);
@@ -97,14 +102,14 @@ export function CommentItem({ comment, documentId, currentUserId, isAdmin, onUpd
     <div className="border-b border-line py-4 last:border-0">
       <div className="flex flex-wrap items-center gap-2">
         <span className="text-sm font-medium text-ink">{comment.author.name}</span>
-        <Badge variant="outline">{comment.author.role}</Badge>
+        <Badge variant="outline">{tRoles(comment.author.role.toLowerCase() as "student" | "teacher" | "admin")}</Badge>
         <span className="text-xs text-muted">{formatCommentDate(comment.createdAt)}</span>
       </div>
 
       {mode === "edit" ? (
         <div className="mt-2 flex flex-col gap-2">
           <label htmlFor={`edit-comment-${comment.id}`} className="sr-only">
-            Edit comment
+            {tComments("editComment")}
           </label>
           <textarea
             id={`edit-comment-${comment.id}`}
@@ -120,10 +125,10 @@ export function CommentItem({ comment, documentId, currentUserId, isAdmin, onUpd
             </span>
             <div className="flex gap-2">
               <Button type="button" variant="ghost" size="sm" disabled={submitting} onClick={cancelEdit}>
-                Cancel
+                {tActions("cancel")}
               </Button>
               <Button type="button" size="sm" disabled={!canSaveEdit} onClick={handleSave}>
-                Save
+                {tComments("save")}
               </Button>
             </div>
           </div>
@@ -134,19 +139,19 @@ export function CommentItem({ comment, documentId, currentUserId, isAdmin, onUpd
 
       {mode === "confirm-delete" ? (
         <div className="mt-2 flex items-center gap-2 text-sm">
-          <span className="text-muted">Delete this comment?</span>
+          <span className="text-muted">{tComments("deleteConfirm")}</span>
           <Button type="button" variant="outline" size="sm" disabled={submitting} onClick={() => setMode("view")}>
-            Cancel
+            {tActions("cancel")}
           </Button>
           <Button type="button" size="sm" disabled={submitting} onClick={handleDelete}>
-            {submitting ? "Deleting…" : "Delete"}
+            {submitting ? tComments("deleting") : tComments("delete")}
           </Button>
         </div>
       ) : mode === "view" && (isOwner || canDelete) ? (
         <div className="mt-2 flex gap-3 text-xs">
           {isOwner ? (
             <button type="button" className="text-muted transition-colors hover:text-ink" onClick={startEdit}>
-              Edit
+              {tComments("edit")}
             </button>
           ) : null}
           {canDelete ? (
@@ -155,7 +160,7 @@ export function CommentItem({ comment, documentId, currentUserId, isAdmin, onUpd
               className="text-muted transition-colors hover:text-red-600"
               onClick={() => setMode("confirm-delete")}
             >
-              Delete
+              {tComments("delete")}
             </button>
           ) : null}
         </div>

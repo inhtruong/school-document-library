@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useState } from "react";
 import { BellOff, BookOpen } from "lucide-react";
+import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -15,6 +16,9 @@ type FollowedLessonsListProps = {
 export function FollowedLessonsList({ initialLessons }: FollowedLessonsListProps) {
   const [lessons, setLessons] = useState(initialLessons);
   const [removingId, setRemovingId] = useState<string | null>(null);
+  const tFollowing = useTranslations("following");
+  const tSaved = useTranslations("saved");
+  const tToast = useTranslations("toast");
 
   async function handleUnfollow(lessonId: string) {
     if (removingId) return;
@@ -26,7 +30,7 @@ export function FollowedLessonsList({ initialLessons }: FollowedLessonsListProps
       if (!response.ok || !body.success) throw new Error(body.error ?? "Failed to unfollow");
 
       setLessons((prev) => prev.filter((lesson) => lesson.id !== lessonId));
-      toast.success("Lesson unfollowed");
+      toast.success(tToast("lessonUnfollowed"));
     } catch {
       toast.error("Unable to update follow status");
     } finally {
@@ -39,9 +43,9 @@ export function FollowedLessonsList({ initialLessons }: FollowedLessonsListProps
       <div className="flex flex-col items-center gap-2 rounded-xl border border-dashed border-line bg-surface p-8 text-center">
         <BellOff className="h-5 w-5 text-muted" aria-hidden />
         <p className="text-sm text-muted">
-          You are not following any lessons yet.{" "}
+          {tFollowing("noLessonsYet")}{" "}
           <Link href="/search" className="font-medium text-ink underline underline-offset-2 hover:text-accent">
-            Browse documents
+            {tSaved("browseDocuments")}
           </Link>
         </p>
       </div>
@@ -73,7 +77,7 @@ export function FollowedLessonsList({ initialLessons }: FollowedLessonsListProps
               onClick={() => handleUnfollow(lesson.id)}
             >
               <BellOff className="h-3.5 w-3.5" aria-hidden />
-              Unfollow
+              {tFollowing("unfollow")}
             </Button>
           </li>
         ))}

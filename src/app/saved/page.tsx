@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { getTranslations } from "next-intl/server";
 import { redirect } from "next/navigation";
 import { auth } from "@/auth";
 import DocumentCard from "@/components/DocumentCard";
@@ -27,13 +28,12 @@ export default async function SavedPage({ searchParams }: SavedPageProps) {
   const page = parsePage(rawPage);
 
   const { documents, total, totalPages } = await listUserBookmarks(session.user.id, page);
+  const [tSaved, tCommon] = await Promise.all([getTranslations("saved"), getTranslations("common")]);
 
   return (
     <div className="mx-auto max-w-5xl px-5 py-8 sm:py-10">
-      <h1 className="font-display text-xl font-semibold tracking-tight sm:text-2xl">Saved documents</h1>
-      <p className="mt-1 text-sm text-muted">
-        {total} {total === 1 ? "document" : "documents"}
-      </p>
+      <h1 className="font-display text-xl font-semibold tracking-tight sm:text-2xl">{tSaved("heading")}</h1>
+      <p className="mt-1 text-sm text-muted">{tCommon("documentCount", { count: total })}</p>
 
       {documents.length > 0 ? (
         <>
@@ -44,7 +44,7 @@ export default async function SavedPage({ searchParams }: SavedPageProps) {
           </div>
 
           {totalPages > 1 ? (
-            <nav aria-label="Pagination" className="mt-8 flex flex-wrap items-center justify-center gap-2">
+            <nav aria-label={tCommon("pagination")} className="mt-8 flex flex-wrap items-center justify-center gap-2">
               <Link
                 href={hrefForPage(page - 1)}
                 aria-disabled={page <= 1}
@@ -55,7 +55,7 @@ export default async function SavedPage({ searchParams }: SavedPageProps) {
                     : "border-line text-ink hover:border-ink/25"
                 }`}
               >
-                Previous
+                {tCommon("previous")}
               </Link>
 
               {Array.from({ length: totalPages }, (_, index) => index + 1).map((pageNumber) => (
@@ -83,22 +83,20 @@ export default async function SavedPage({ searchParams }: SavedPageProps) {
                     : "border-line text-ink hover:border-ink/25"
                 }`}
               >
-                Next
+                {tCommon("next")}
               </Link>
             </nav>
           ) : null}
         </>
       ) : (
         <div className="mt-6 rounded-xl border border-dashed border-line bg-surface p-8 text-center">
-          <p className="font-display text-base font-medium">You haven&apos;t saved any documents yet.</p>
-          <p className="mx-auto mt-2 max-w-md text-sm text-muted">
-            Browse the library and save documents you want to find again later.
-          </p>
+          <p className="font-display text-base font-medium">{tSaved("emptyTitle")}</p>
+          <p className="mx-auto mt-2 max-w-md text-sm text-muted">{tSaved("emptySubtitle")}</p>
           <Link
             href="/search"
             className="mt-5 inline-flex h-10 items-center rounded-xl bg-accent px-4 text-sm font-medium text-paper transition-colors hover:bg-accent-strong"
           >
-            Browse documents
+            {tSaved("browseDocuments")}
           </Link>
         </div>
       )}

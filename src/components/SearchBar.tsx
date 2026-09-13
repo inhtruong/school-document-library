@@ -1,5 +1,6 @@
 "use client";
 
+import { useTranslations } from "next-intl";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
@@ -15,6 +16,8 @@ export default function SearchBar({ defaultValue = "", size = "large" }: SearchB
   const router = useRouter();
   const searchParams = useSearchParams();
   const [query, setQuery] = useState(defaultValue);
+  const tCommon = useTranslations("common");
+  const tActions = useTranslations("actions");
 
   function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -36,7 +39,7 @@ export default function SearchBar({ defaultValue = "", size = "large" }: SearchB
   return (
     <form onSubmit={handleSubmit} role="search" className="w-full">
       <label htmlFor="document-search" className="sr-only">
-        Search documents
+        {tCommon("searchLabel")}
       </label>
 
       <div
@@ -64,7 +67,7 @@ export default function SearchBar({ defaultValue = "", size = "large" }: SearchB
           type="search"
           value={query}
           onChange={(event) => setQuery(event.target.value)}
-          placeholder="Search documents, subjects, exams..."
+          placeholder={tCommon("searchPlaceholder")}
           autoComplete="off"
           className={`h-auto min-w-0 flex-1 border-0 bg-transparent px-0 shadow-none focus-visible:ring-0 ${
             isLarge ? "py-2 text-base sm:text-lg" : "py-1.5 text-sm sm:text-base"
@@ -72,7 +75,7 @@ export default function SearchBar({ defaultValue = "", size = "large" }: SearchB
         />
 
         <Button type="submit" size={isLarge ? "default" : "sm"} className={isLarge ? "sm:px-6" : ""}>
-          Search
+          {tActions("search")}
         </Button>
       </div>
     </form>

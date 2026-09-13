@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { Bell, BellPlus } from "lucide-react";
+import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 import { loginHrefFor } from "@/lib/auth/document-login-href";
 import { cn } from "@/lib/utils";
@@ -34,12 +35,14 @@ function actionClassName(active: boolean): string {
 export function LessonFollowAction({ lessonId, isAuthenticated, initialFollowing, callbackPath }: LessonFollowActionProps) {
   const [following, setFollowing] = useState(initialFollowing);
   const [submitting, setSubmitting] = useState(false);
+  const tFollowing = useTranslations("following");
+  const tToast = useTranslations("toast");
 
   if (!isAuthenticated) {
     return (
       <a href={loginHrefFor(callbackPath)} className={actionClassName(false)}>
         <BellPlus className="h-3.5 w-3.5" aria-hidden />
-        Follow lesson
+        {tFollowing("followLesson")}
       </a>
     );
   }
@@ -57,7 +60,7 @@ export function LessonFollowAction({ lessonId, isAuthenticated, initialFollowing
       if (!response.ok || !body.success) throw new Error(body.error ?? "Failed to update follow status");
 
       setFollowing(nextFollowing);
-      toast.success(nextFollowing ? "Lesson followed" : "Lesson unfollowed");
+      toast.success(nextFollowing ? tToast("lessonFollowed") : tToast("lessonUnfollowed"));
     } catch {
       toast.error("Unable to update follow status");
     } finally {
@@ -78,7 +81,7 @@ export function LessonFollowAction({ lessonId, isAuthenticated, initialFollowing
       ) : (
         <BellPlus className="h-3.5 w-3.5" aria-hidden />
       )}
-      {following ? "Following" : "Follow lesson"}
+      {following ? tFollowing("followingLabel") : tFollowing("followLesson")}
     </button>
   );
 }

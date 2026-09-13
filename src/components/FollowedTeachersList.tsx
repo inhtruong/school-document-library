@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useState } from "react";
 import { UserMinus, UserX } from "lucide-react";
+import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -22,6 +23,10 @@ type FollowedTeachersListProps = {
 export function FollowedTeachersList({ initialTeachers }: FollowedTeachersListProps) {
   const [teachers, setTeachers] = useState(initialTeachers);
   const [removingId, setRemovingId] = useState<string | null>(null);
+  const tFollowing = useTranslations("following");
+  const tCommon = useTranslations("common");
+  const tSaved = useTranslations("saved");
+  const tToast = useTranslations("toast");
 
   async function handleUnfollow(teacherId: string) {
     if (removingId) return;
@@ -33,7 +38,7 @@ export function FollowedTeachersList({ initialTeachers }: FollowedTeachersListPr
       if (!response.ok || !body.success) throw new Error(body.error ?? "Failed to unfollow");
 
       setTeachers((prev) => prev.filter((teacher) => teacher.id !== teacherId));
-      toast.success("Teacher unfollowed");
+      toast.success(tToast("teacherUnfollowed"));
     } catch {
       toast.error("Unable to update follow status");
     } finally {
@@ -46,9 +51,9 @@ export function FollowedTeachersList({ initialTeachers }: FollowedTeachersListPr
       <div className="flex flex-col items-center gap-2 rounded-xl border border-dashed border-line bg-surface p-8 text-center">
         <UserX className="h-5 w-5 text-muted" aria-hidden />
         <p className="text-sm text-muted">
-          You are not following any teachers yet.{" "}
+          {tFollowing("noTeachersYet")}{" "}
           <Link href="/search" className="font-medium text-ink underline underline-offset-2 hover:text-accent">
-            Browse documents
+            {tSaved("browseDocuments")}
           </Link>
         </p>
       </div>
@@ -68,9 +73,7 @@ export function FollowedTeachersList({ initialTeachers }: FollowedTeachersListPr
             </span>
             <div className="min-w-0 flex-1">
               <p className="truncate text-sm font-medium text-ink">{teacher.name}</p>
-              <p className="text-xs text-muted">
-                {teacher.documentCount} {teacher.documentCount === 1 ? "document" : "documents"}
-              </p>
+              <p className="text-xs text-muted">{tCommon("documentCount", { count: teacher.documentCount })}</p>
             </div>
             <Button
               type="button"
@@ -80,7 +83,7 @@ export function FollowedTeachersList({ initialTeachers }: FollowedTeachersListPr
               onClick={() => handleUnfollow(teacher.id)}
             >
               <UserMinus className="h-3.5 w-3.5" aria-hidden />
-              Unfollow
+              {tFollowing("unfollow")}
             </Button>
           </li>
         ))}

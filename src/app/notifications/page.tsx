@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { getTranslations } from "next-intl/server";
 import { redirect } from "next/navigation";
 import { auth } from "@/auth";
 import { NotificationsList } from "@/components/NotificationsList";
@@ -27,18 +28,17 @@ export default async function NotificationsPage({ searchParams }: NotificationsP
   const page = parsePage(rawPage);
 
   const { notifications, total, totalPages, unreadCount } = await listNotifications(session.user.id, page);
+  const [tNotifications, tCommon] = await Promise.all([getTranslations("notifications"), getTranslations("common")]);
 
   return (
     <div className="mx-auto max-w-3xl px-5 py-8 sm:py-10">
-      <h1 className="font-display text-xl font-semibold tracking-tight sm:text-2xl">Notifications</h1>
-      <p className="mt-1 text-sm text-muted">
-        {total} {total === 1 ? "notification" : "notifications"}
-      </p>
+      <h1 className="font-display text-xl font-semibold tracking-tight sm:text-2xl">{tNotifications("heading")}</h1>
+      <p className="mt-1 text-sm text-muted">{tNotifications("notificationCount", { count: total })}</p>
 
       <NotificationsList initialNotifications={notifications} initialUnreadCount={unreadCount} />
 
       {totalPages > 1 ? (
-        <nav aria-label="Pagination" className="mt-8 flex flex-wrap items-center justify-center gap-2">
+        <nav aria-label={tCommon("pagination")} className="mt-8 flex flex-wrap items-center justify-center gap-2">
           <Link
             href={hrefForPage(page - 1)}
             aria-disabled={page <= 1}
@@ -49,7 +49,7 @@ export default async function NotificationsPage({ searchParams }: NotificationsP
                 : "border-line text-ink hover:border-ink/25"
             }`}
           >
-            Previous
+            {tCommon("previous")}
           </Link>
 
           {Array.from({ length: totalPages }, (_, index) => index + 1).map((pageNumber) => (
@@ -77,7 +77,7 @@ export default async function NotificationsPage({ searchParams }: NotificationsP
                 : "border-line text-ink hover:border-ink/25"
             }`}
           >
-            Next
+            {tCommon("next")}
           </Link>
         </nav>
       ) : null}

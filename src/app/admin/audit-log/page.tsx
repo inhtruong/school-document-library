@@ -1,10 +1,11 @@
 import Link from "next/link";
-import { getTranslations } from "next-intl/server";
+import { getFormatter, getTranslations } from "next-intl/server";
 import { FileClock } from "lucide-react";
 import type { AuditAction, AuditEntityType, Prisma } from "@prisma/client";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import type { DateTimeFormatter } from "@/i18n/formats";
 import {
   AUDIT_ACTION_VALUES,
   AUDIT_ENTITY_TYPE_VALUES,
@@ -32,14 +33,8 @@ function parsePage(value: string | undefined): number {
   return Number.isInteger(parsed) && parsed >= 1 ? parsed : 1;
 }
 
-function formatDate(iso: string): string {
-  return new Intl.DateTimeFormat("en-US", {
-    year: "numeric",
-    month: "short",
-    day: "numeric",
-    hour: "numeric",
-    minute: "2-digit",
-  }).format(new Date(iso));
+function formatDate(iso: string, format: DateTimeFormatter): string {
+  return format.dateTime(new Date(iso), "dateTimeShort");
 }
 
 function pageHref(filter: { action?: string; entityType?: string; actorEmail?: string }, page: number): string {
@@ -106,12 +101,13 @@ export default async function AuditLogPage({ searchParams }: AuditLogPageProps) 
   const filter = { action: rawAction, entityType: rawEntityType, actorEmail };
 
   const result = await listAuditLogs({ action, entityType, actorEmail }, page);
-  const [tAuditLog, tAuditLogActions, tAuditLogEntities, tCommon, tActions] = await Promise.all([
+  const [tAuditLog, tAuditLogActions, tAuditLogEntities, tCommon, tActions, format] = await Promise.all([
     getTranslations("auditLog"),
     getTranslations("auditLog.actions"),
     getTranslations("auditLog.entities"),
     getTranslations("common"),
     getTranslations("actions"),
+    getFormatter(),
   ]);
 
   return (
@@ -195,7 +191,7 @@ export default async function AuditLogPage({ searchParams }: AuditLogPageProps) 
                       <EntityLine log={log} t={tAuditLog} />
                     </div>
                   </div>
-                  <p className="shrink-0 text-xs text-muted sm:text-right">{formatDate(log.createdAt)}</p>
+                  <p className="shrink-0 text-xs text-muted sm:text-right">{formatDate(log.createdAt, format)}</p>
                 </li>
               ))}
             </ul>

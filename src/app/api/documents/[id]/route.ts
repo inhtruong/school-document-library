@@ -1,7 +1,7 @@
 import type { NextRequest } from "next/server";
 import type { Session } from "next-auth";
 import { auth } from "@/auth";
-import { apiError, apiSuccess } from "@/lib/api-response";
+import { apiErrorCode, apiSuccess } from "@/lib/api-response";
 import { actorFromSessionUser, writeAuditLog } from "@/lib/audit/audit";
 import { getDocumentChangeClassification } from "@/lib/documents/document-change";
 import { getDocumentById } from "@/lib/documents/get-document";
@@ -25,15 +25,15 @@ export async function GET(_request: NextRequest, { params }: RouteContext) {
 
   try {
     const document = await getDocumentById(id);
-    if (!document) return apiError("Document not found", 404);
+    if (!document) return apiErrorCode("DOCUMENT_NOT_FOUND", 404);
 
     const session = await auth();
-    if (!isDocumentVisibleTo(document, session)) return apiError("Document not found", 404);
+    if (!isDocumentVisibleTo(document, session)) return apiErrorCode("DOCUMENT_NOT_FOUND", 404);
 
     return apiSuccess(document);
   } catch (error) {
     console.error(`GET /api/documents/${id} failed`, error);
-    return apiError("Failed to load document", 500);
+    return apiErrorCode("FAILED_LOAD_DOCUMENT", 500);
   }
 }
 
@@ -70,26 +70,26 @@ export async function PUT(request: NextRequest, { params }: RouteContext) {
 
   const session = await auth();
   if (!session?.user) {
-    return apiError("You must be signed in to update documents", 401);
+    return apiErrorCode("SIGNIN_REQUIRED_UPDATE", 401);
   }
 
   let body: unknown;
   try {
     body = await request.json();
   } catch {
-    return apiError("Request body must be valid JSON", 400);
+    return apiErrorCode("VALIDATION_INVALID_JSON", 400);
   }
 
   const parsed = updateDocumentSchema.safeParse(body);
   if (!parsed.success) {
-    return apiError(parsed.error.issues[0]?.message ?? "Invalid document data", 400);
+    return apiErrorCode(parsed.error.issues[0]?.message ?? "VALIDATION_GENERIC", 400);
   }
 
   try {
     const existing = await prisma.document.findUnique({ where: { id } });
-    if (!existing) return apiError("Document not found", 404);
+    if (!existing) return apiErrorCode("DOCUMENT_NOT_FOUND", 404);
     if (!canModifyDocument(session, existing.uploadedById)) {
-      return apiError("You do not have permission to update this document", 403);
+      return apiErrorCode("FORBIDDEN_UPDATE_DOCUMENT", 403);
     }
 
     // Computed unconditionally now (FEAT-11 §18), not only for the
@@ -171,12 +171,12 @@ export async function PUT(request: NextRequest, { params }: RouteContext) {
     });
 
     if (document === null) {
-      return apiError("This document was changed by someone else. Please reload and try again.", 409);
+      return apiErrorCode("DOCUMENT_CONFLICT_STALE", 409);
     }
     return apiSuccess(document);
   } catch (error) {
     console.error(`PUT /api/documents/${id} failed`, error);
-    return apiError("Failed to update document", 500);
+    return apiErrorCode("FAILED_UPDATE_DOCUMENT", 500);
   }
 }
 
@@ -189,14 +189,14 @@ export async function DELETE(_request: NextRequest, { params }: RouteContext) {
 
   const session = await auth();
   if (!session?.user) {
-    return apiError("You must be signed in to delete documents", 401);
+    return apiErrorCode("SIGNIN_REQUIRED_DELETE", 401);
   }
 
   try {
     const existing = await prisma.document.findUnique({ where: { id } });
-    if (!existing) return apiError("Document not found", 404);
+    if (!existing) return apiErrorCode("DOCUMENT_NOT_FOUND", 404);
     if (!canModifyDocument(session, existing.uploadedById)) {
-      return apiError("You do not have permission to delete this document", 403);
+      return apiErrorCode("FORBIDDEN_DELETE_DOCUMENT", 403);
     }
 
     // FEAT-11 §19: title/moderationStatus are snapshotted from `existing`
@@ -233,6 +233,6 @@ export async function DELETE(_request: NextRequest, { params }: RouteContext) {
     return apiSuccess({ id });
   } catch (error) {
     console.error(`DELETE /api/documents/${id} failed`, error);
-    return apiError("Failed to delete document", 500);
+    return apiErrorCode("FAILED_DELETE_DOCUMENT", 500);
   }
 }

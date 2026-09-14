@@ -1,5 +1,6 @@
 import "server-only";
 import { NextResponse } from "next/server";
+import { translateErrorCode } from "@/lib/errors/translate-error";
 
 /**
  * Minimal in-memory, fixed-window rate limiter — intentionally
@@ -75,9 +76,10 @@ export function getClientIp(request: Request): string {
 }
 
 /** Consistent 429 response using the app's existing API envelope, plus a Retry-After header. */
-export function tooManyRequestsResponse(retryAfterSeconds: number): NextResponse {
+export async function tooManyRequestsResponse(retryAfterSeconds: number): Promise<NextResponse> {
+  const message = await translateErrorCode("RATE_LIMITED");
   return NextResponse.json(
-    { success: false, data: null, error: "Too many requests. Please try again shortly." },
+    { success: false, data: null, error: message, code: "RATE_LIMITED" },
     { status: 429, headers: { "Retry-After": String(retryAfterSeconds) } }
   );
 }

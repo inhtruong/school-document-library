@@ -46,6 +46,7 @@ export function TeacherFollowAction({
   const [submitting, setSubmitting] = useState(false);
   const tFollowing = useTranslations("following");
   const tToast = useTranslations("toast");
+  const tErrors = useTranslations("errors.codes");
 
   if (isSelf) return null;
 
@@ -73,7 +74,7 @@ export function TeacherFollowAction({
       setFollowing(nextFollowing);
       toast.success(nextFollowing ? tToast("teacherFollowed") : tToast("teacherUnfollowed"));
     } catch {
-      toast.error("Unable to update follow status");
+      toast.error(tErrors("unableUpdateFollowStatus"));
     } finally {
       setSubmitting(false);
     }

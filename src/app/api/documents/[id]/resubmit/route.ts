@@ -1,6 +1,6 @@
 import type { NextRequest } from "next/server";
 import { auth } from "@/auth";
-import { apiError, apiSuccess } from "@/lib/api-response";
+import { apiErrorCode, apiSuccess } from "@/lib/api-response";
 import { actorFromSessionUser } from "@/lib/audit/audit";
 import { resubmitDocument } from "@/lib/documents/teacher-uploads";
 
@@ -18,20 +18,20 @@ export async function POST(_request: NextRequest, { params }: RouteContext) {
   const { id } = await params;
 
   const session = await auth();
-  if (!session?.user) return apiError("Authentication required", 401);
+  if (!session?.user) return apiErrorCode("AUTH_REQUIRED", 401);
 
   try {
     const result = await resubmitDocument(actorFromSessionUser(session.user), id);
 
-    if (result.outcome === "not-found") return apiError("Document not found", 404);
+    if (result.outcome === "not-found") return apiErrorCode("DOCUMENT_NOT_FOUND", 404);
     if (result.outcome === "forbidden") {
-      return apiError("You do not have permission to resubmit this document", 403);
+      return apiErrorCode("FORBIDDEN_RESUBMIT_DOCUMENT", 403);
     }
-    if (result.outcome === "not-rejected") return apiError("Document is not currently rejected", 409);
+    if (result.outcome === "not-rejected") return apiErrorCode("DOCUMENT_NOT_REJECTED", 409);
 
     return apiSuccess({ id, moderationStatus: "PENDING" as const });
   } catch (error) {
     console.error(`POST /api/documents/${id}/resubmit failed`, error);
-    return apiError("Failed to resubmit document", 500);
+    return apiErrorCode("FAILED_RESUBMIT_DOCUMENT", 500);
   }
 }

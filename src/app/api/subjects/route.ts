@@ -1,5 +1,5 @@
 import type { NextRequest } from "next/server";
-import { apiError, apiSuccess } from "@/lib/api-response";
+import { apiErrorCode, apiSuccess } from "@/lib/api-response";
 import { listSubjectSummaries } from "@/lib/documents/subject-summary";
 import { prisma } from "@/lib/prisma";
 
@@ -32,6 +32,6 @@ export async function GET(request: NextRequest) {
     return apiSuccess(subjects);
   } catch (error) {
     console.error("GET /api/subjects failed", error);
-    return apiError("Failed to load subjects", 500);
+    return apiErrorCode("FAILED_LOAD_SUBJECTS", 500);
   }
 }

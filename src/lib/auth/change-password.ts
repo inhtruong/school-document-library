@@ -18,7 +18,7 @@ export async function changePassword(userId: string, input: unknown): Promise<Ch
   if (!parsed.success) {
     return {
       success: false,
-      error: parsed.error.issues[0]?.message ?? "Invalid password data",
+      error: parsed.error.issues[0]?.message ?? "VALIDATION_GENERIC",
       status: 400,
     };
   }
@@ -27,11 +27,11 @@ export async function changePassword(userId: string, input: unknown): Promise<Ch
     where: { id: userId },
     select: { passwordHash: true, email: true, role: true },
   });
-  if (!user) return { success: false, error: "Account not found", status: 401 };
+  if (!user) return { success: false, error: "AUTH_ACCOUNT_NOT_FOUND", status: 401 };
 
   const isCurrentPasswordValid = await verifyPassword(parsed.data.currentPassword, user.passwordHash);
   if (!isCurrentPasswordValid) {
-    return { success: false, error: "Current password is incorrect", status: 401 };
+    return { success: false, error: "AUTH_CURRENT_PASSWORD_INCORRECT", status: 401 };
   }
 
   const passwordHash = await hashPassword(parsed.data.newPassword);

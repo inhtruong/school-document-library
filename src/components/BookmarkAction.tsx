@@ -38,6 +38,7 @@ export function BookmarkAction({ documentId, isAuthenticated, initialBookmarked 
   const [submitting, setSubmitting] = useState(false);
   const tDocumentActions = useTranslations("documentActions");
   const tToast = useTranslations("toast");
+  const tErrors = useTranslations("errors.codes");
 
   if (!isAuthenticated) {
     return (
@@ -63,7 +64,7 @@ export function BookmarkAction({ documentId, isAuthenticated, initialBookmarked 
       setBookmarked(nextBookmarked);
       toast.success(nextBookmarked ? tToast("documentSaved") : tToast("documentRemovedFromSaved"));
     } catch {
-      toast.error("Unable to update saved document");
+      toast.error(tErrors("unableUpdateSavedDocument"));
     } finally {
       setSubmitting(false);
     }

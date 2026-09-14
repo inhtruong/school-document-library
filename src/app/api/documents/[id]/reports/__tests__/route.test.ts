@@ -190,7 +190,8 @@ describe("POST /api/documents/:id/reports — duplicate prevention", () => {
     const body = await response.json();
 
     expect(response.status).toBe(409);
-    expect(body.error).toBe("You have already reported this issue.");
+    expect(body.code).toBe("REPORT_ALREADY_SUBMITTED");
+    expect(body.error).toBe("Bạn đã báo cáo vấn đề này rồi.");
     expect(prisma.documentReport.create).not.toHaveBeenCalled();
   });
 

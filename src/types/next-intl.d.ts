@@ -1,4 +1,5 @@
 import type en from "@/i18n/messages/en.json";
+import type { formats } from "@/i18n/formats";
 import type { Locale } from "@/i18n/locales";
 
 /**
@@ -17,5 +18,6 @@ declare module "use-intl" {
   interface AppConfig {
     Locale: Locale;
     Messages: typeof en;
+    Formats: typeof formats;
   }
 }

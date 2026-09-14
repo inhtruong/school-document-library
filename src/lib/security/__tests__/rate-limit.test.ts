@@ -80,11 +80,11 @@ describe("getClientIp", () => {
 
 describe("tooManyRequestsResponse", () => {
   test("returns 429 with a Retry-After header and the standard error envelope", async () => {
-    const response = tooManyRequestsResponse(42);
+    const response = await tooManyRequestsResponse(42);
     const body = await response.json();
 
     expect(response.status).toBe(429);
     expect(response.headers.get("Retry-After")).toBe("42");
-    expect(body).toEqual({ success: false, data: null, error: expect.any(String) });
+    expect(body).toEqual({ success: false, data: null, error: expect.any(String), code: "RATE_LIMITED" });
   });
 });

@@ -6,14 +6,16 @@ import { signIn } from "@/auth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { isSafeCallbackUrl } from "@/lib/auth/callback-url";
+import type { ErrorCode } from "@/lib/errors/error-codes";
+import { translateErrorCode } from "@/lib/errors/translate-error";
 import { TOAST_KEYS } from "@/lib/toast-messages";
 
 type LoginPageProps = {
   searchParams: Promise<{ error?: string; callbackUrl?: string }>;
 };
 
-const ERROR_MESSAGES: Record<string, string> = {
-  CredentialsSignin: "Incorrect email or password.",
+const ERROR_CODES: Record<string, ErrorCode> = {
+  CredentialsSignin: "AUTH_INVALID_CREDENTIALS",
 };
 
 export default async function LoginPage({ searchParams }: LoginPageProps) {
@@ -35,7 +37,8 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
       });
     } catch (err) {
       if (err instanceof AuthError) {
-        const message = ERROR_MESSAGES[err.type] ?? "Something went wrong. Please try again.";
+        const code = ERROR_CODES[err.type] ?? "UNEXPECTED_ERROR";
+        const message = await translateErrorCode(code);
         // Auth failure is an action outcome (not a field-format validation
         // issue like a malformed email), so it gets a toast too, matching
         // the register-duplicate-email pattern — alongside the inline box.

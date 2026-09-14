@@ -1,5 +1,6 @@
 import { NextRequest } from "next/server";
-import { beforeEach, describe, expect, test, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
+import { __resetTestLocale, __setTestLocale } from "@test/next-intl-server-stub";
 
 vi.mock("@/auth", () => ({ auth: vi.fn() }));
 
@@ -101,13 +102,14 @@ describe("POST /api/moderation/documents/:id/reject — validation", () => {
   });
 
   test("propagates an invalid-reason outcome from the service layer as 400", async () => {
-    mockReject.mockResolvedValue({ outcome: "invalid", error: "A rejection reason is required" });
+    mockReject.mockResolvedValue({ outcome: "invalid", error: "VALIDATION_REJECTION_REASON_REQUIRED" });
 
     const response = await POST(requestWith({ reason: "" }), context);
     const body = await response.json();
 
     expect(response.status).toBe(400);
-    expect(body.error).toBe("A rejection reason is required");
+    expect(body.code).toBe("VALIDATION_REJECTION_REASON_REQUIRED");
+    expect(body.error).toBe("Vui lòng nhập lý do từ chối");
   });
 });
 

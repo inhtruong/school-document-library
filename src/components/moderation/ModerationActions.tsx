@@ -37,6 +37,7 @@ export function ModerationActions({ documentId, documentTitle }: ModerationActio
   const tModeration = useTranslations("moderation");
   const tActions = useTranslations("actions");
   const tToast = useTranslations("toast");
+  const tErrors = useTranslations("errors.codes");
   const [approveOpen, setApproveOpen] = useState(false);
   const [rejectOpen, setRejectOpen] = useState(false);
   const [reason, setReason] = useState("");
@@ -54,7 +55,7 @@ export function ModerationActions({ documentId, documentTitle }: ModerationActio
       toast.success(tToast("documentApproved"));
       router.refresh();
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to approve document");
+      toast.error(err instanceof Error ? err.message : tErrors("failedApproveDocument"));
     } finally {
       setSubmitting(false);
     }
@@ -64,7 +65,7 @@ export function ModerationActions({ documentId, documentTitle }: ModerationActio
     event.preventDefault();
     const trimmed = reason.trim();
     if (trimmed.length === 0) {
-      setReasonError("A rejection reason is required");
+      setReasonError(tErrors("validationRejectionReasonRequired"));
       return;
     }
 
@@ -84,7 +85,7 @@ export function ModerationActions({ documentId, documentTitle }: ModerationActio
       toast.success(tToast("documentRejected"));
       router.refresh();
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to reject document");
+      toast.error(err instanceof Error ? err.message : tErrors("failedRejectDocument"));
     } finally {
       setSubmitting(false);
     }

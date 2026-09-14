@@ -7,18 +7,18 @@ export const updateProfileSchema = z.object({
 
 export const changePasswordSchema = z
   .object({
-    currentPassword: z.string().min(1, "Current password is required"),
+    currentPassword: z.string().min(1, "VALIDATION_CURRENT_PASSWORD_REQUIRED"),
     // Same rule as registration — bcrypt's 72-byte cap and the 8-char
     // minimum must never drift between the two flows.
     newPassword: registerSchema.shape.password,
-    confirmPassword: z.string().min(1, "Please confirm your new password"),
+    confirmPassword: z.string().min(1, "VALIDATION_CONFIRM_PASSWORD_REQUIRED"),
   })
   .refine((data) => data.newPassword === data.confirmPassword, {
-    message: "New password and confirmation do not match",
+    message: "VALIDATION_PASSWORD_MISMATCH",
     path: ["confirmPassword"],
   })
   .refine((data) => data.newPassword !== data.currentPassword, {
-    message: "New password must be different from your current password",
+    message: "VALIDATION_PASSWORD_SAME_AS_CURRENT",
     path: ["newPassword"],
   });
 

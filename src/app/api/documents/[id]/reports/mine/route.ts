@@ -1,6 +1,6 @@
 import type { NextRequest } from "next/server";
 import { auth } from "@/auth";
-import { apiError, apiSuccess, PRIVATE_NO_STORE_HEADERS } from "@/lib/api-response";
+import { apiErrorCode, apiSuccess, PRIVATE_NO_STORE_HEADERS } from "@/lib/api-response";
 import { getMyOpenReportReasons } from "@/lib/documents/report";
 
 type RouteContext = { params: Promise<{ id: string }> };
@@ -15,13 +15,13 @@ export async function GET(_request: NextRequest, { params }: RouteContext) {
   const { id } = await params;
 
   const session = await auth();
-  if (!session?.user) return apiError("Authentication required", 401);
+  if (!session?.user) return apiErrorCode("AUTH_REQUIRED", 401);
 
   try {
     const reasons = await getMyOpenReportReasons(id, session.user.id);
     return apiSuccess({ reportedReasons: reasons }, { headers: PRIVATE_NO_STORE_HEADERS });
   } catch (error) {
     console.error(`GET /api/documents/${id}/reports/mine failed`, error);
-    return apiError("Failed to load report status", 500);
+    return apiErrorCode("FAILED_LOAD_REPORT_STATUS", 500);
   }
 }

@@ -1,6 +1,6 @@
 import type { NextRequest } from "next/server";
 import { auth } from "@/auth";
-import { apiError, apiSuccess, PRIVATE_NO_STORE_HEADERS } from "@/lib/api-response";
+import { apiErrorCode, apiSuccess, PRIVATE_NO_STORE_HEADERS } from "@/lib/api-response";
 import { followTeacher, isFollowingTeacher, unfollowTeacher } from "@/lib/follow/teacher-follow";
 
 type RouteContext = { params: Promise<{ teacherId: string }> };
@@ -10,14 +10,14 @@ export async function GET(_request: NextRequest, { params }: RouteContext) {
   const { teacherId } = await params;
 
   const session = await auth();
-  if (!session?.user) return apiError("Authentication required", 401);
+  if (!session?.user) return apiErrorCode("AUTH_REQUIRED", 401);
 
   try {
     const following = await isFollowingTeacher(session.user.id, teacherId);
     return apiSuccess({ following }, { headers: PRIVATE_NO_STORE_HEADERS });
   } catch (error) {
     console.error(`GET /api/teachers/${teacherId}/follow failed`, error);
-    return apiError("Failed to load follow state", 500);
+    return apiErrorCode("FAILED_LOAD_FOLLOW_STATE", 500);
   }
 }
 
@@ -30,17 +30,17 @@ export async function POST(_request: NextRequest, { params }: RouteContext) {
   const { teacherId } = await params;
 
   const session = await auth();
-  if (!session?.user) return apiError("Authentication required", 401);
+  if (!session?.user) return apiErrorCode("AUTH_REQUIRED", 401);
 
   try {
     const result = await followTeacher(session.user.id, teacherId);
-    if (result.outcome === "self-follow") return apiError("You cannot follow yourself", 400);
-    if (result.outcome === "not-found") return apiError("Teacher not found", 404);
+    if (result.outcome === "self-follow") return apiErrorCode("FORBIDDEN_SELF_FOLLOW", 400);
+    if (result.outcome === "not-found") return apiErrorCode("TEACHER_NOT_FOUND", 404);
 
     return apiSuccess({ following: true });
   } catch (error) {
     console.error(`POST /api/teachers/${teacherId}/follow failed`, error);
-    return apiError("Failed to follow teacher", 500);
+    return apiErrorCode("FAILED_FOLLOW_TEACHER", 500);
   }
 }
 
@@ -49,13 +49,13 @@ export async function DELETE(_request: NextRequest, { params }: RouteContext) {
   const { teacherId } = await params;
 
   const session = await auth();
-  if (!session?.user) return apiError("Authentication required", 401);
+  if (!session?.user) return apiErrorCode("AUTH_REQUIRED", 401);
 
   try {
     await unfollowTeacher(session.user.id, teacherId);
     return apiSuccess({ following: false });
   } catch (error) {
     console.error(`DELETE /api/teachers/${teacherId}/follow failed`, error);
-    return apiError("Failed to unfollow teacher", 500);
+    return apiErrorCode("FAILED_UNFOLLOW_TEACHER", 500);
   }
 }

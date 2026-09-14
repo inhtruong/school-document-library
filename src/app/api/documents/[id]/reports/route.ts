@@ -1,6 +1,6 @@
 import type { NextRequest } from "next/server";
 import { auth } from "@/auth";
-import { apiError, apiSuccess } from "@/lib/api-response";
+import { apiErrorCode, apiSuccess } from "@/lib/api-response";
 import { actorFromSessionUser } from "@/lib/audit/audit";
 import { createReport } from "@/lib/documents/report";
 import { isDocumentVisibleTo } from "@/lib/documents/visibility";
@@ -22,21 +22,21 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
   const { id } = await params;
 
   const session = await auth();
-  if (!session?.user) return apiError("Authentication required", 401);
+  if (!session?.user) return apiErrorCode("AUTH_REQUIRED", 401);
 
   const rateLimit = checkRateLimit({ scope: "report", identity: session.user.id, ...REPORT_RATE_LIMIT });
-  if (rateLimit.limited) return tooManyRequestsResponse(rateLimit.retryAfterSeconds);
+  if (rateLimit.limited) return await tooManyRequestsResponse(rateLimit.retryAfterSeconds);
 
   let body: unknown;
   try {
     body = await request.json();
   } catch {
-    return apiError("Request body must be valid JSON", 400);
+    return apiErrorCode("VALIDATION_INVALID_JSON", 400);
   }
 
   const parsed = createReportSchema.safeParse(body);
   if (!parsed.success) {
-    return apiError(parsed.error.issues[0]?.message ?? "Invalid report", 400);
+    return apiErrorCode(parsed.error.issues[0]?.message ?? "VALIDATION_GENERIC", 400);
   }
 
   try {
@@ -44,8 +44,8 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
       where: { id },
       select: { id: true, moderationStatus: true, uploadedById: true },
     });
-    if (!document) return apiError("Document not found", 404);
-    if (!isDocumentVisibleTo(document, session)) return apiError("Document not found", 404);
+    if (!document) return apiErrorCode("DOCUMENT_NOT_FOUND", 404);
+    if (!isDocumentVisibleTo(document, session)) return apiErrorCode("DOCUMENT_NOT_FOUND", 404);
 
     const result = await createReport(
       id,
@@ -55,12 +55,12 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
       actorFromSessionUser(session.user)
     );
     if (result.outcome === "duplicate") {
-      return apiError("You have already reported this issue.", 409);
+      return apiErrorCode("REPORT_ALREADY_SUBMITTED", 409);
     }
 
     return apiSuccess(result.report, { status: 201 });
   } catch (error) {
     console.error(`POST /api/documents/${id}/reports failed`, error);
-    return apiError("Failed to submit report", 500);
+    return apiErrorCode("FAILED_SUBMIT_REPORT", 500);
   }
 }

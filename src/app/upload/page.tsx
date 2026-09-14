@@ -9,6 +9,7 @@ import { requireRole } from "@/lib/auth/authorize";
 import { listGrades } from "@/lib/documents/grades";
 import { MAX_UPLOAD_SIZE_MB } from "@/lib/documents/upload-config";
 import { uploadDocument } from "@/lib/documents/upload";
+import { translateErrorCode } from "@/lib/errors/translate-error";
 import { TOAST_KEYS } from "@/lib/toast-messages";
 
 const ACCEPTED_FILE_EXTENSIONS =
@@ -36,8 +37,9 @@ export default async function UploadPage({ searchParams }: UploadPageProps) {
     });
 
     if (!result.success) {
+      const message = await translateErrorCode(result.error);
       const notify = result.status !== 400 ? "&notify=1" : "";
-      redirect(`/upload?error=${encodeURIComponent(result.error)}${notify}`);
+      redirect(`/upload?error=${encodeURIComponent(message)}${notify}`);
     }
 
     // FEAT-10C: a Teacher's upload lands PENDING (not yet public), so the

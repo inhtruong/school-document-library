@@ -36,6 +36,7 @@ export function NotificationBell({ initialNotifications, initialUnreadCount }: N
   const [markingAll, setMarkingAll] = useState(false);
   const tNotifications = useTranslations("notifications");
   const tToast = useTranslations("toast");
+  const tErrors = useTranslations("errors.codes");
 
   function handleItemRead(id: string) {
     setNotifications((prev) =>
@@ -64,7 +65,7 @@ export function NotificationBell({ initialNotifications, initialUnreadCount }: N
       setUnreadCount(0);
       toast.success(tToast("notificationsMarkedAllRead"));
     } catch {
-      toast.error("Unable to update notifications");
+      toast.error(tErrors("unableUpdateNotifications"));
     } finally {
       setMarkingAll(false);
     }

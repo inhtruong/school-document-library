@@ -1,5 +1,6 @@
 import { NextRequest } from "next/server";
-import { beforeEach, describe, expect, test, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
+import { __resetTestLocale, __setTestLocale } from "@test/next-intl-server-stub";
 
 vi.mock("@/auth", () => ({ auth: vi.fn() }));
 
@@ -37,6 +38,10 @@ beforeEach(() => {
   } as never);
   vi.mocked(prisma.user.update).mockResolvedValue({ id: "user_1", name: "Updated Name" } as never);
   vi.mocked(prisma.auditLog.create).mockResolvedValue({} as never);
+});
+
+afterEach(() => {
+  __resetTestLocale();
 });
 
 describe("PATCH /api/profile — authentication", () => {
@@ -88,6 +93,23 @@ describe("PATCH /api/profile — validation", () => {
   test("rejects malformed JSON with 400", async () => {
     const response = await PATCH(patchRequest("{not valid json"));
     expect(response.status).toBe(400);
+  });
+
+  test("I18N-1: rejects an empty name with a localized message in vi by default", async () => {
+    const response = await PATCH(patchRequest({ name: "" }));
+    const body = await response.json();
+
+    expect(body.code).toBe("VALIDATION_NAME_REQUIRED");
+    expect(body.error).toBe("Vui lòng nhập tên");
+  });
+
+  test("I18N-1: rejects an empty name with a localized message in en when the request locale is en", async () => {
+    __setTestLocale("en");
+    const response = await PATCH(patchRequest({ name: "" }));
+    const body = await response.json();
+
+    expect(body.code).toBe("VALIDATION_NAME_REQUIRED");
+    expect(body.error).toBe("Name is required");
   });
 });
 

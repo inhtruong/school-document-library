@@ -27,15 +27,15 @@ export async function validateTaxonomySelection(input: {
     prisma.lesson.findUnique({ where: { id: input.lessonId } }),
   ]);
 
-  if (!grade) return { valid: false, error: "Selected grade does not exist" };
-  if (!subject) return { valid: false, error: "Selected subject does not exist" };
-  if (!lesson) return { valid: false, error: "Selected lesson does not exist" };
+  if (!grade) return { valid: false, error: "TAXONOMY_GRADE_NOT_FOUND" };
+  if (!subject) return { valid: false, error: "TAXONOMY_SUBJECT_NOT_FOUND" };
+  if (!lesson) return { valid: false, error: "TAXONOMY_LESSON_NOT_FOUND" };
 
   if (subject.gradeId !== grade.id) {
-    return { valid: false, error: "Selected subject does not belong to the selected grade" };
+    return { valid: false, error: "TAXONOMY_SUBJECT_GRADE_MISMATCH" };
   }
   if (lesson.subjectId !== subject.id) {
-    return { valid: false, error: "Selected lesson does not belong to the selected subject" };
+    return { valid: false, error: "TAXONOMY_LESSON_SUBJECT_MISMATCH" };
   }
 
   return { valid: true, grade, subject, lesson };

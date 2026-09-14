@@ -20,14 +20,14 @@ export async function registerStudent(input: unknown): Promise<RegisterResult> {
   if (!parsed.success) {
     return {
       success: false,
-      error: parsed.error.issues[0]?.message ?? "Invalid registration data",
+      error: parsed.error.issues[0]?.message ?? "VALIDATION_GENERIC",
       status: 400,
     };
   }
 
   const existing = await prisma.user.findUnique({ where: { email: parsed.data.email } });
   if (existing) {
-    return { success: false, error: "An account with this email already exists", status: 409 };
+    return { success: false, error: "AUTH_EMAIL_ALREADY_EXISTS", status: 409 };
   }
 
   const passwordHash = await hashPassword(parsed.data.password);

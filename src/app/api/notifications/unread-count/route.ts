@@ -1,17 +1,17 @@
 import { auth } from "@/auth";
-import { apiError, apiSuccess, PRIVATE_NO_STORE_HEADERS } from "@/lib/api-response";
+import { apiErrorCode, apiSuccess, PRIVATE_NO_STORE_HEADERS } from "@/lib/api-response";
 import { getUnreadNotificationCount } from "@/lib/notifications/notification";
 
 /** Requires authentication. Never exposes another user's unread count — always scoped to the session. */
 export async function GET() {
   const session = await auth();
-  if (!session?.user) return apiError("Authentication required", 401);
+  if (!session?.user) return apiErrorCode("AUTH_REQUIRED", 401);
 
   try {
     const unreadCount = await getUnreadNotificationCount(session.user.id);
     return apiSuccess({ unreadCount }, { headers: PRIVATE_NO_STORE_HEADERS });
   } catch (error) {
     console.error("GET /api/notifications/unread-count failed", error);
-    return apiError("Failed to load unread count", 500);
+    return apiErrorCode("FAILED_LOAD_UNREAD_COUNT", 500);
   }
 }

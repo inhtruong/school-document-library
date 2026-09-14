@@ -23,6 +23,7 @@ const MIN_PASSWORD_LENGTH = 8;
  */
 export function PasswordForm() {
   const tProfile = useTranslations("profile");
+  const tErrors = useTranslations("errors.codes");
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -41,11 +42,11 @@ export function PasswordForm() {
     if (!canSubmit) return;
 
     if (newPassword !== confirmPassword) {
-      setError("New password and confirmation do not match");
+      setError(tErrors("validationPasswordMismatch"));
       return;
     }
     if (newPassword === currentPassword) {
-      setError("New password must be different from your current password");
+      setError(tErrors("validationPasswordSameAsCurrent"));
       return;
     }
 
@@ -61,7 +62,7 @@ export function PasswordForm() {
       const body = await response.json();
       if (!response.ok || !body.success) throw new Error(body.error ?? "Failed to change password");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to change password");
+      setError(err instanceof Error ? err.message : tErrors("failedChangePassword"));
       setSubmitting(false);
       return;
     }

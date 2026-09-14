@@ -1,6 +1,6 @@
 import type { NextRequest } from "next/server";
 import { auth } from "@/auth";
-import { apiError, apiSuccess } from "@/lib/api-response";
+import { apiErrorCode, apiSuccess } from "@/lib/api-response";
 import { isDocumentVisibleTo } from "@/lib/documents/visibility";
 import { prisma } from "@/lib/prisma";
 import { RATING_RATE_LIMIT } from "@/lib/security/rate-limit-config";
@@ -20,21 +20,21 @@ export async function PUT(request: NextRequest, { params }: RouteContext) {
   const { id } = await params;
 
   const session = await auth();
-  if (!session?.user) return apiError("Authentication required", 401);
+  if (!session?.user) return apiErrorCode("AUTH_REQUIRED", 401);
 
   const rateLimit = checkRateLimit({ scope: "rating", identity: session.user.id, ...RATING_RATE_LIMIT });
-  if (rateLimit.limited) return tooManyRequestsResponse(rateLimit.retryAfterSeconds);
+  if (rateLimit.limited) return await tooManyRequestsResponse(rateLimit.retryAfterSeconds);
 
   let body: unknown;
   try {
     body = await request.json();
   } catch {
-    return apiError("Request body must be valid JSON", 400);
+    return apiErrorCode("VALIDATION_INVALID_JSON", 400);
   }
 
   const parsed = rateDocumentSchema.safeParse(body);
   if (!parsed.success) {
-    return apiError(parsed.error.issues[0]?.message ?? "Invalid rating value", 400);
+    return apiErrorCode(parsed.error.issues[0]?.message ?? "VALIDATION_GENERIC", 400);
   }
 
   try {
@@ -42,8 +42,8 @@ export async function PUT(request: NextRequest, { params }: RouteContext) {
       where: { id },
       select: { id: true, moderationStatus: true, uploadedById: true },
     });
-    if (!document) return apiError("Document not found", 404);
-    if (!isDocumentVisibleTo(document, session)) return apiError("Document not found", 404);
+    if (!document) return apiErrorCode("DOCUMENT_NOT_FOUND", 404);
+    if (!isDocumentVisibleTo(document, session)) return apiErrorCode("DOCUMENT_NOT_FOUND", 404);
 
     const rating = await prisma.documentRating.upsert({
       where: { documentId_userId: { documentId: id, userId: session.user.id } },
@@ -55,6 +55,6 @@ export async function PUT(request: NextRequest, { params }: RouteContext) {
     return apiSuccess(rating);
   } catch (error) {
     console.error(`PUT /api/documents/${id}/rating failed`, error);
-    return apiError("Failed to save rating", 500);
+    return apiErrorCode("FAILED_SAVE_RATING", 500);
   }
 }

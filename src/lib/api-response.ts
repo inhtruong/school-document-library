@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { translateErrorCode } from "@/lib/errors/translate-error";
 
 export type ApiMeta = {
   total: number;
@@ -23,6 +24,8 @@ type ErrorBody = {
   success: false;
   data: null;
   error: string;
+  /** Stable machine-readable code for programmatic handling — the `error` field is the localized display text. */
+  code?: string;
 };
 
 export function apiSuccess<T>(
@@ -43,5 +46,12 @@ export const PRIVATE_NO_STORE_HEADERS: HeadersInit = { "Cache-Control": "private
 
 export function apiError(message: string, status = 400) {
   const body: ErrorBody = { success: false, data: null, error: message };
+  return NextResponse.json(body, { status });
+}
+
+/** Resolves a stable error code to the request's localized text, then builds the standard error envelope (with `code` retained for programmatic consumers). */
+export async function apiErrorCode(code: string, status = 400) {
+  const message = await translateErrorCode(code);
+  const body: ErrorBody = { success: false, data: null, error: message, code };
   return NextResponse.json(body, { status });
 }

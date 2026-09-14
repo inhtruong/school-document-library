@@ -2,11 +2,11 @@ import { z } from "zod";
 import { DOCUMENT_TYPE_VALUES } from "@/lib/documents/document-type";
 
 export const createDocumentSchema = z.object({
-  title: z.string().trim().min(1, "Title is required").max(200),
-  description: z.string().trim().max(2000).optional().nullable(),
-  subject: z.string().trim().min(1, "Subject is required").max(100),
-  documentType: z.enum(DOCUMENT_TYPE_VALUES),
-  academicYear: z.string().trim().min(1, "Academic year is required").max(20),
+  title: z.string().trim().min(1, "VALIDATION_TITLE_REQUIRED").max(200, "VALIDATION_TITLE_TOO_LONG"),
+  description: z.string().trim().max(2000, "VALIDATION_DESCRIPTION_TOO_LONG|2000").optional().nullable(),
+  subject: z.string().trim().min(1, "VALIDATION_SUBJECT_REQUIRED").max(100, "VALIDATION_SUBJECT_TOO_LONG"),
+  documentType: z.enum(DOCUMENT_TYPE_VALUES, { error: "VALIDATION_DOCUMENT_TYPE_INVALID" }),
+  academicYear: z.string().trim().min(1, "VALIDATION_ACADEMIC_YEAR_REQUIRED").max(20, "VALIDATION_ACADEMIC_YEAR_TOO_LONG"),
 });
 
 export const updateDocumentSchema = createDocumentSchema.partial();
@@ -19,13 +19,13 @@ export const updateDocumentSchema = createDocumentSchema.partial();
  * real existence/hierarchy check server-side.
  */
 export const uploadDocumentSchema = z.object({
-  title: z.string().trim().min(1, "Title is required").max(200),
-  description: z.string().trim().max(2000).optional().nullable(),
-  academicYear: z.string().trim().min(1, "Academic year is required").max(20),
-  gradeId: z.string().trim().min(1, "Grade is required"),
-  subjectId: z.string().trim().min(1, "Subject is required"),
-  lessonId: z.string().trim().min(1, "Lesson is required"),
-  documentType: z.enum(DOCUMENT_TYPE_VALUES),
+  title: z.string().trim().min(1, "VALIDATION_TITLE_REQUIRED").max(200, "VALIDATION_TITLE_TOO_LONG"),
+  description: z.string().trim().max(2000, "VALIDATION_DESCRIPTION_TOO_LONG|2000").optional().nullable(),
+  academicYear: z.string().trim().min(1, "VALIDATION_ACADEMIC_YEAR_REQUIRED").max(20, "VALIDATION_ACADEMIC_YEAR_TOO_LONG"),
+  gradeId: z.string().trim().min(1, "VALIDATION_GRADE_REQUIRED"),
+  subjectId: z.string().trim().min(1, "VALIDATION_SUBJECT_REQUIRED"),
+  lessonId: z.string().trim().min(1, "VALIDATION_LESSON_REQUIRED"),
+  documentType: z.enum(DOCUMENT_TYPE_VALUES, { error: "VALIDATION_DOCUMENT_TYPE_INVALID" }),
 });
 
 export type CreateDocumentInput = z.infer<typeof createDocumentSchema>;

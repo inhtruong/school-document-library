@@ -15,7 +15,7 @@ export async function updateProfileName(userId: string, input: unknown): Promise
   if (!parsed.success) {
     return {
       success: false,
-      error: parsed.error.issues[0]?.message ?? "Invalid profile data",
+      error: parsed.error.issues[0]?.message ?? "VALIDATION_GENERIC",
       status: 400,
     };
   }

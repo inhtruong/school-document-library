@@ -27,6 +27,7 @@ export function DocumentRatingSection({ documentId, isAuthenticated, initialSumm
   const [submitting, setSubmitting] = useState(false);
   const tRating = useTranslations("rating");
   const tToast = useTranslations("toast");
+  const tErrors = useTranslations("errors.codes");
 
   async function handleRate(value: number) {
     if (submitting) return;
@@ -50,7 +51,7 @@ export function DocumentRatingSection({ documentId, isAuthenticated, initialSumm
 
       toast.success(hadPreviousRating ? tToast("ratingUpdated") : tToast("ratingSubmitted"));
     } catch {
-      toast.error("Unable to save your rating.");
+      toast.error(tErrors("unableSaveRating"));
     } finally {
       setSubmitting(false);
     }

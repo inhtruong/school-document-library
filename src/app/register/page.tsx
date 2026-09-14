@@ -6,6 +6,7 @@ import { signIn } from "@/auth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { registerStudent } from "@/lib/auth/register";
+import { translateErrorCode } from "@/lib/errors/translate-error";
 import { TOAST_KEYS } from "@/lib/toast-messages";
 
 type RegisterPageProps = {
@@ -29,8 +30,9 @@ export default async function RegisterPage({ searchParams }: RegisterPageProps) 
     });
 
     if (!result.success) {
+      const message = await translateErrorCode(result.error);
       const notify = result.status !== 400 ? "&notify=1" : "";
-      redirect(`/register?error=${encodeURIComponent(result.error)}${notify}`);
+      redirect(`/register?error=${encodeURIComponent(message)}${notify}`);
     }
 
     try {
@@ -41,9 +43,7 @@ export default async function RegisterPage({ searchParams }: RegisterPageProps) 
       });
     } catch (err) {
       if (err instanceof AuthError) {
-        const message = encodeURIComponent(
-          "Account created, but automatic sign-in failed. Please log in."
-        );
+        const message = encodeURIComponent(await translateErrorCode("AUTH_SIGNIN_AFTER_REGISTER_FAILED"));
         redirect(`/login?error=${message}&notify=1`);
       }
       throw err;

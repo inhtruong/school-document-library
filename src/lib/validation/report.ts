@@ -10,18 +10,15 @@ import { REPORT_REASON_VALUES } from "@/lib/documents/report-reason";
  */
 export const createReportSchema = z
   .object({
-    reason: z.enum(REPORT_REASON_VALUES, { error: "Select a valid reason" }),
+    reason: z.enum(REPORT_REASON_VALUES, { error: "VALIDATION_REPORT_REASON_INVALID" }),
     description: z
       .string()
       .trim()
-      .max(
-        REPORT_DESCRIPTION_MAX_LENGTH,
-        `Description must be ${REPORT_DESCRIPTION_MAX_LENGTH} characters or fewer`
-      )
+      .max(REPORT_DESCRIPTION_MAX_LENGTH, `VALIDATION_DESCRIPTION_TOO_LONG|${REPORT_DESCRIPTION_MAX_LENGTH}`)
       .optional(),
   })
   .refine((data) => data.reason !== "OTHER" || Boolean(data.description && data.description.length > 0), {
-    message: "Description is required when reason is Other",
+    message: "VALIDATION_REPORT_DESCRIPTION_REQUIRED_FOR_OTHER",
     path: ["description"],
   })
   .transform((data) => ({

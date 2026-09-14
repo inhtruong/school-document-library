@@ -1,10 +1,11 @@
 import Link from "next/link";
-import { getTranslations } from "next-intl/server";
+import { getFormatter, getTranslations } from "next-intl/server";
 import { CalendarDays, User } from "lucide-react";
 import type { DocumentModerationStatus } from "@prisma/client";
 import { ModerationStatusBadge } from "@/components/moderation/ModerationStatusBadge";
 import { Card } from "@/components/ui/card";
 import { buttonVariants } from "@/components/ui/button";
+import type { DateTimeFormatter } from "@/i18n/formats";
 import { requireRole } from "@/lib/auth/authorize";
 import { listModerationDocuments } from "@/lib/moderation/moderation";
 import { MODERATION_STATUS_COLOR } from "@/lib/moderation/moderation-status-style";
@@ -48,14 +49,8 @@ function formatFileSize(bytes: number | null): string | null {
   return bytes < 1024 * 1024 ? `${Math.round(bytes / 1024)} KB` : `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
-function formatDate(iso: string): string {
-  return new Intl.DateTimeFormat("en-US", {
-    year: "numeric",
-    month: "short",
-    day: "numeric",
-    hour: "numeric",
-    minute: "2-digit",
-  }).format(new Date(iso));
+function formatDate(iso: string, format: DateTimeFormatter): string {
+  return format.dateTime(new Date(iso), "dateTimeShort");
 }
 
 export default async function ModerationPage({ searchParams }: ModerationPageProps) {
@@ -66,7 +61,11 @@ export default async function ModerationPage({ searchParams }: ModerationPagePro
   const page = parsePage(rawPage);
 
   const result = await listModerationDocuments(status, page);
-  const [tModeration, tCommon] = await Promise.all([getTranslations("moderation"), getTranslations("common")]);
+  const [tModeration, tCommon, format] = await Promise.all([
+    getTranslations("moderation"),
+    getTranslations("common"),
+    getFormatter(),
+  ]);
   const EMPTY_MESSAGES: Record<DocumentModerationStatus, string> = {
     PENDING: tModeration("emptyPending"),
     APPROVED: tModeration("emptyApproved"),
@@ -108,8 +107,8 @@ export default async function ModerationPage({ searchParams }: ModerationPagePro
               const fileSize = formatFileSize(doc.fileSize);
               const timestampLabel =
                 status === "PENDING" || !doc.reviewedAt
-                  ? tModeration("uploadedOn", { date: formatDate(doc.createdAt) })
-                  : tModeration("reviewedOn", { date: formatDate(doc.reviewedAt) });
+                  ? tModeration("uploadedOn", { date: formatDate(doc.createdAt, format) })
+                  : tModeration("reviewedOn", { date: formatDate(doc.reviewedAt, format) });
 
               return (
                 <li key={doc.id}>

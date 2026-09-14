@@ -8,6 +8,7 @@
 // `__setTestLocale()` rather than an unusable cookie.
 import en from "@/i18n/messages/en.json";
 import vi from "@/i18n/messages/vi.json";
+import { formats, type DateTimeFormatter } from "@/i18n/formats";
 
 type Locale = "vi" | "en";
 type Messages = Record<string, unknown>;
@@ -56,4 +57,19 @@ export async function getTranslations(namespace: string) {
 
 export async function getLocale(): Promise<Locale> {
   return testLocale;
+}
+
+/**
+ * I18N-2: mirrors real `getFormatter()`/`useFormatter()` behavior — resolves
+ * the same named `formats.dateTime` presets against the test-controlled
+ * locale via the real `Intl.DateTimeFormat`, so tests exercise genuine
+ * locale-specific output rather than a hand-mocked string.
+ */
+export async function getFormatter(): Promise<DateTimeFormatter> {
+  return {
+    dateTime(value: Date, format?: keyof typeof formats.dateTime): string {
+      const options = format ? formats.dateTime[format] : undefined;
+      return new Intl.DateTimeFormat(testLocale, options).format(value);
+    },
+  };
 }

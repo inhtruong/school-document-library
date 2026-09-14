@@ -1,6 +1,7 @@
 import Link from "next/link";
-import { getTranslations } from "next-intl/server";
+import { getFormatter, getTranslations } from "next-intl/server";
 import { notFound } from "next/navigation";
+import type { DateTimeFormatter } from "@/i18n/formats";
 import { auth } from "@/auth";
 import { BookmarkAction } from "@/components/BookmarkAction";
 import { CommentSection } from "@/components/CommentSection";
@@ -49,10 +50,10 @@ const BACK_DESTINATION_HREFS: Record<string, string> = {
 };
 const DEFAULT_BACK_DESTINATION_HREF = "/search";
 
-function formatDate(value: string): string | null {
+function formatDate(value: string, format: DateTimeFormatter): string | null {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return null;
-  return date.toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" });
+  return format.dateTime(date, "dateOnly");
 }
 
 /** Builds a `/search` href from real taxonomy ids only — never a hand-typed/hardcoded id. */
@@ -68,12 +69,13 @@ export default async function DocumentDetailPage({ params, searchParams }: Docum
   const { id } = await params;
   const { from } = await searchParams;
   const [doc, session] = await Promise.all([getDocumentById(id), auth()]);
-  const [tDocumentType, tDocuments, tCommon, tModeration, tRoles] = await Promise.all([
+  const [tDocumentType, tDocuments, tCommon, tModeration, tRoles, format] = await Promise.all([
     getTranslations("documentType"),
     getTranslations("documents"),
     getTranslations("common"),
     getTranslations("moderation"),
     getTranslations("common.roles"),
+    getFormatter(),
   ]);
 
   if (!doc) notFound();
@@ -106,7 +108,7 @@ export default async function DocumentDetailPage({ params, searchParams }: Docum
         : Promise.resolve(null),
     ]);
 
-  const createdLabel = formatDate(doc.createdAt);
+  const createdLabel = formatDate(doc.createdAt, format);
   const documentPagePath = `/documents/${doc.id}`;
   const initialComments: DocumentCommentRecord[] = commentsPage.comments.map((comment) => ({
     ...comment,

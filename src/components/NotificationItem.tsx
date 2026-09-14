@@ -1,8 +1,10 @@
 "use client";
 
 import Link from "next/link";
+import { useFormatter } from "next-intl";
 import { useRouter } from "next/navigation";
 import { CheckCircle2, Clock, FileText, XCircle, type LucideIcon } from "lucide-react";
+import type { DateTimeFormatter } from "@/i18n/formats";
 import type { NotificationRecord } from "@/lib/notifications/notification";
 
 type NotificationItemProps = {
@@ -20,15 +22,8 @@ const NOTIFICATION_TYPE_STYLES: Record<NotificationRecord["type"], { icon: Lucid
   DOCUMENT_REJECTED: { icon: XCircle, bg: "bg-destructive-soft", fg: "text-destructive" },
 };
 
-function formatNotificationDate(value: string): string {
-  const date = new Date(value);
-  return date.toLocaleString("en-US", {
-    year: "numeric",
-    month: "short",
-    day: "numeric",
-    hour: "numeric",
-    minute: "2-digit",
-  });
+function formatNotificationDate(value: string, format: DateTimeFormatter): string {
+  return format.dateTime(new Date(value), "dateTimeShort");
 }
 
 /**
@@ -56,6 +51,7 @@ function notificationHref(notification: NotificationRecord): string {
  */
 export function NotificationItem({ notification, onRead, onNavigate }: NotificationItemProps) {
   const router = useRouter();
+  const format = useFormatter();
   const isUnread = notification.readAt === null;
   const { icon: Icon, bg, fg } = NOTIFICATION_TYPE_STYLES[notification.type];
 
@@ -90,7 +86,7 @@ export function NotificationItem({ notification, onRead, onNavigate }: Notificat
             ) : null}
           </div>
           <p className="mt-0.5 line-clamp-2 text-sm text-muted">{notification.message}</p>
-          <p className="mt-1 text-xs text-muted">{formatNotificationDate(notification.createdAt)}</p>
+          <p className="mt-1 text-xs text-muted">{formatNotificationDate(notification.createdAt, format)}</p>
         </div>
       </Link>
     </li>

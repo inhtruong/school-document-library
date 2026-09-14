@@ -1,11 +1,12 @@
 "use client";
 
 import { useState } from "react";
-import { useTranslations } from "next-intl";
+import { useFormatter, useTranslations } from "next-intl";
 import { toast } from "sonner";
 import { commentTextareaClassName } from "@/components/CommentForm";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import type { DateTimeFormatter } from "@/i18n/formats";
 import { COMMENT_MAX_LENGTH } from "@/lib/documents/comment-config";
 import type { DocumentCommentRecord } from "@/types/comment";
 
@@ -20,15 +21,8 @@ type CommentItemProps = {
 
 type Mode = "view" | "edit" | "confirm-delete";
 
-function formatCommentDate(value: string): string {
-  const date = new Date(value);
-  return date.toLocaleString("en-US", {
-    year: "numeric",
-    month: "short",
-    day: "numeric",
-    hour: "numeric",
-    minute: "2-digit",
-  });
+function formatCommentDate(value: string, format: DateTimeFormatter): string {
+  return format.dateTime(new Date(value), "dateTimeShort");
 }
 
 /**
@@ -46,6 +40,7 @@ export function CommentItem({ comment, documentId, currentUserId, isAdmin, onUpd
   const tActions = useTranslations("actions");
   const tToast = useTranslations("toast");
   const tErrors = useTranslations("errors.codes");
+  const format = useFormatter();
 
   const isOwner = currentUserId !== null && currentUserId === comment.author.id;
   const canDelete = isOwner || isAdmin;
@@ -104,7 +99,7 @@ export function CommentItem({ comment, documentId, currentUserId, isAdmin, onUpd
       <div className="flex flex-wrap items-center gap-2">
         <span className="text-sm font-medium text-ink">{comment.author.name}</span>
         <Badge variant="outline">{tRoles(comment.author.role.toLowerCase() as "student" | "teacher" | "admin")}</Badge>
-        <span className="text-xs text-muted">{formatCommentDate(comment.createdAt)}</span>
+        <span className="text-xs text-muted">{formatCommentDate(comment.createdAt, format)}</span>
       </div>
 
       {mode === "edit" ? (

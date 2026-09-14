@@ -1,13 +1,14 @@
-import { getTranslations } from "next-intl/server";
+import { getFormatter, getTranslations } from "next-intl/server";
 import { redirect } from "next/navigation";
 import { PasswordForm } from "@/components/profile/PasswordForm";
 import { ProfileForm } from "@/components/profile/ProfileForm";
 import { Badge } from "@/components/ui/badge";
+import type { DateTimeFormatter } from "@/i18n/formats";
 import { requireAuth } from "@/lib/auth/authorize";
 import { prisma } from "@/lib/prisma";
 
-function formatMemberSince(date: Date): string {
-  return new Intl.DateTimeFormat("en-US", { year: "numeric", month: "long", day: "numeric" }).format(date);
+function formatMemberSince(date: Date, format: DateTimeFormatter): string {
+  return format.dateTime(date, "dateOnly");
 }
 
 /**
@@ -26,7 +27,11 @@ export default async function ProfilePage() {
   if (!user) redirect("/login");
 
   const initial = user.name.trim().slice(0, 1).toUpperCase() || "?";
-  const [tProfile, tRoles] = await Promise.all([getTranslations("profile"), getTranslations("common.roles")]);
+  const [tProfile, tRoles, format] = await Promise.all([
+    getTranslations("profile"),
+    getTranslations("common.roles"),
+    getFormatter(),
+  ]);
   const roleLabel = tRoles(user.role.toLowerCase() as "student" | "teacher" | "admin");
 
   return (
@@ -60,7 +65,7 @@ export default async function ProfilePage() {
           initialName={user.name}
           email={user.email}
           roleLabel={roleLabel}
-          memberSince={formatMemberSince(user.createdAt)}
+          memberSince={formatMemberSince(user.createdAt, format)}
         />
       </div>
 

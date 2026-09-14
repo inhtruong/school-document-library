@@ -4,7 +4,8 @@ import { ModerationStatusBadge } from "@/components/moderation/ModerationStatusB
 import { ResubmitAction } from "@/components/teacher-uploads/ResubmitAction";
 import { Card } from "@/components/ui/card";
 import { buttonVariants } from "@/components/ui/button";
-import { getTranslations } from "next-intl/server";
+import { getFormatter, getTranslations } from "next-intl/server";
+import type { DateTimeFormatter } from "@/i18n/formats";
 import { documentTypeMessageKey } from "@/lib/documents/document-type";
 import { listTeacherUploads, type TeacherUploadStatusFilter } from "@/lib/documents/teacher-uploads";
 import { requireRole } from "@/lib/auth/authorize";
@@ -45,14 +46,8 @@ function formatFileSize(bytes: number | null): string | null {
   return bytes < 1024 * 1024 ? `${Math.round(bytes / 1024)} KB` : `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
-function formatDate(iso: string): string {
-  return new Intl.DateTimeFormat("en-US", {
-    year: "numeric",
-    month: "short",
-    day: "numeric",
-    hour: "numeric",
-    minute: "2-digit",
-  }).format(new Date(iso));
+function formatDate(iso: string, format: DateTimeFormatter): string {
+  return format.dateTime(new Date(iso), "dateTimeShort");
 }
 
 export default async function MyUploadsPage({ searchParams }: MyUploadsPageProps) {
@@ -63,12 +58,13 @@ export default async function MyUploadsPage({ searchParams }: MyUploadsPageProps
   const page = parsePage(rawPage);
 
   const result = await listTeacherUploads(session.user.id, filter, page);
-  const [tDocumentType, tMyUploads, tModeration, tCommon, tUpload] = await Promise.all([
+  const [tDocumentType, tMyUploads, tModeration, tCommon, tUpload, format] = await Promise.all([
     getTranslations("documentType"),
     getTranslations("myUploads"),
     getTranslations("moderation"),
     getTranslations("common"),
     getTranslations("upload"),
+    getFormatter(),
   ]);
   const FILTER_LABELS: Record<TeacherUploadStatusFilter, string> = {
     ALL: tMyUploads("all"),
@@ -145,8 +141,8 @@ export default async function MyUploadsPage({ searchParams }: MyUploadsPageProps
                             <span className="inline-flex items-center gap-1">
                               <CalendarDays className="h-3.5 w-3.5" aria-hidden />
                               {doc.reviewedAt
-                                ? tModeration("reviewedOn", { date: formatDate(doc.reviewedAt) })
-                                : tModeration("uploadedOn", { date: formatDate(doc.createdAt) })}
+                                ? tModeration("reviewedOn", { date: formatDate(doc.reviewedAt, format) })
+                                : tModeration("uploadedOn", { date: formatDate(doc.createdAt, format) })}
                             </span>
                           </p>
                         </div>

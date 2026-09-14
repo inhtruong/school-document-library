@@ -1,11 +1,12 @@
 import Link from "next/link";
-import { getTranslations } from "next-intl/server";
+import { getFormatter, getTranslations } from "next-intl/server";
 import { notFound } from "next/navigation";
 import { CheckCircle2, Clock, XCircle } from "lucide-react";
 import { FilePreview } from "@/components/FilePreview";
 import { ModerationActions } from "@/components/moderation/ModerationActions";
 import { ModerationStatusBadge } from "@/components/moderation/ModerationStatusBadge";
 import { Card } from "@/components/ui/card";
+import type { DateTimeFormatter } from "@/i18n/formats";
 import { requireRole } from "@/lib/auth/authorize";
 import { documentTypeMessageKey } from "@/lib/documents/document-type";
 import type { DocumentTypeValue } from "@/lib/documents/document-type";
@@ -16,15 +17,9 @@ type ModerationDetailPageProps = {
   params: Promise<{ id: string }>;
 };
 
-function formatDate(iso: string | null): string | null {
+function formatDate(iso: string | null, format: DateTimeFormatter): string | null {
   if (!iso) return null;
-  return new Intl.DateTimeFormat("en-US", {
-    year: "numeric",
-    month: "long",
-    day: "numeric",
-    hour: "numeric",
-    minute: "2-digit",
-  }).format(new Date(iso));
+  return format.dateTime(new Date(iso), "dateTimeLong");
 }
 
 function formatFileSize(bytes: number | null): string | null {
@@ -41,10 +36,11 @@ export default async function ModerationDetailPage({ params }: ModerationDetailP
   const doc = await getModerationDocumentById(id);
   if (!doc) notFound();
 
-  const [tModeration, tCommon, tDocumentType] = await Promise.all([
+  const [tModeration, tCommon, tDocumentType, format] = await Promise.all([
     getTranslations("moderation"),
     getTranslations("common"),
     getTranslations("documentType"),
+    getFormatter(),
   ]);
 
   const taxonomy = [doc.grade?.name, doc.subjectRef?.name, doc.lesson?.name].filter(Boolean).join(" · ");
@@ -56,14 +52,14 @@ export default async function ModerationDetailPage({ params }: ModerationDetailP
   // already decided it. Kept distinct from the metadata grid below (which
   // repeats Uploaded/Reviewed for reference), since this is the ONE thing
   // an Admin should absorb in the first second on the page.
-  const formattedCreatedAt = formatDate(doc.createdAt) ?? "";
+  const formattedCreatedAt = formatDate(doc.createdAt, format) ?? "";
   const bannerContext = isPending
     ? doc.uploadedBy
       ? tModeration("uploadedByWaitingSince", { name: doc.uploadedBy.name, date: formattedCreatedAt })
       : tModeration("waitingSince", { date: formattedCreatedAt })
     : tModeration("reviewedByOn", {
         name: doc.reviewedBy?.name ?? tModeration("unavailableReviewer"),
-        date: formatDate(doc.reviewedAt) ?? tModeration("unknownDate"),
+        date: formatDate(doc.reviewedAt, format) ?? tModeration("unknownDate"),
       });
 
   return (
@@ -124,13 +120,13 @@ export default async function ModerationDetailPage({ params }: ModerationDetailP
           </div>
           <div>
             <dt className="text-xs font-medium uppercase tracking-wide text-muted">{tModeration("uploaded")}</dt>
-            <dd className="mt-0.5 text-ink">{formatDate(doc.createdAt)}</dd>
+            <dd className="mt-0.5 text-ink">{formatDate(doc.createdAt, format)}</dd>
           </div>
           {!isPending ? (
             <>
               <div>
                 <dt className="text-xs font-medium uppercase tracking-wide text-muted">{tModeration("reviewed")}</dt>
-                <dd className="mt-0.5 text-ink">{formatDate(doc.reviewedAt) ?? "—"}</dd>
+                <dd className="mt-0.5 text-ink">{formatDate(doc.reviewedAt, format) ?? "—"}</dd>
               </div>
               <div>
                 <dt className="text-xs font-medium uppercase tracking-wide text-muted">{tModeration("reviewer")}</dt>

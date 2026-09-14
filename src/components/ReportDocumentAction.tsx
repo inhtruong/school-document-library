@@ -41,6 +41,7 @@ export function ReportDocumentAction({ documentId, isAuthenticated }: ReportDocu
   const tUpload = useTranslations("upload");
   const tActions = useTranslations("actions");
   const tToast = useTranslations("toast");
+  const tErrors = useTranslations("errors.codes");
 
   async function openForm() {
     setIsOpen(true);
@@ -98,7 +99,7 @@ export function ReportDocumentAction({ documentId, isAuthenticated }: ReportDocu
       toast.success(tToast("reportSubmitted"));
       closeForm();
     } catch {
-      toast.error("Unable to submit report");
+      toast.error(tErrors("unableSubmitReport"));
     } finally {
       setSubmitting(false);
     }

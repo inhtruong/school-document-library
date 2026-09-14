@@ -1,6 +1,6 @@
 import type { NextRequest } from "next/server";
 import { auth } from "@/auth";
-import { apiError, apiSuccess } from "@/lib/api-response";
+import { apiErrorCode, apiSuccess } from "@/lib/api-response";
 import { getRatingSummary } from "@/lib/documents/rating";
 import { isDocumentVisibleTo } from "@/lib/documents/visibility";
 import { prisma } from "@/lib/prisma";
@@ -22,16 +22,16 @@ export async function GET(_request: NextRequest, { params }: RouteContext) {
       where: { id },
       select: { id: true, moderationStatus: true, uploadedById: true },
     });
-    if (!document) return apiError("Document not found", 404);
+    if (!document) return apiErrorCode("DOCUMENT_NOT_FOUND", 404);
 
     const session = await auth();
-    if (!isDocumentVisibleTo(document, session)) return apiError("Document not found", 404);
+    if (!isDocumentVisibleTo(document, session)) return apiErrorCode("DOCUMENT_NOT_FOUND", 404);
 
     const summary = await getRatingSummary(id, session?.user?.id ?? null);
 
     return apiSuccess(summary);
   } catch (error) {
     console.error(`GET /api/documents/${id}/ratings failed`, error);
-    return apiError("Failed to load rating summary", 500);
+    return apiErrorCode("FAILED_LOAD_RATING_SUMMARY", 500);
   }
 }

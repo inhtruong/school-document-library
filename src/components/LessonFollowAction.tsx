@@ -37,6 +37,7 @@ export function LessonFollowAction({ lessonId, isAuthenticated, initialFollowing
   const [submitting, setSubmitting] = useState(false);
   const tFollowing = useTranslations("following");
   const tToast = useTranslations("toast");
+  const tErrors = useTranslations("errors.codes");
 
   if (!isAuthenticated) {
     return (
@@ -62,7 +63,7 @@ export function LessonFollowAction({ lessonId, isAuthenticated, initialFollowing
       setFollowing(nextFollowing);
       toast.success(nextFollowing ? tToast("lessonFollowed") : tToast("lessonUnfollowed"));
     } catch {
-      toast.error("Unable to update follow status");
+      toast.error(tErrors("unableUpdateFollowStatus"));
     } finally {
       setSubmitting(false);
     }

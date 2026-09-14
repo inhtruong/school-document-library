@@ -91,7 +91,7 @@ export async function uploadDocument(input: {
   if (!parsedMetadata.success) {
     return {
       success: false,
-      error: parsedMetadata.error.issues[0]?.message ?? "Invalid document data",
+      error: parsedMetadata.error.issues[0]?.message ?? "VALIDATION_GENERIC",
       status: 400,
     };
   }
@@ -128,7 +128,7 @@ export async function uploadDocument(input: {
     const rawUrl = getFormString(input.formData, "youtubeUrl");
     const videoId = extractYouTubeVideoId(rawUrl);
     if (!videoId) {
-      return { success: false, error: "Enter a valid YouTube video URL", status: 400 };
+      return { success: false, error: "UPLOAD_YOUTUBE_URL_INVALID", status: 400 };
     }
 
     fileFields = {
@@ -146,11 +146,11 @@ export async function uploadDocument(input: {
   } else {
     const file = input.formData.get("file");
     if (!(file instanceof File) || file.size === 0) {
-      return { success: false, error: "A file is required", status: 400 };
+      return { success: false, error: "UPLOAD_FILE_REQUIRED", status: 400 };
     }
 
     if (file.size > MAX_UPLOAD_SIZE_BYTES) {
-      return { success: false, error: `File exceeds the ${MAX_UPLOAD_SIZE_MB} MB limit`, status: 400 };
+      return { success: false, error: `UPLOAD_FILE_TOO_LARGE|${MAX_UPLOAD_SIZE_MB}`, status: 400 };
     }
 
     const format = resolveFileFormat(file.name, file.type);
@@ -160,7 +160,7 @@ export async function uploadDocument(input: {
 
     const buffer = Buffer.from(await file.arrayBuffer());
     if (!matchesFileSignature(buffer, format.extension)) {
-      return { success: false, error: "File content does not match its declared type", status: 400 };
+      return { success: false, error: "UPLOAD_FILE_SIGNATURE_MISMATCH", status: 400 };
     }
 
     const fileKey = buildFileKey(format.category, format.extension);
@@ -168,7 +168,7 @@ export async function uploadDocument(input: {
     const writeResult = await writeLocalFile(fileKey, buffer);
     if (!writeResult.success) {
       console.error("Local file write failed:", writeResult.error);
-      return { success: false, error: "Failed to save the file. Please try again.", status: 500 };
+      return { success: false, error: "UPLOAD_SAVE_FAILED", status: 500 };
     }
 
     // FEAT-12A: PowerPoint gets a server-side PDF preview, generated here —
@@ -186,7 +186,7 @@ export async function uploadDocument(input: {
         await deleteLocalFile(fileKey);
         return {
           success: false,
-          error: `Could not generate a preview for this PowerPoint file (${conversion.error}). Please try again.`,
+          error: `UPLOAD_POWERPOINT_CONVERSION_FAILED|${conversion.error}`,
           status: 500,
         };
       }
@@ -196,7 +196,7 @@ export async function uploadDocument(input: {
       if (!previewWriteResult.success) {
         console.error("Failed to store the generated PowerPoint preview:", previewWriteResult.error);
         await deleteLocalFile(fileKey);
-        return { success: false, error: "Failed to save the generated preview. Please try again.", status: 500 };
+        return { success: false, error: "UPLOAD_PREVIEW_SAVE_FAILED", status: 500 };
       }
     }
 
@@ -269,7 +269,7 @@ export async function uploadDocument(input: {
       error
     );
     await cleanupOnDbFailure();
-    return { success: false, error: "Failed to save the document. Please try again.", status: 500 };
+    return { success: false, error: "UPLOAD_DOCUMENT_SAVE_FAILED", status: 500 };
   }
 
   // The Document is already saved at this point — notification generation

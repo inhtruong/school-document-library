@@ -45,6 +45,7 @@ export function CommentItem({ comment, documentId, currentUserId, isAdmin, onUpd
   const tRoles = useTranslations("common.roles");
   const tActions = useTranslations("actions");
   const tToast = useTranslations("toast");
+  const tErrors = useTranslations("errors.codes");
 
   const isOwner = currentUserId !== null && currentUserId === comment.author.id;
   const canDelete = isOwner || isAdmin;
@@ -76,7 +77,7 @@ export function CommentItem({ comment, documentId, currentUserId, isAdmin, onUpd
       setMode("view");
       toast.success(tToast("commentUpdated"));
     } catch {
-      toast.error("Unable to save comment");
+      toast.error(tErrors("unableSaveComment"));
     } finally {
       setSubmitting(false);
     }
@@ -92,7 +93,7 @@ export function CommentItem({ comment, documentId, currentUserId, isAdmin, onUpd
       onDeleted(comment.id);
       toast.success(tToast("commentDeleted"));
     } catch {
-      toast.error("Unable to delete comment");
+      toast.error(tErrors("unableDeleteComment"));
       setSubmitting(false);
       setMode("view");
     }

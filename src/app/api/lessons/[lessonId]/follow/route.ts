@@ -1,6 +1,6 @@
 import type { NextRequest } from "next/server";
 import { auth } from "@/auth";
-import { apiError, apiSuccess, PRIVATE_NO_STORE_HEADERS } from "@/lib/api-response";
+import { apiErrorCode, apiSuccess, PRIVATE_NO_STORE_HEADERS } from "@/lib/api-response";
 import { followLesson, isFollowingLesson, unfollowLesson } from "@/lib/follow/lesson-follow";
 
 type RouteContext = { params: Promise<{ lessonId: string }> };
@@ -10,14 +10,14 @@ export async function GET(_request: NextRequest, { params }: RouteContext) {
   const { lessonId } = await params;
 
   const session = await auth();
-  if (!session?.user) return apiError("Authentication required", 401);
+  if (!session?.user) return apiErrorCode("AUTH_REQUIRED", 401);
 
   try {
     const following = await isFollowingLesson(session.user.id, lessonId);
     return apiSuccess({ following }, { headers: PRIVATE_NO_STORE_HEADERS });
   } catch (error) {
     console.error(`GET /api/lessons/${lessonId}/follow failed`, error);
-    return apiError("Failed to load follow state", 500);
+    return apiErrorCode("FAILED_LOAD_FOLLOW_STATE", 500);
   }
 }
 
@@ -26,16 +26,16 @@ export async function POST(_request: NextRequest, { params }: RouteContext) {
   const { lessonId } = await params;
 
   const session = await auth();
-  if (!session?.user) return apiError("Authentication required", 401);
+  if (!session?.user) return apiErrorCode("AUTH_REQUIRED", 401);
 
   try {
     const result = await followLesson(session.user.id, lessonId);
-    if (result.outcome === "not-found") return apiError("Lesson not found", 404);
+    if (result.outcome === "not-found") return apiErrorCode("LESSON_NOT_FOUND", 404);
 
     return apiSuccess({ following: true });
   } catch (error) {
     console.error(`POST /api/lessons/${lessonId}/follow failed`, error);
-    return apiError("Failed to follow lesson", 500);
+    return apiErrorCode("FAILED_FOLLOW_LESSON", 500);
   }
 }
 
@@ -44,13 +44,13 @@ export async function DELETE(_request: NextRequest, { params }: RouteContext) {
   const { lessonId } = await params;
 
   const session = await auth();
-  if (!session?.user) return apiError("Authentication required", 401);
+  if (!session?.user) return apiErrorCode("AUTH_REQUIRED", 401);
 
   try {
     await unfollowLesson(session.user.id, lessonId);
     return apiSuccess({ following: false });
   } catch (error) {
     console.error(`DELETE /api/lessons/${lessonId}/follow failed`, error);
-    return apiError("Failed to unfollow lesson", 500);
+    return apiErrorCode("FAILED_UNFOLLOW_LESSON", 500);
   }
 }

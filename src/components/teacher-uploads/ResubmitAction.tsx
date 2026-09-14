@@ -38,6 +38,7 @@ export function ResubmitAction({ documentId, size = "default" }: ResubmitActionP
   const tDocumentActions = useTranslations("documentActions");
   const tActions = useTranslations("actions");
   const tToast = useTranslations("toast");
+  const tErrors = useTranslations("errors.codes");
 
   async function handleResubmit() {
     setSubmitting(true);
@@ -50,7 +51,7 @@ export function ResubmitAction({ documentId, size = "default" }: ResubmitActionP
       toast.success(tToast("documentResubmitted"));
       router.refresh();
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to resubmit document");
+      toast.error(err instanceof Error ? err.message : tErrors("failedResubmitDocument"));
     } finally {
       setSubmitting(false);
     }

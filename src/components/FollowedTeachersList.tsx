@@ -27,6 +27,7 @@ export function FollowedTeachersList({ initialTeachers }: FollowedTeachersListPr
   const tCommon = useTranslations("common");
   const tSaved = useTranslations("saved");
   const tToast = useTranslations("toast");
+  const tErrors = useTranslations("errors.codes");
 
   async function handleUnfollow(teacherId: string) {
     if (removingId) return;
@@ -40,7 +41,7 @@ export function FollowedTeachersList({ initialTeachers }: FollowedTeachersListPr
       setTeachers((prev) => prev.filter((teacher) => teacher.id !== teacherId));
       toast.success(tToast("teacherUnfollowed"));
     } catch {
-      toast.error("Unable to update follow status");
+      toast.error(tErrors("unableUpdateFollowStatus"));
     } finally {
       setRemovingId(null);
     }

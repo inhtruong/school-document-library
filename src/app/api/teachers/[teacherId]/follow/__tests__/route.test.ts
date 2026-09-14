@@ -154,7 +154,8 @@ describe("POST /api/teachers/:teacherId/follow — self-follow", () => {
     const body = await response.json();
 
     expect(response.status).toBe(400);
-    expect(body.error).toMatch(/yourself/i);
+    expect(body.code).toBe("FORBIDDEN_SELF_FOLLOW");
+    expect(body.error).toBe("Bạn không thể tự theo dõi chính mình");
     expect(prisma.teacherFollow.upsert).not.toHaveBeenCalled();
   });
 });

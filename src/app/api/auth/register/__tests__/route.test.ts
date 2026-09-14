@@ -1,5 +1,6 @@
 import { NextRequest } from "next/server";
-import { beforeEach, describe, expect, test, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
+import { __resetTestLocale, __setTestLocale } from "@test/next-intl-server-stub";
 
 vi.mock("@/lib/prisma", () => ({
   prisma: { user: { findUnique: vi.fn(), create: vi.fn() } },
@@ -20,6 +21,10 @@ beforeEach(() => {
   vi.clearAllMocks();
   resetRateLimitsForTests();
   vi.mocked(prisma.user.findUnique).mockResolvedValue(null);
+});
+
+afterEach(() => {
+  __resetTestLocale();
 });
 
 describe("POST /api/auth/register", () => {
@@ -86,6 +91,34 @@ describe("POST /api/auth/register", () => {
 
     expect(response.status).toBe(409);
     expect(body.success).toBe(false);
+    expect(body.code).toBe("AUTH_EMAIL_ALREADY_EXISTS");
+    expect(body.error).toBe("Email này đã được đăng ký tài khoản");
+  });
+
+  test("I18N-1: rejects a duplicate email with a localized message in en when the request locale is en", async () => {
+    __setTestLocale("en");
+    vi.mocked(prisma.user.findUnique).mockResolvedValue({
+      id: "existing",
+      name: "Existing",
+      email: "existing@example.com",
+      passwordHash: "hash",
+      role: "STUDENT",
+      sessionVersion: 0,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    });
+
+    const request = new NextRequest("http://localhost/api/auth/register", {
+      method: "POST",
+      body: JSON.stringify({ name: "Dup", email: "existing@example.com", password: "password123" }),
+    });
+
+    const response = await POST(request);
+    const body = await response.json();
+
+    expect(response.status).toBe(409);
+    expect(body.code).toBe("AUTH_EMAIL_ALREADY_EXISTS");
+    expect(body.error).toBe("An account with this email already exists");
   });
 
   test("rejects invalid input with 400 and never touches the database", async () => {

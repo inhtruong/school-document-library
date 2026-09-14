@@ -88,10 +88,10 @@ export function resolveFileFormat(fileName: string, mimeType: string): FormatChe
   const rule = FORMAT_ALLOWLIST[extension];
 
   if (!rule) {
-    return { valid: false, error: "Unsupported file type" };
+    return { valid: false, error: "UPLOAD_UNSUPPORTED_FILE_TYPE" };
   }
   if (!rule.mimeTypes.includes(mimeType)) {
-    return { valid: false, error: "File extension does not match its content type" };
+    return { valid: false, error: "UPLOAD_FILE_EXTENSION_MISMATCH" };
   }
   return { valid: true, category: rule.category, extension };
 }

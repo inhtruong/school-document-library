@@ -262,7 +262,7 @@ export async function rejectDocument(
 ): Promise<ModerationActionResult> {
   const parsed = rejectDocumentSchema.safeParse(input);
   if (!parsed.success) {
-    return { outcome: "invalid", error: parsed.error.issues[0]?.message ?? "Invalid rejection reason" };
+    return { outcome: "invalid", error: parsed.error.issues[0]?.message ?? "VALIDATION_GENERIC" };
   }
 
   const transitioned = await prisma.$transaction(async (tx) => {

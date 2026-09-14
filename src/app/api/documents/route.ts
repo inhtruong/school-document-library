@@ -1,6 +1,6 @@
 import type { NextRequest } from "next/server";
 import { auth } from "@/auth";
-import { apiError, apiSuccess, type ApiMeta } from "@/lib/api-response";
+import { apiErrorCode, apiSuccess, type ApiMeta } from "@/lib/api-response";
 import { hasRole } from "@/lib/auth/authorize";
 import { parseSearchQuery } from "@/lib/documents/search-query";
 import { searchDocuments } from "@/lib/documents/search";
@@ -60,7 +60,7 @@ export async function GET(request: NextRequest) {
     return apiSuccess(result.documents, { meta });
   } catch (error) {
     console.error("GET /api/documents failed", error);
-    return apiError("Failed to load documents", 500);
+    return apiErrorCode("FAILED_LOAD_DOCUMENTS", 500);
   }
 }
 
@@ -74,22 +74,22 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   const session = await auth();
   if (!session?.user) {
-    return apiError("You must be signed in to create documents", 401);
+    return apiErrorCode("SIGNIN_REQUIRED_CREATE", 401);
   }
   if (!hasRole(session, ["TEACHER", "ADMIN"])) {
-    return apiError("Only teachers and admins can create documents", 403);
+    return apiErrorCode("FORBIDDEN_CREATE_ROLE", 403);
   }
 
   let body: unknown;
   try {
     body = await request.json();
   } catch {
-    return apiError("Request body must be valid JSON", 400);
+    return apiErrorCode("VALIDATION_INVALID_JSON", 400);
   }
 
   const parsed = createDocumentSchema.safeParse(body);
   if (!parsed.success) {
-    return apiError(parsed.error.issues[0]?.message ?? "Invalid document data", 400);
+    return apiErrorCode(parsed.error.issues[0]?.message ?? "VALIDATION_GENERIC", 400);
   }
 
   try {
@@ -106,6 +106,6 @@ export async function POST(request: NextRequest) {
     return apiSuccess(document, { status: 201 });
   } catch (error) {
     console.error("POST /api/documents failed", error);
-    return apiError("Failed to create document", 500);
+    return apiErrorCode("FAILED_CREATE_DOCUMENT", 500);
   }
 }

@@ -1,6 +1,6 @@
 import type { NextRequest } from "next/server";
 import { auth } from "@/auth";
-import { apiError, apiSuccess } from "@/lib/api-response";
+import { apiErrorCode, apiSuccess } from "@/lib/api-response";
 import { markNotificationRead } from "@/lib/notifications/notification";
 
 type RouteContext = { params: Promise<{ id: string }> };
@@ -15,15 +15,15 @@ export async function PATCH(_request: NextRequest, { params }: RouteContext) {
   const { id } = await params;
 
   const session = await auth();
-  if (!session?.user) return apiError("Authentication required", 401);
+  if (!session?.user) return apiErrorCode("AUTH_REQUIRED", 401);
 
   try {
     const result = await markNotificationRead(id, session.user.id);
-    if (result.outcome === "not-found") return apiError("Notification not found", 404);
+    if (result.outcome === "not-found") return apiErrorCode("NOTIFICATION_NOT_FOUND", 404);
 
     return apiSuccess({ id, read: true });
   } catch (error) {
     console.error(`PATCH /api/notifications/${id}/read failed`, error);
-    return apiError("Failed to update notification", 500);
+    return apiErrorCode("FAILED_UPDATE_NOTIFICATION", 500);
   }
 }

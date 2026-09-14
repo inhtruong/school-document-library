@@ -1,5 +1,5 @@
 import type { NextRequest } from "next/server";
-import { apiError, apiSuccess } from "@/lib/api-response";
+import { apiErrorCode, apiSuccess } from "@/lib/api-response";
 import { prisma } from "@/lib/prisma";
 
 /** Public read API — powers the Lesson/Topic dropdown on /upload once a Subject is picked. */
@@ -8,7 +8,7 @@ export async function GET(request: NextRequest) {
   const subjectId = searchParams.get("subjectId")?.trim();
 
   if (!subjectId) {
-    return apiError("subjectId query parameter is required", 400);
+    return apiErrorCode("SUBJECT_ID_QUERY_REQUIRED", 400);
   }
 
   try {
@@ -20,6 +20,6 @@ export async function GET(request: NextRequest) {
     return apiSuccess(lessons);
   } catch (error) {
     console.error("GET /api/lessons failed", error);
-    return apiError("Failed to load lessons", 500);
+    return apiErrorCode("FAILED_LOAD_LESSONS", 500);
   }
 }

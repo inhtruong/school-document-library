@@ -1,5 +1,6 @@
 import { NextRequest } from "next/server";
-import { beforeEach, describe, expect, test, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
+import { __resetTestLocale, __setTestLocale } from "@test/next-intl-server-stub";
 
 vi.mock("@/auth", () => ({ auth: vi.fn() }));
 
@@ -48,6 +49,10 @@ beforeEach(async () => {
   } as never);
   vi.mocked(prisma.user.update).mockResolvedValue({} as never);
   vi.mocked(prisma.auditLog.create).mockResolvedValue({} as never);
+});
+
+afterEach(() => {
+  __resetTestLocale();
 });
 
 describe("POST /api/profile/password — authentication", () => {
@@ -134,6 +139,27 @@ describe("POST /api/profile/password — validation", () => {
     const response = await POST(postRequest("{not valid json"));
     expect(response.status).toBe(400);
   });
+
+  test("I18N-1: rejects a mismatched confirmation with a localized message in vi by default", async () => {
+    const response = await POST(
+      postRequest({ currentPassword: OLD_PASSWORD, newPassword: NEW_PASSWORD, confirmPassword: "different" })
+    );
+    const body = await response.json();
+
+    expect(body.code).toBe("VALIDATION_PASSWORD_MISMATCH");
+    expect(body.error).toBe("Mật khẩu mới và xác nhận không khớp");
+  });
+
+  test("I18N-1: rejects a mismatched confirmation with a localized message in en when the request locale is en", async () => {
+    __setTestLocale("en");
+    const response = await POST(
+      postRequest({ currentPassword: OLD_PASSWORD, newPassword: NEW_PASSWORD, confirmPassword: "different" })
+    );
+    const body = await response.json();
+
+    expect(body.code).toBe("VALIDATION_PASSWORD_MISMATCH");
+    expect(body.error).toBe("New password and confirmation do not match");
+  });
 });
 
 describe("POST /api/profile/password — rate limiting", () => {
@@ -180,5 +206,32 @@ describe("POST /api/profile/password — server errors", () => {
 
     expect(response.status).toBe(500);
     expect(JSON.stringify(body)).not.toContain("10.0.0.5");
+  });
+
+  test("I18N-1: the generic 500 fallback is localized to vi by default", async () => {
+    mockAuth.mockResolvedValue(sessionFor());
+    vi.mocked(prisma.user.findUnique).mockRejectedValue(new Error("connection refused at 10.0.0.5:5432"));
+
+    const response = await POST(
+      postRequest({ currentPassword: OLD_PASSWORD, newPassword: NEW_PASSWORD, confirmPassword: NEW_PASSWORD })
+    );
+    const body = await response.json();
+
+    expect(body.code).toBe("FAILED_CHANGE_PASSWORD");
+    expect(body.error).toBe("Không thể đổi mật khẩu");
+  });
+
+  test("I18N-1: the generic 500 fallback is localized to en when the request locale is en", async () => {
+    __setTestLocale("en");
+    mockAuth.mockResolvedValue(sessionFor());
+    vi.mocked(prisma.user.findUnique).mockRejectedValue(new Error("connection refused at 10.0.0.5:5432"));
+
+    const response = await POST(
+      postRequest({ currentPassword: OLD_PASSWORD, newPassword: NEW_PASSWORD, confirmPassword: NEW_PASSWORD })
+    );
+    const body = await response.json();
+
+    expect(body.code).toBe("FAILED_CHANGE_PASSWORD");
+    expect(body.error).toBe("Failed to change password");
   });
 });

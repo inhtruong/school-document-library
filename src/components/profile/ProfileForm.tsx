@@ -30,10 +30,11 @@ export function ProfileForm({ initialName, email, roleLabel, memberSince }: Prof
   const tAuth = useTranslations("auth");
   const tProfile = useTranslations("profile");
   const tToast = useTranslations("toast");
+  const tErrors = useTranslations("errors.codes");
 
   const trimmedName = name.trim();
   const isEmpty = name.length > 0 && trimmedName.length === 0;
-  const inlineError = serverError ?? (isEmpty ? "Name is required" : null);
+  const inlineError = serverError ?? (isEmpty ? tErrors("validationNameRequired") : null);
   const canSubmit = trimmedName.length > 0 && trimmedName.length <= NAME_MAX_LENGTH && !submitting;
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
@@ -55,7 +56,7 @@ export function ProfileForm({ initialName, email, roleLabel, memberSince }: Prof
       setName(body.data.name);
       toast.success(tToast("profileUpdated"));
     } catch (err) {
-      setServerError(err instanceof Error ? err.message : "Failed to update profile");
+      setServerError(err instanceof Error ? err.message : tErrors("failedUpdateProfile"));
     } finally {
       setSubmitting(false);
     }

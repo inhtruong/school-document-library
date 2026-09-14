@@ -21,7 +21,7 @@ export async function POST(request: NextRequest) {
       identity: getClientIp(request),
       ...LOGIN_RATE_LIMIT,
     });
-    if (rateLimit.limited) return tooManyRequestsResponse(rateLimit.retryAfterSeconds);
+    if (rateLimit.limited) return await tooManyRequestsResponse(rateLimit.retryAfterSeconds);
   }
 
   return handlers.POST(request);

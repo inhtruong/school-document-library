@@ -1,6 +1,6 @@
 import type { NextRequest } from "next/server";
 import { auth } from "@/auth";
-import { apiError, apiSuccess } from "@/lib/api-response";
+import { apiErrorCode, apiSuccess } from "@/lib/api-response";
 import { actorFromSessionUser } from "@/lib/audit/audit";
 import { COMMENTS_PAGE_SIZE } from "@/lib/documents/comment-config";
 import { createComment, listComments } from "@/lib/documents/comment";
@@ -33,10 +33,10 @@ export async function GET(request: NextRequest, { params }: RouteContext) {
       where: { id },
       select: { id: true, moderationStatus: true, uploadedById: true },
     });
-    if (!document) return apiError("Document not found", 404);
+    if (!document) return apiErrorCode("DOCUMENT_NOT_FOUND", 404);
     if (document.moderationStatus !== "APPROVED") {
       const session = await auth();
-      if (!isDocumentVisibleTo(document, session)) return apiError("Document not found", 404);
+      if (!isDocumentVisibleTo(document, session)) return apiErrorCode("DOCUMENT_NOT_FOUND", 404);
     }
 
     const { searchParams } = new URL(request.url);
@@ -55,7 +55,7 @@ export async function GET(request: NextRequest, { params }: RouteContext) {
     });
   } catch (error) {
     console.error(`GET /api/documents/${id}/comments failed`, error);
-    return apiError("Failed to load comments", 500);
+    return apiErrorCode("FAILED_LOAD_COMMENTS", 500);
   }
 }
 
@@ -64,21 +64,21 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
   const { id } = await params;
 
   const session = await auth();
-  if (!session?.user) return apiError("Authentication required", 401);
+  if (!session?.user) return apiErrorCode("AUTH_REQUIRED", 401);
 
   const rateLimit = checkRateLimit({ scope: "comment", identity: session.user.id, ...COMMENT_RATE_LIMIT });
-  if (rateLimit.limited) return tooManyRequestsResponse(rateLimit.retryAfterSeconds);
+  if (rateLimit.limited) return await tooManyRequestsResponse(rateLimit.retryAfterSeconds);
 
   let body: unknown;
   try {
     body = await request.json();
   } catch {
-    return apiError("Request body must be valid JSON", 400);
+    return apiErrorCode("VALIDATION_INVALID_JSON", 400);
   }
 
   const parsed = commentContentSchema.safeParse(body);
   if (!parsed.success) {
-    return apiError(parsed.error.issues[0]?.message ?? "Invalid comment", 400);
+    return apiErrorCode(parsed.error.issues[0]?.message ?? "VALIDATION_GENERIC", 400);
   }
 
   try {
@@ -86,13 +86,13 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
       where: { id },
       select: { id: true, moderationStatus: true, uploadedById: true },
     });
-    if (!document) return apiError("Document not found", 404);
-    if (!isDocumentVisibleTo(document, session)) return apiError("Document not found", 404);
+    if (!document) return apiErrorCode("DOCUMENT_NOT_FOUND", 404);
+    if (!isDocumentVisibleTo(document, session)) return apiErrorCode("DOCUMENT_NOT_FOUND", 404);
 
     const comment = await createComment(id, session.user.id, parsed.data.content, actorFromSessionUser(session.user));
     return apiSuccess(comment, { status: 201 });
   } catch (error) {
     console.error(`POST /api/documents/${id}/comments failed`, error);
-    return apiError("Failed to save comment", 500);
+    return apiErrorCode("FAILED_SAVE_COMMENT", 500);
   }
 }

@@ -1,6 +1,6 @@
 import type { NextRequest } from "next/server";
 import { auth } from "@/auth";
-import { apiError, apiSuccess, PRIVATE_NO_STORE_HEADERS } from "@/lib/api-response";
+import { apiErrorCode, apiSuccess, PRIVATE_NO_STORE_HEADERS } from "@/lib/api-response";
 import { listNotifications } from "@/lib/notifications/notification";
 
 function parsePage(value: string | null): number {
@@ -12,7 +12,7 @@ function parsePage(value: string | null): number {
 /** Requires authentication. `userId` always comes from the session — never accepted from the client — so this only ever returns the caller's own notifications. */
 export async function GET(request: NextRequest) {
   const session = await auth();
-  if (!session?.user) return apiError("Authentication required", 401);
+  if (!session?.user) return apiErrorCode("AUTH_REQUIRED", 401);
 
   const page = parsePage(request.nextUrl.searchParams.get("page"));
 
@@ -33,6 +33,6 @@ export async function GET(request: NextRequest) {
     });
   } catch (error) {
     console.error("GET /api/notifications failed", error);
-    return apiError("Failed to load notifications", 500);
+    return apiErrorCode("FAILED_LOAD_NOTIFICATIONS", 500);
   }
 }

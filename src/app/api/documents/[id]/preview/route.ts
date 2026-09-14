@@ -1,7 +1,7 @@
 import { Readable } from "node:stream";
 import { NextResponse, type NextRequest } from "next/server";
 import { auth } from "@/auth";
-import { apiError } from "@/lib/api-response";
+import { apiErrorCode } from "@/lib/api-response";
 import { prisma } from "@/lib/prisma";
 import { resolvePreviewKind, STREAMABLE_PREVIEW_KINDS } from "@/lib/documents/preview-kind";
 import { parseRangeHeader } from "@/lib/documents/preview-range";
@@ -41,18 +41,18 @@ export async function GET(request: NextRequest, { params }: RouteContext) {
     });
   } catch (error) {
     console.error(`GET /api/documents/${id}/preview failed to load document`, error);
-    return apiError("Failed to load preview", 500);
+    return apiErrorCode("FAILED_LOAD_PREVIEW", 500);
   }
 
   if (!document) {
-    return apiError("Document not found", 404);
+    return apiErrorCode("DOCUMENT_NOT_FOUND", 404);
   }
   if (document.moderationStatus !== "APPROVED") {
     const session = await auth();
-    if (!isDocumentVisibleTo(document, session)) return apiError("Document not found", 404);
+    if (!isDocumentVisibleTo(document, session)) return apiErrorCode("DOCUMENT_NOT_FOUND", 404);
   }
   if (!document.fileKey || !document.fileCategory || !document.mimeType) {
-    return apiError("No file available for this document", 404);
+    return apiErrorCode("NO_FILE_AVAILABLE", 404);
   }
   const kind = resolvePreviewKind(
     document.sourceType as DocumentRecord["sourceType"],
@@ -60,7 +60,7 @@ export async function GET(request: NextRequest, { params }: RouteContext) {
     document.mimeType
   );
   if (!STREAMABLE_PREVIEW_KINDS.has(kind)) {
-    return apiError("Preview is not available for this file type", 415);
+    return apiErrorCode("PREVIEW_UNSUPPORTED_FILE_TYPE", 415);
   }
 
   // FEAT-12A: a PowerPoint document's preview is the server-generated PDF
@@ -71,12 +71,12 @@ export async function GET(request: NextRequest, { params }: RouteContext) {
   const streamKey = isConvertedPreview ? document.previewFileKey : document.fileKey;
   const streamMimeType = isConvertedPreview ? "application/pdf" : document.mimeType;
   if (!streamKey) {
-    return apiError("No file available for this document", 404);
+    return apiErrorCode("NO_FILE_AVAILABLE", 404);
   }
 
   const info = await statLocalFile(streamKey);
   if (!info.exists) {
-    return apiError("File is not available", 404);
+    return apiErrorCode("FILE_NOT_AVAILABLE", 404);
   }
 
   const range = parseRangeHeader(request.headers.get("range"), info.size);
@@ -96,7 +96,7 @@ export async function GET(request: NextRequest, { params }: RouteContext) {
     nodeStream = createLocalFileReadStream(info.absolutePath, isPartial ? { start, end } : undefined);
   } catch (error) {
     console.error(`GET /api/documents/${id}/preview failed to open file`, error);
-    return apiError("Failed to load preview", 500);
+    return apiErrorCode("FAILED_LOAD_PREVIEW", 500);
   }
 
   return new NextResponse(Readable.toWeb(nodeStream) as ReadableStream, {

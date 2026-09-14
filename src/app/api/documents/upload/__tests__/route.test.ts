@@ -1,5 +1,6 @@
 import { NextRequest } from "next/server";
-import { beforeEach, describe, expect, test, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
+import { __resetTestLocale, __setTestLocale } from "@test/next-intl-server-stub";
 
 vi.mock("@/auth", () => ({ auth: vi.fn() }));
 vi.mock("@/lib/documents/upload", () => ({ uploadDocument: vi.fn() }));
@@ -29,6 +30,10 @@ const mockDocument = { id: "doc_1", title: "Midterm Exam" };
 beforeEach(() => {
   vi.clearAllMocks();
   resetRateLimitsForTests();
+});
+
+afterEach(() => {
+  __resetTestLocale();
 });
 
 describe("POST /api/documents/upload", () => {
@@ -89,14 +94,38 @@ describe("POST /api/documents/upload", () => {
     expect(vi.mocked(uploadDocument).mock.calls[0][0].uploaderId).toBe("teacher_1");
   });
 
-  test("returns the service's error status and message on failure", async () => {
+  test("returns the service's error status, code, and localized message on failure", async () => {
     mockAuth.mockResolvedValue(sessionFor("TEACHER"));
-    vi.mocked(uploadDocument).mockResolvedValue({ success: false, error: "Only PDF files are allowed", status: 400 });
+    vi.mocked(uploadDocument).mockResolvedValue({ success: false, error: "UPLOAD_UNSUPPORTED_FILE_TYPE", status: 400 });
 
     const response = await POST(requestWith(new FormData()));
     const body = await response.json();
 
     expect(response.status).toBe(400);
-    expect(body.error).toBe("Only PDF files are allowed");
+    expect(body.code).toBe("UPLOAD_UNSUPPORTED_FILE_TYPE");
+    expect(body.error).toBe("Định dạng tệp không được hỗ trợ");
+  });
+
+  test("I18N-1: a validation failure (missing file) is localized in vi by default", async () => {
+    mockAuth.mockResolvedValue(sessionFor("TEACHER"));
+    vi.mocked(uploadDocument).mockResolvedValue({ success: false, error: "UPLOAD_FILE_REQUIRED", status: 400 });
+
+    const response = await POST(requestWith(new FormData()));
+    const body = await response.json();
+
+    expect(body.code).toBe("UPLOAD_FILE_REQUIRED");
+    expect(body.error).toBe("Vui lòng chọn tệp");
+  });
+
+  test("I18N-1: a validation failure (missing file) is localized in en when the request locale is en", async () => {
+    __setTestLocale("en");
+    mockAuth.mockResolvedValue(sessionFor("TEACHER"));
+    vi.mocked(uploadDocument).mockResolvedValue({ success: false, error: "UPLOAD_FILE_REQUIRED", status: 400 });
+
+    const response = await POST(requestWith(new FormData()));
+    const body = await response.json();
+
+    expect(body.code).toBe("UPLOAD_FILE_REQUIRED");
+    expect(body.error).toBe("A file is required");
   });
 });

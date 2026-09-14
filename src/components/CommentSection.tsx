@@ -44,6 +44,7 @@ export function CommentSection({
   const tCommon = useTranslations("common");
   const tAuth = useTranslations("auth");
   const tToast = useTranslations("toast");
+  const tErrors = useTranslations("errors.codes");
 
   async function loadPage(nextPage: number) {
     setLoadingPage(true);
@@ -57,7 +58,7 @@ export function CommentSection({
       setTotalPages(body.meta?.totalPages ?? 1);
       setPage(nextPage);
     } catch {
-      toast.error("Unable to load comments");
+      toast.error(tErrors("unableLoadComments"));
     } finally {
       setLoadingPage(false);
     }
@@ -80,7 +81,7 @@ export function CommentSection({
       toast.success(tToast("commentPosted"));
       return true;
     } catch {
-      toast.error("Unable to save comment");
+      toast.error(tErrors("unableSaveComment"));
       return false;
     }
   }

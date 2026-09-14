@@ -1,7 +1,7 @@
 import { Readable } from "node:stream";
 import { NextResponse, type NextRequest } from "next/server";
 import { auth } from "@/auth";
-import { apiError } from "@/lib/api-response";
+import { apiErrorCode } from "@/lib/api-response";
 import { prisma } from "@/lib/prisma";
 import { buildContentDisposition } from "@/lib/documents/content-disposition";
 import { isDocumentVisibleTo } from "@/lib/documents/visibility";
@@ -26,7 +26,7 @@ export async function GET(_request: NextRequest, { params }: RouteContext) {
 
   const session = await auth();
   if (!session?.user) {
-    return apiError("You must be signed in to download documents", 401);
+    return apiErrorCode("SIGNIN_REQUIRED_DOWNLOAD", 401);
   }
 
   let document;
@@ -37,22 +37,22 @@ export async function GET(_request: NextRequest, { params }: RouteContext) {
     });
   } catch (error) {
     console.error(`GET /api/documents/${id}/download failed to load document`, error);
-    return apiError("Failed to download this document", 500);
+    return apiErrorCode("FAILED_DOWNLOAD_DOCUMENT", 500);
   }
 
   if (!document) {
-    return apiError("Document not found", 404);
+    return apiErrorCode("DOCUMENT_NOT_FOUND", 404);
   }
   if (!isDocumentVisibleTo(document, session)) {
-    return apiError("Document not found", 404);
+    return apiErrorCode("DOCUMENT_NOT_FOUND", 404);
   }
   if (!document.fileKey || !document.mimeType) {
-    return apiError("No file available for this document", 404);
+    return apiErrorCode("NO_FILE_AVAILABLE", 404);
   }
 
   const info = await statLocalFile(document.fileKey);
   if (!info.exists) {
-    return apiError("The file is no longer available", 404);
+    return apiErrorCode("FILE_NO_LONGER_AVAILABLE", 404);
   }
 
   let nodeStream: ReturnType<typeof createLocalFileReadStream>;
@@ -60,7 +60,7 @@ export async function GET(_request: NextRequest, { params }: RouteContext) {
     nodeStream = createLocalFileReadStream(info.absolutePath);
   } catch (error) {
     console.error(`GET /api/documents/${id}/download failed to open file`, error);
-    return apiError("Failed to download this document", 500);
+    return apiErrorCode("FAILED_DOWNLOAD_DOCUMENT", 500);
   }
 
   return new NextResponse(Readable.toWeb(nodeStream) as ReadableStream, {

@@ -1,7 +1,15 @@
 import type { AuditAction, AuditEntityType } from "@prisma/client";
 
 /** Plain string-literal list (not a `@prisma/client` runtime import), matching `DOCUMENT_TYPE_VALUES`/`REPORT_REASON_VALUES`'s established convention — usable for both filter-dropdown options and validating a query-param before it ever reaches Prisma. */
-export const AUDIT_ENTITY_TYPE_VALUES: AuditEntityType[] = ["USER", "DOCUMENT", "COMMENT", "REPORT"];
+export const AUDIT_ENTITY_TYPE_VALUES: AuditEntityType[] = [
+  "USER",
+  "DOCUMENT",
+  "COMMENT",
+  "REPORT",
+  "GRADE",
+  "SUBJECT",
+  "LESSON",
+];
 
 /** Every AuditAction that currently exists — the one single source of truth used to validate a query-param filter and to build the filter dropdown's options. Kept as an explicit list (not derived from a labels map) now that the labels themselves live in the locale message files. */
 export const AUDIT_ACTION_VALUES: AuditAction[] = [
@@ -39,6 +47,15 @@ const AUDIT_ACTION_MESSAGE_KEYS = {
   COMMENT_UPDATED: "commentUpdated",
   COMMENT_DELETED: "commentDeleted",
   REPORT_CREATED: "reportCreated",
+  GRADE_CREATED: "gradeCreated",
+  GRADE_UPDATED: "gradeUpdated",
+  GRADE_DELETED: "gradeDeleted",
+  SUBJECT_CREATED: "subjectCreated",
+  SUBJECT_UPDATED: "subjectUpdated",
+  SUBJECT_DELETED: "subjectDeleted",
+  LESSON_CREATED: "lessonCreated",
+  LESSON_UPDATED: "lessonUpdated",
+  LESSON_DELETED: "lessonDeleted",
 } as const satisfies Record<AuditAction, string>;
 
 const AUDIT_ENTITY_TYPE_MESSAGE_KEYS = {
@@ -46,6 +63,9 @@ const AUDIT_ENTITY_TYPE_MESSAGE_KEYS = {
   DOCUMENT: "document",
   COMMENT: "comment",
   REPORT: "report",
+  GRADE: "grade",
+  SUBJECT: "subject",
+  LESSON: "lesson",
 } as const satisfies Record<AuditEntityType, string>;
 
 export function auditActionMessageKey(action: AuditAction): (typeof AUDIT_ACTION_MESSAGE_KEYS)[AuditAction] {

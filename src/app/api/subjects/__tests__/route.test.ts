@@ -8,8 +8,33 @@ vi.mock("@/lib/prisma", () => ({
   },
 }));
 
+vi.mock("@/auth", () => ({ auth: vi.fn() }));
+
+vi.mock("@/lib/documents/subjects", () => ({ createSubject: vi.fn() }));
+
+import type { Session } from "next-auth";
+import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
-import { GET } from "@/app/api/subjects/route";
+import { createSubject } from "@/lib/documents/subjects";
+import { GET, POST } from "@/app/api/subjects/route";
+
+const mockAuth = vi.mocked(auth as unknown as () => Promise<Session | null>);
+const mockCreateSubject = vi.mocked(createSubject);
+
+function sessionFor(role: "STUDENT" | "TEACHER" | "ADMIN"): Session {
+  return {
+    user: { id: "admin_1", name: "Admin", email: "admin@example.com", role },
+    expires: "2099-01-01T00:00:00.000Z",
+  } as Session;
+}
+
+function postRequest(body: unknown) {
+  return new NextRequest("http://localhost/api/subjects", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+}
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -73,5 +98,55 @@ describe("GET /api/subjects?gradeId=... (taxonomy read API)", () => {
 
     expect(response.status).toBe(200);
     expect(body.data).toEqual([]);
+  });
+});
+
+describe("POST /api/subjects", () => {
+  test("a guest gets 401", async () => {
+    mockAuth.mockResolvedValue(null);
+    const response = await POST(postRequest({ name: "Mathematics", code: "MATH", gradeId: "grade_1" }));
+    expect(response.status).toBe(401);
+    expect(mockCreateSubject).not.toHaveBeenCalled();
+  });
+
+  test("a non-ADMIN gets 403", async () => {
+    mockAuth.mockResolvedValue(sessionFor("TEACHER"));
+    const response = await POST(postRequest({ name: "Mathematics", code: "MATH", gradeId: "grade_1" }));
+    expect(response.status).toBe(403);
+  });
+
+  test("an ADMIN creates a subject", async () => {
+    mockAuth.mockResolvedValue(sessionFor("ADMIN"));
+    const subject = { id: "subject_1", name: "Mathematics", code: "MATH", gradeId: "grade_1" };
+    mockCreateSubject.mockResolvedValue({ outcome: "created", subject } as never);
+
+    const response = await POST(postRequest({ name: "Mathematics", code: "MATH", gradeId: "grade_1" }));
+    const body = await response.json();
+
+    expect(response.status).toBe(201);
+    expect(body.data).toEqual(subject);
+  });
+
+  test("returns 404 when the grade does not exist", async () => {
+    mockAuth.mockResolvedValue(sessionFor("ADMIN"));
+    mockCreateSubject.mockResolvedValue({ outcome: "grade-not-found" } as never);
+
+    const response = await POST(postRequest({ name: "Mathematics", code: "MATH", gradeId: "missing" }));
+    expect(response.status).toBe(404);
+  });
+
+  test("returns 409 on duplicate code", async () => {
+    mockAuth.mockResolvedValue(sessionFor("ADMIN"));
+    mockCreateSubject.mockResolvedValue({ outcome: "duplicate" } as never);
+
+    const response = await POST(postRequest({ name: "Mathematics", code: "MATH", gradeId: "grade_1" }));
+    expect(response.status).toBe(409);
+  });
+
+  test("returns 400 for invalid input", async () => {
+    mockAuth.mockResolvedValue(sessionFor("ADMIN"));
+    const response = await POST(postRequest({ name: "", code: "MATH", gradeId: "grade_1" }));
+    expect(response.status).toBe(400);
+    expect(mockCreateSubject).not.toHaveBeenCalled();
   });
 });

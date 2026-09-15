@@ -22,7 +22,7 @@ export default async function AdminLayout({ children }: Readonly<{ children: Rea
     { href: "/admin", label: tAdminNav("dashboard") },
     { href: "/moderation", label: tAdminNav("moderation") },
     { href: "/admin/audit-log", label: tAdminNav("auditLog") },
-    { href: "/admin/taxonomy", label: tAdminNav("taxonomy"), disabled: true },
+    { href: "/admin/taxonomy", label: tAdminNav("taxonomy") },
     { href: "/admin/users", label: tAdminNav("users"), disabled: true },
     { href: "/admin/documents", label: tAdminNav("documents"), disabled: true },
     { href: "/admin/reports", label: tAdminNav("reports"), disabled: true },

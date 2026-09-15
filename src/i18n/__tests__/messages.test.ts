@@ -68,6 +68,30 @@ describe("FEAT-13: language switcher option labels", () => {
   });
 });
 
+describe("FEAT-15A: Admin dashboard messages", () => {
+  test("Vietnamese admin dashboard copy reads in Vietnamese", () => {
+    expect(vi.admin.dashboardTitle).toBe("Quản trị");
+    expect(vi.admin.nav.dashboard).toMatch(/tổng quan/i);
+    expect(vi.admin.dashboard.pendingModeration).toMatch(/chờ duyệt/i);
+    expect(vi.admin.dashboard.noItemsPending).toMatch(/chờ duyệt/i);
+    expect(vi.admin.dashboard.noRecentActivity).toMatch(/hoạt động/i);
+  });
+
+  test("English admin dashboard copy reads in English", () => {
+    expect(en.admin.dashboardTitle).toBe("Admin");
+    expect(en.admin.nav.dashboard).toBe("Dashboard");
+    expect(en.admin.dashboard.pendingModeration).toMatch(/pending/i);
+    expect(en.admin.dashboard.noItemsPending).toMatch(/waiting for review/i);
+    expect(en.admin.dashboard.noRecentActivity).toMatch(/no activity/i);
+  });
+
+  test("both locales define every file-type label the dashboard displays", () => {
+    const expectedKeys = ["pdf", "word", "excel", "image", "video", "powerpoint", "youtube"].sort();
+    expect(Object.keys(vi.admin.dashboard.fileTypes).sort()).toEqual(expectedKeys);
+    expect(Object.keys(en.admin.dashboard.fileTypes).sort()).toEqual(expectedKeys);
+  });
+});
+
 describe("FEAT-13: footer copyright interpolation", () => {
   test("both locales' copyright message carries a {year} placeholder for ICU interpolation", () => {
     expect(vi.footer.copyright).toContain("{year}");

@@ -515,6 +515,56 @@
     "documentSaved": "Đã lưu tài liệu",
     "documentRemovedFromSaved": "Đã xóa tài liệu khỏi mục đã lưu"
   },
+  "admin": {
+    "dashboardTitle": "Quản trị",
+    "backToSite": "Về trang chính",
+    "nav": {
+      "dashboard": "Tổng quan",
+      "moderation": "Kiểm duyệt",
+      "auditLog": "Nhật ký hoạt động",
+      "taxonomy": "Khối lớp / Môn học",
+      "users": "Người dùng",
+      "documents": "Tài liệu",
+      "reports": "Báo cáo",
+      "comingSoon": "Sắp có"
+    },
+    "dashboard": {
+      "heading": "Tổng quan",
+      "subtitle": "Tổng quan về nội dung, người dùng và hoạt động trong thư viện.",
+      "totalDocuments": "Tổng số tài liệu",
+      "pendingModeration": "Đang chờ duyệt",
+      "totalUsers": "Tổng số người dùng",
+      "openReports": "Báo cáo chưa xử lý",
+      "usersByRole": "Người dùng theo vai trò",
+      "students": "Học sinh",
+      "teachers": "Giáo viên",
+      "admins": "Quản trị viên",
+      "documentOverview": "Tổng quan tài liệu",
+      "byFileType": "Theo loại tệp",
+      "fileTypes": {
+        "pdf": "PDF",
+        "word": "Word",
+        "excel": "Excel",
+        "image": "Hình ảnh",
+        "video": "Video",
+        "powerpoint": "PowerPoint",
+        "youtube": "YouTube"
+      },
+      "needsAttention": "Cần xử lý",
+      "needsAttentionSubtitle": "Tài liệu mới nhất đang chờ duyệt",
+      "noItemsPending": "Hiện không có tài liệu nào đang chờ duyệt.",
+      "viewAllPending": "Xem hàng chờ kiểm duyệt",
+      "recentActivity": "Hoạt động gần đây",
+      "noRecentActivity": "Chưa có hoạt động nào được ghi nhận.",
+      "viewAuditLog": "Xem nhật ký hoạt động",
+      "quickActions": "Thao tác nhanh",
+      "reviewPendingDocuments": "Duyệt tài liệu đang chờ",
+      "viewAuditLogAction": "Xem nhật ký hoạt động",
+      "uploadDocument": "Tải tài liệu lên",
+      "backToPublicSite": "Về trang chính",
+      "unavailableUploader": "Không rõ người tải lên"
+    }
+  },
   "footer": {
     "tagline": "Thư viện tài liệu dành cho học sinh và giáo viên.",
     "copyright": "© {year} Stacks"

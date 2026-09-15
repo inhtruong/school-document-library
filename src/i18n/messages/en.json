@@ -515,6 +515,56 @@
     "documentSaved": "Document saved",
     "documentRemovedFromSaved": "Document removed from saved items"
   },
+  "admin": {
+    "dashboardTitle": "Admin",
+    "backToSite": "Back to site",
+    "nav": {
+      "dashboard": "Dashboard",
+      "moderation": "Moderation",
+      "auditLog": "Audit Log",
+      "taxonomy": "Taxonomy",
+      "users": "Users",
+      "documents": "Documents",
+      "reports": "Reports",
+      "comingSoon": "Coming soon"
+    },
+    "dashboard": {
+      "heading": "Dashboard",
+      "subtitle": "An overview of content, users, and activity across the library.",
+      "totalDocuments": "Total documents",
+      "pendingModeration": "Pending moderation",
+      "totalUsers": "Total users",
+      "openReports": "Open reports",
+      "usersByRole": "Users by role",
+      "students": "Students",
+      "teachers": "Teachers",
+      "admins": "Admins",
+      "documentOverview": "Document overview",
+      "byFileType": "By file type",
+      "fileTypes": {
+        "pdf": "PDF",
+        "word": "Word",
+        "excel": "Excel",
+        "image": "Image",
+        "video": "Video",
+        "powerpoint": "PowerPoint",
+        "youtube": "YouTube"
+      },
+      "needsAttention": "Needs attention",
+      "needsAttentionSubtitle": "Newest documents waiting for review",
+      "noItemsPending": "Nothing is waiting for review right now.",
+      "viewAllPending": "View moderation queue",
+      "recentActivity": "Recent activity",
+      "noRecentActivity": "No activity recorded yet.",
+      "viewAuditLog": "View audit log",
+      "quickActions": "Quick actions",
+      "reviewPendingDocuments": "Review pending documents",
+      "viewAuditLogAction": "View audit log",
+      "uploadDocument": "Upload document",
+      "backToPublicSite": "Back to public site",
+      "unavailableUploader": "Unknown uploader"
+    }
+  },
   "footer": {
     "tagline": "A document library for students and teachers.",
     "copyright": "© {year} Stacks"

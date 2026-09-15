@@ -111,7 +111,7 @@ export default async function AuditLogPage({ searchParams }: AuditLogPageProps) 
   ]);
 
   return (
-    <div className="mx-auto max-w-3xl px-5 py-8 sm:py-10">
+    <div className="mx-auto max-w-3xl">
       <h1 className="font-display text-2xl font-semibold tracking-tight">{tAuditLog("heading")}</h1>
       <p className="mt-2 text-sm text-muted">{tAuditLog("subtitle")}</p>
 

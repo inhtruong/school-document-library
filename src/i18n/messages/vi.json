@@ -231,7 +231,15 @@
       "lessonInUse": "Bài học này đang có tài liệu, không thể xóa",
       "failedCreateLesson": "Không thể tạo bài học",
       "failedUpdateLesson": "Không thể cập nhật bài học",
-      "failedDeleteLesson": "Không thể xóa bài học"
+      "failedDeleteLesson": "Không thể xóa bài học",
+      "validationRoleInvalid": "Vui lòng chọn vai trò hợp lệ",
+      "userNotFound": "Không tìm thấy người dùng",
+      "userSelfRoleChangeForbidden": "Bạn không thể tự đổi vai trò của chính mình",
+      "lastAdminRoleChangeForbidden": "Không thể đổi vai trò của quản trị viên cuối cùng",
+      "userRoleChangeConflict": "Thay đổi bị xung đột với một cập nhật khác. Vui lòng thử lại.",
+      "failedLoadUsers": "Không thể tải danh sách người dùng",
+      "failedLoadUser": "Không thể tải thông tin người dùng",
+      "failedUpdateUserRole": "Không thể cập nhật vai trò người dùng"
     }
   },
   "documentType": {
@@ -527,7 +535,8 @@
       "subjectDeleted": "Xoá môn học",
       "lessonCreated": "Tạo bài học",
       "lessonUpdated": "Cập nhật bài học",
-      "lessonDeleted": "Xoá bài học"
+      "lessonDeleted": "Xoá bài học",
+      "userRoleChanged": "Đổi vai trò người dùng"
     },
     "entities": {
       "user": "Người dùng",
@@ -647,6 +656,33 @@
       "gradeEntity": "khối lớp",
       "subjectEntity": "môn học",
       "lessonEntity": "bài học"
+    },
+    "users": {
+      "heading": "Người dùng",
+      "subtitle": "Xem danh sách người dùng và quản lý vai trò.",
+      "searchLabel": "Tìm kiếm",
+      "searchPlaceholder": "Tìm theo tên hoặc email",
+      "roleFilterLabel": "Vai trò",
+      "allRoles": "Tất cả vai trò",
+      "userCount": "{count, plural, other {# người dùng}}",
+      "noUsers": "Không có người dùng nào khớp với bộ lọc này.",
+      "changeRole": "Đổi vai trò",
+      "changeRoleTitle": "Đổi vai trò",
+      "changeRoleDescription": "{name} ({email})",
+      "currentRole": "Vai trò hiện tại",
+      "newRoleLabel": "Vai trò mới",
+      "saving": "Đang lưu…",
+      "roleUpdated": "Đã cập nhật vai trò của {name}",
+      "detail": {
+        "backToUsers": "Về danh sách người dùng",
+        "role": "Vai trò",
+        "createdAt": "Ngày tạo",
+        "activity": "Hoạt động",
+        "uploadedDocuments": "Tài liệu đã tải lên",
+        "comments": "Bình luận",
+        "ratings": "Đánh giá",
+        "reports": "Báo cáo"
+      }
     }
   },
   "footer": {

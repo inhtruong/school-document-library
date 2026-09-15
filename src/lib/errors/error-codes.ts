@@ -167,6 +167,14 @@ export const ERROR_CODE_MESSAGE_KEYS = {
   FAILED_CREATE_LESSON: "failedCreateLesson",
   FAILED_UPDATE_LESSON: "failedUpdateLesson",
   FAILED_DELETE_LESSON: "failedDeleteLesson",
+  VALIDATION_ROLE_INVALID: "validationRoleInvalid",
+  USER_NOT_FOUND: "userNotFound",
+  USER_SELF_ROLE_CHANGE_FORBIDDEN: "userSelfRoleChangeForbidden",
+  LAST_ADMIN_ROLE_CHANGE_FORBIDDEN: "lastAdminRoleChangeForbidden",
+  USER_ROLE_CHANGE_CONFLICT: "userRoleChangeConflict",
+  FAILED_LOAD_USERS: "failedLoadUsers",
+  FAILED_LOAD_USER: "failedLoadUser",
+  FAILED_UPDATE_USER_ROLE: "failedUpdateUserRole",
 } as const satisfies Record<string, string>;
 
 export type ErrorCode = keyof typeof ERROR_CODE_MESSAGE_KEYS;

@@ -231,7 +231,15 @@
       "lessonInUse": "This lesson has documents assigned to it and cannot be deleted",
       "failedCreateLesson": "Failed to create lesson",
       "failedUpdateLesson": "Failed to update lesson",
-      "failedDeleteLesson": "Failed to delete lesson"
+      "failedDeleteLesson": "Failed to delete lesson",
+      "validationRoleInvalid": "Select a valid role",
+      "userNotFound": "User not found",
+      "userSelfRoleChangeForbidden": "You cannot change your own role",
+      "lastAdminRoleChangeForbidden": "Cannot change the role of the last remaining admin",
+      "userRoleChangeConflict": "This change conflicted with another update. Please try again.",
+      "failedLoadUsers": "Failed to load users",
+      "failedLoadUser": "Failed to load user",
+      "failedUpdateUserRole": "Failed to update user role"
     }
   },
   "documentType": {
@@ -527,7 +535,8 @@
       "subjectDeleted": "Deleted subject",
       "lessonCreated": "Created lesson",
       "lessonUpdated": "Updated lesson",
-      "lessonDeleted": "Deleted lesson"
+      "lessonDeleted": "Deleted lesson",
+      "userRoleChanged": "Changed user role"
     },
     "entities": {
       "user": "User",
@@ -647,6 +656,33 @@
       "gradeEntity": "Grade",
       "subjectEntity": "Subject",
       "lessonEntity": "Lesson"
+    },
+    "users": {
+      "heading": "Users",
+      "subtitle": "Browse users and manage roles.",
+      "searchLabel": "Search",
+      "searchPlaceholder": "Search by name or email",
+      "roleFilterLabel": "Role",
+      "allRoles": "All roles",
+      "userCount": "{count, plural, one {# user} other {# users}}",
+      "noUsers": "No users match these filters.",
+      "changeRole": "Change role",
+      "changeRoleTitle": "Change role",
+      "changeRoleDescription": "{name} ({email})",
+      "currentRole": "Current role",
+      "newRoleLabel": "New role",
+      "saving": "Saving…",
+      "roleUpdated": "{name}'s role was updated",
+      "detail": {
+        "backToUsers": "Back to Users",
+        "role": "Role",
+        "createdAt": "Created",
+        "activity": "Activity",
+        "uploadedDocuments": "Uploaded documents",
+        "comments": "Comments",
+        "ratings": "Ratings",
+        "reports": "Reports"
+      }
     }
   },
   "footer": {

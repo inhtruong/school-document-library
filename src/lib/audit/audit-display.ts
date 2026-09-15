@@ -28,6 +28,16 @@ export const AUDIT_ACTION_VALUES: AuditAction[] = [
   "COMMENT_UPDATED",
   "COMMENT_DELETED",
   "REPORT_CREATED",
+  "GRADE_CREATED",
+  "GRADE_UPDATED",
+  "GRADE_DELETED",
+  "SUBJECT_CREATED",
+  "SUBJECT_UPDATED",
+  "SUBJECT_DELETED",
+  "LESSON_CREATED",
+  "LESSON_UPDATED",
+  "LESSON_DELETED",
+  "USER_ROLE_CHANGED",
 ];
 
 /** FEAT-13: the actual readable copy now lives in the locale message files (`auditLog.actions.*`/`auditLog.entities.*` — see src/i18n/messages/*.json). The Admin UI never shows a raw enum name (FEAT-11 §30) — that guarantee now lives in always calling these before display, not in a static labels map. Explicit literal-union return types (not a generic camelCase string transform) so next-intl's strict typed message keys can verify every call site at compile time. */
@@ -56,6 +66,7 @@ const AUDIT_ACTION_MESSAGE_KEYS = {
   LESSON_CREATED: "lessonCreated",
   LESSON_UPDATED: "lessonUpdated",
   LESSON_DELETED: "lessonDeleted",
+  USER_ROLE_CHANGED: "userRoleChanged",
 } as const satisfies Record<AuditAction, string>;
 
 const AUDIT_ENTITY_TYPE_MESSAGE_KEYS = {

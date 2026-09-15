@@ -5,12 +5,44 @@ import { apiErrorCode, apiSuccess } from "@/lib/api-response";
 import { actorFromSessionUser, writeAuditLog } from "@/lib/audit/audit";
 import { getDocumentChangeClassification } from "@/lib/documents/document-change";
 import { getDocumentById } from "@/lib/documents/get-document";
+import { validateTaxonomySelection } from "@/lib/documents/taxonomy";
 import { isDocumentVisibleTo } from "@/lib/documents/visibility";
 import { prisma } from "@/lib/prisma";
 import { deleteLocalFile } from "@/lib/storage/local-storage";
 import { updateDocumentSchema } from "@/lib/validation/document";
 
 type RouteContext = { params: Promise<{ id: string }> };
+
+/**
+ * FEAT-15D: old/new snapshot for the fields that don't already carry their
+ * before/after values in `changedFields` alone — taxonomy ids and
+ * documentType. Deliberately never includes `description` (no full-body
+ * logging, per FEAT-11 §37/§20's "never log secrets or large free text"
+ * convention) or file/storage fields (not editable here at all).
+ */
+function extraAuditMetadata(
+  existing: { documentType: string; gradeId: string | null; subjectId: string | null; lessonId: string | null },
+  data: { documentType?: string; gradeId?: string; subjectId?: string; lessonId?: string },
+  changedFields: string[]
+): Record<string, unknown> {
+  const extra: Record<string, unknown> = {};
+
+  if (changedFields.includes("documentType")) {
+    extra.oldDocumentType = existing.documentType;
+    extra.newDocumentType = data.documentType;
+  }
+
+  if (changedFields.includes("gradeId") || changedFields.includes("subjectId") || changedFields.includes("lessonId")) {
+    extra.oldGradeId = existing.gradeId;
+    extra.newGradeId = data.gradeId ?? existing.gradeId;
+    extra.oldSubjectId = existing.subjectId;
+    extra.newSubjectId = data.subjectId ?? existing.subjectId;
+    extra.oldLessonId = existing.lessonId;
+    extra.newLessonId = data.lessonId ?? existing.lessonId;
+  }
+
+  return extra;
+}
 
 /** Matches getDocumentById's omission exactly — a document-returning response, even to the owner/ADMIN caller of PUT, must never carry internal moderation fields (FEAT-10A/10C's established boundary). */
 const DOCUMENT_RESPONSE_OMIT = {
@@ -86,6 +118,31 @@ export async function PUT(request: NextRequest, { params }: RouteContext) {
   }
 
   try {
+    // FEAT-15D: never trust that gradeId/subjectId/lessonId are consistent
+    // just because updateDocumentSchema already enforced all-three-or-none
+    // — same discipline as uploadDocument(). Resolved before touching the
+    // document row at all, since it's independent of `existing`. Only the
+    // Subject's *validated* name is ever written to the legacy `subject`
+    // field (mirrors uploadDocument()'s `subject: taxonomy.subject.name`),
+    // never a client-supplied string.
+    let updateData: typeof parsed.data = parsed.data;
+    if (parsed.data.gradeId !== undefined && parsed.data.subjectId !== undefined && parsed.data.lessonId !== undefined) {
+      const taxonomy = await validateTaxonomySelection({
+        gradeId: parsed.data.gradeId,
+        subjectId: parsed.data.subjectId,
+        lessonId: parsed.data.lessonId,
+      });
+      if (!taxonomy.valid) return apiErrorCode(taxonomy.error, 400);
+
+      updateData = {
+        ...parsed.data,
+        gradeId: taxonomy.grade.id,
+        subjectId: taxonomy.subject.id,
+        lessonId: taxonomy.lesson.id,
+        subject: taxonomy.subject.name,
+      };
+    }
+
     const existing = await prisma.document.findUnique({ where: { id } });
     if (!existing) return apiErrorCode("DOCUMENT_NOT_FOUND", 404);
     if (!canModifyDocument(session, existing.uploadedById)) {
@@ -97,7 +154,7 @@ export async function PUT(request: NextRequest, { params }: RouteContext) {
     // DOCUMENT_UPDATED audit metadata, and a genuinely empty result (a
     // resubmission of identical values) is the one case that gets NO audit
     // row at all, matching the no-op rule.
-    const classification = getDocumentChangeClassification(existing, parsed.data);
+    const classification = getDocumentChangeClassification(existing, updateData);
     const requiresReReview =
       session.user.role !== "ADMIN" && existing.moderationStatus === "APPROVED" && classification.hasMaterialChange;
     const actor = actorFromSessionUser(session.user);
@@ -106,7 +163,7 @@ export async function PUT(request: NextRequest, { params }: RouteContext) {
       if (classification.changedFields.length === 0) {
         const document = await prisma.document.update({
           where: { id },
-          data: parsed.data,
+          data: updateData,
           omit: DOCUMENT_RESPONSE_OMIT,
         });
         return apiSuccess(document);
@@ -116,14 +173,18 @@ export async function PUT(request: NextRequest, { params }: RouteContext) {
       // a failed audit write rolls back the (otherwise harmless) edit too,
       // matching document delete/moderation's atomicity guarantee.
       const document = await prisma.$transaction(async (tx) => {
-        const updated = await tx.document.update({ where: { id }, data: parsed.data, omit: DOCUMENT_RESPONSE_OMIT });
+        const updated = await tx.document.update({ where: { id }, data: updateData, omit: DOCUMENT_RESPONSE_OMIT });
         await writeAuditLog(
           {
             actor,
             action: "DOCUMENT_UPDATED",
             entityType: "DOCUMENT",
             entityId: id,
-            metadata: { documentTitle: updated.title, changedFields: classification.changedFields },
+            metadata: {
+              documentTitle: updated.title,
+              changedFields: classification.changedFields,
+              ...extraAuditMetadata(existing, updateData, classification.changedFields),
+            },
           },
           tx
         );
@@ -145,7 +206,7 @@ export async function PUT(request: NextRequest, { params }: RouteContext) {
     const document = await prisma.$transaction(async (tx) => {
       const result = await tx.document.updateMany({
         where: { id, moderationStatus: "APPROVED" },
-        data: { ...parsed.data, moderationStatus: "PENDING", reviewedAt: null, reviewedById: null, rejectionReason: null },
+        data: { ...updateData, moderationStatus: "PENDING", reviewedAt: null, reviewedById: null, rejectionReason: null },
       });
       if (result.count !== 1) return null;
 
@@ -162,6 +223,7 @@ export async function PUT(request: NextRequest, { params }: RouteContext) {
             documentTitle: updated.title,
             changedFields: classification.changedFields,
             moderationTransition: { from: "APPROVED", to: "PENDING" },
+            ...extraAuditMetadata(existing, updateData, classification.changedFields),
           },
         },
         tx

@@ -10,6 +10,9 @@ vi.mock("@/lib/prisma", () => {
       updateMany: vi.fn(),
       delete: vi.fn(),
     },
+    grade: { findUnique: vi.fn() },
+    subject: { findUnique: vi.fn() },
+    lesson: { findUnique: vi.fn() },
     auditLog: { create: vi.fn() },
     // Test double for prisma.$transaction — same pattern as
     // moderation.test.ts: the callback runs against this SAME mocked
@@ -429,6 +432,133 @@ describe("PUT /api/documents/:id — FEAT-10E edit/re-review rules", () => {
   });
 });
 
+describe("PUT /api/documents/:id — FEAT-15D taxonomy edit", () => {
+  function putRequest(body: unknown) {
+    return new NextRequest("http://localhost/api/documents/doc_1", { method: "PUT", body: JSON.stringify(body) });
+  }
+
+  const now = new Date("2026-01-01T00:00:00.000Z");
+  const GRADE_11 = { id: "grade_11", name: "Grade 11", code: "G11", sortOrder: 11, createdAt: now, updatedAt: now };
+  const MATH_11 = {
+    id: "subject_math11",
+    name: "Mathematics",
+    code: "MATH",
+    gradeId: GRADE_11.id,
+    createdAt: now,
+    updatedAt: now,
+  };
+  const DERIVATIVES = {
+    id: "lesson_derivatives",
+    name: "Derivatives",
+    code: "DERIVATIVES",
+    subjectId: MATH_11.id,
+    createdAt: now,
+    updatedAt: now,
+  };
+
+  test("ADMIN sets a valid Grade/Subject/Lesson triplet — syncs the legacy subject field, never triggers re-review", async () => {
+    mockAuth.mockResolvedValue(ADMIN_SESSION);
+    vi.mocked(prisma.grade.findUnique).mockResolvedValue(GRADE_11 as never);
+    vi.mocked(prisma.subject.findUnique).mockResolvedValue(MATH_11 as never);
+    vi.mocked(prisma.lesson.findUnique).mockResolvedValue(DERIVATIVES as never);
+    vi.mocked(prisma.document.findUnique).mockResolvedValue(mockDocument);
+    vi.mocked(prisma.document.update).mockResolvedValue({
+      ...mockDocument,
+      gradeId: GRADE_11.id,
+      subjectId: MATH_11.id,
+      lessonId: DERIVATIVES.id,
+      subject: MATH_11.name,
+    });
+
+    const response = await PUT(
+      putRequest({ gradeId: GRADE_11.id, subjectId: MATH_11.id, lessonId: DERIVATIVES.id }),
+      context
+    );
+
+    expect(response.status).toBe(200);
+    expect(prisma.document.updateMany).not.toHaveBeenCalled();
+    const call = vi.mocked(prisma.document.update).mock.calls[0][0] as { data: Record<string, unknown> };
+    expect(call.data).toMatchObject({
+      gradeId: GRADE_11.id,
+      subjectId: MATH_11.id,
+      lessonId: DERIVATIVES.id,
+      subject: MATH_11.name,
+    });
+    expect(call.data).not.toHaveProperty("moderationStatus");
+  });
+
+  test("rejects when the Subject does not belong to the given Grade — no update performed", async () => {
+    mockAuth.mockResolvedValue(ADMIN_SESSION);
+    const OTHER_GRADE = { ...GRADE_11, id: "grade_10" };
+    vi.mocked(prisma.grade.findUnique).mockResolvedValue(OTHER_GRADE as never);
+    vi.mocked(prisma.subject.findUnique).mockResolvedValue(MATH_11 as never); // belongs to grade_11, not grade_10
+    vi.mocked(prisma.lesson.findUnique).mockResolvedValue(DERIVATIVES as never);
+
+    const response = await PUT(
+      putRequest({ gradeId: OTHER_GRADE.id, subjectId: MATH_11.id, lessonId: DERIVATIVES.id }),
+      context
+    );
+
+    expect(response.status).toBe(400);
+    expect(prisma.document.update).not.toHaveBeenCalled();
+    expect(prisma.document.updateMany).not.toHaveBeenCalled();
+  });
+
+  test("rejects when the selected Grade does not exist", async () => {
+    mockAuth.mockResolvedValue(ADMIN_SESSION);
+    vi.mocked(prisma.grade.findUnique).mockResolvedValue(null as never);
+    vi.mocked(prisma.subject.findUnique).mockResolvedValue(MATH_11 as never);
+    vi.mocked(prisma.lesson.findUnique).mockResolvedValue(DERIVATIVES as never);
+
+    const response = await PUT(
+      putRequest({ gradeId: "does-not-exist", subjectId: MATH_11.id, lessonId: DERIVATIVES.id }),
+      context
+    );
+
+    // Matches upload's existing validateTaxonomySelection() convention — every
+    // hierarchy failure (not-found or mismatch) is a uniform 400, not a 404.
+    expect(response.status).toBe(400);
+    expect(prisma.document.update).not.toHaveBeenCalled();
+  });
+
+  test("audit metadata includes old/new taxonomy ids when taxonomy changes", async () => {
+    mockAuth.mockResolvedValue(ADMIN_SESSION);
+    vi.mocked(prisma.grade.findUnique).mockResolvedValue(GRADE_11 as never);
+    vi.mocked(prisma.subject.findUnique).mockResolvedValue(MATH_11 as never);
+    vi.mocked(prisma.lesson.findUnique).mockResolvedValue(DERIVATIVES as never);
+    vi.mocked(prisma.document.findUnique).mockResolvedValue(mockDocument); // gradeId/subjectId/lessonId all null
+    vi.mocked(prisma.document.update).mockResolvedValue({
+      ...mockDocument,
+      gradeId: GRADE_11.id,
+      subjectId: MATH_11.id,
+      lessonId: DERIVATIVES.id,
+    });
+
+    await PUT(putRequest({ gradeId: GRADE_11.id, subjectId: MATH_11.id, lessonId: DERIVATIVES.id }), context);
+
+    const call = vi.mocked(prisma.auditLog.create).mock.calls[0][0] as { data: { metadata: Record<string, unknown> } };
+    expect(call.data.metadata).toMatchObject({
+      oldGradeId: null,
+      newGradeId: GRADE_11.id,
+      oldSubjectId: null,
+      newSubjectId: MATH_11.id,
+      oldLessonId: null,
+      newLessonId: DERIVATIVES.id,
+    });
+  });
+
+  test("audit metadata includes old/new documentType only when documentType changes", async () => {
+    mockAuth.mockResolvedValue(ADMIN_SESSION);
+    vi.mocked(prisma.document.findUnique).mockResolvedValue(mockDocument); // documentType: "EXAM"
+    vi.mocked(prisma.document.update).mockResolvedValue({ ...mockDocument, documentType: "REFERENCE" });
+
+    await PUT(putRequest({ documentType: "REFERENCE" }), context);
+
+    const call = vi.mocked(prisma.auditLog.create).mock.calls[0][0] as { data: { metadata: Record<string, unknown> } };
+    expect(call.data.metadata).toMatchObject({ oldDocumentType: "EXAM", newDocumentType: "REFERENCE" });
+  });
+});
+
 describe("PUT /api/documents/:id — FEAT-11 audit log", () => {
   function putRequest(body: unknown) {
     return new NextRequest("http://localhost/api/documents/doc_1", { method: "PUT", body: JSON.stringify(body) });
@@ -475,6 +605,8 @@ describe("PUT /api/documents/:id — FEAT-11 audit log", () => {
           documentTitle: mockDocument.title,
           changedFields: ["documentType"],
           moderationTransition: { from: "APPROVED", to: "PENDING" },
+          oldDocumentType: "EXAM",
+          newDocumentType: "REFERENCE",
         },
       },
     });

@@ -683,6 +683,64 @@
         "ratings": "Đánh giá",
         "reports": "Báo cáo"
       }
+    },
+    "documents": {
+      "heading": "Tài liệu",
+      "subtitle": "Tìm, xem và quản lý mọi tài liệu ở tất cả trạng thái kiểm duyệt.",
+      "documentCount": "{count, plural, other {# tài liệu}}",
+      "noDocuments": "Không có tài liệu nào khớp với bộ lọc này.",
+      "unknownUploader": "Không rõ người tải lên",
+      "sourceFile": "Tệp",
+      "sourceYoutube": "YouTube",
+      "filters": {
+        "searchLabel": "Tìm kiếm",
+        "searchPlaceholder": "Tìm theo tiêu đề hoặc mô tả",
+        "statusLabel": "Trạng thái",
+        "allStatuses": "Tất cả trạng thái",
+        "sourceLabel": "Nguồn",
+        "allSources": "Tất cả nguồn",
+        "sourceFile": "Tệp",
+        "sourceYoutube": "YouTube",
+        "allTypes": "Tất cả loại",
+        "allGrades": "Tất cả khối lớp",
+        "allSubjects": "Tất cả môn học",
+        "allLessons": "Tất cả bài học"
+      },
+      "detail": {
+        "backToDocuments": "Về danh sách tài liệu",
+        "sourceSection": "Nguồn",
+        "sourceFile": "Tệp",
+        "sourceYoutube": "YouTube",
+        "openOnYoutube": "Mở trên YouTube",
+        "fileName": "Tên tệp",
+        "fileSize": "Kích thước tệp",
+        "taxonomySection": "Phân loại",
+        "noTaxonomy": "Chưa gán phân loại",
+        "uploader": "Người tải lên",
+        "unknownUploader": "Không rõ người tải lên",
+        "createdAt": "Ngày tạo",
+        "reviewedAt": "Ngày duyệt",
+        "reviewedBy": "Người duyệt",
+        "rejectionReason": "Lý do từ chối",
+        "activity": "Hoạt động",
+        "ratings": "Đánh giá",
+        "comments": "Bình luận",
+        "reports": "Báo cáo",
+        "reviewInModeration": "Xem trong Kiểm duyệt",
+        "viewPublicDetail": "Xem trang tài liệu công khai"
+      },
+      "edit": {
+        "title": "Sửa tài liệu",
+        "titleLabel": "Tiêu đề",
+        "descriptionLabel": "Mô tả",
+        "noTaxonomy": "Không phân loại",
+        "taxonomyIncompleteHint": "Chọn đủ Khối lớp, Môn học và Bài học để đổi phân loại — hoặc để trống cả ba để giữ nguyên.",
+        "saving": "Đang lưu…",
+        "updateSuccess": "Đã cập nhật tài liệu",
+        "deleteTitle": "Xoá tài liệu?",
+        "deleteDescription": "Không thể hoàn tác. \"{title}\" và tệp của nó sẽ bị xoá vĩnh viễn.",
+        "deleteSuccess": "Đã xoá tài liệu"
+      }
     }
   },
   "footer": {

@@ -93,4 +93,39 @@ describe("updateDocumentSchema", () => {
     const result = updateDocumentSchema.safeParse({ title: "" });
     expect(result.success).toBe(false);
   });
+
+  test("accepts a full Grade/Subject/Lesson triplet", () => {
+    const result = updateDocumentSchema.safeParse({
+      gradeId: "grade_1",
+      subjectId: "subject_1",
+      lessonId: "lesson_1",
+    });
+    expect(result.success).toBe(true);
+  });
+
+  test("rejects a partial triplet — subjectId without gradeId", () => {
+    const result = updateDocumentSchema.safeParse({ subjectId: "subject_1", lessonId: "lesson_1" });
+    expect(result.success).toBe(false);
+    if (result.success) return;
+    expect(result.error.issues[0]?.message).toBe("VALIDATION_GRADE_REQUIRED");
+  });
+
+  test("rejects a partial triplet — lessonId without subjectId", () => {
+    const result = updateDocumentSchema.safeParse({ gradeId: "grade_1", lessonId: "lesson_1" });
+    expect(result.success).toBe(false);
+    if (result.success) return;
+    expect(result.error.issues[0]?.message).toBe("VALIDATION_SUBJECT_REQUIRED");
+  });
+
+  test("rejects a partial triplet — gradeId only (missing subjectId reported first)", () => {
+    const result = updateDocumentSchema.safeParse({ gradeId: "grade_1" });
+    expect(result.success).toBe(false);
+    if (result.success) return;
+    expect(result.error.issues[0]?.message).toBe("VALIDATION_SUBJECT_REQUIRED");
+  });
+
+  test("allows omitting taxonomy entirely alongside other fields", () => {
+    const result = updateDocumentSchema.safeParse({ title: "Updated title" });
+    expect(result.success).toBe(true);
+  });
 });

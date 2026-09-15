@@ -7,6 +7,9 @@ const CURRENT: DocumentChangeSource = {
   subject: "Mathematics",
   documentType: "EXERCISE",
   academicYear: "2025-2026",
+  gradeId: null,
+  subjectId: null,
+  lessonId: null,
 };
 
 describe("getDocumentChangeClassification — minor fields", () => {
@@ -45,6 +48,24 @@ describe("getDocumentChangeClassification — material fields", () => {
   test("a legacy `subject` change is classified as material (same categorization role as subjectId)", () => {
     const result = getDocumentChangeClassification(CURRENT, { subject: "Physics" });
     expect(result.changedFields).toEqual(["subject"]);
+    expect(result.hasMaterialChange).toBe(true);
+  });
+
+  test("a gradeId change is classified as material", () => {
+    const result = getDocumentChangeClassification(CURRENT, { gradeId: "grade_11" });
+    expect(result.changedFields).toEqual(["gradeId"]);
+    expect(result.hasMaterialChange).toBe(true);
+  });
+
+  test("a subjectId change is classified as material", () => {
+    const result = getDocumentChangeClassification(CURRENT, { subjectId: "subject_math" });
+    expect(result.changedFields).toEqual(["subjectId"]);
+    expect(result.hasMaterialChange).toBe(true);
+  });
+
+  test("a lessonId change is classified as material", () => {
+    const result = getDocumentChangeClassification(CURRENT, { lessonId: "lesson_derivatives" });
+    expect(result.changedFields).toEqual(["lessonId"]);
     expect(result.hasMaterialChange).toBe(true);
   });
 });

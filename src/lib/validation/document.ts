@@ -9,7 +9,28 @@ export const createDocumentSchema = z.object({
   academicYear: z.string().trim().min(1, "VALIDATION_ACADEMIC_YEAR_REQUIRED").max(20, "VALIDATION_ACADEMIC_YEAR_TOO_LONG"),
 });
 
-export const updateDocumentSchema = createDocumentSchema.partial();
+/**
+ * FEAT-15D: taxonomy is editable post-creation as a complete triplet or not
+ * at all — reuses upload's own "all three or none" contract and its exact
+ * VALIDATION_GRADE/SUBJECT/LESSON_REQUIRED codes for whichever piece of a
+ * partial triplet is missing. `validateTaxonomySelection()` still does the
+ * real existence/hierarchy check server-side, same as upload.
+ */
+export const updateDocumentSchema = createDocumentSchema
+  .partial()
+  .extend({
+    gradeId: z.string().trim().min(1, "VALIDATION_GRADE_REQUIRED").optional(),
+    subjectId: z.string().trim().min(1, "VALIDATION_SUBJECT_REQUIRED").optional(),
+    lessonId: z.string().trim().min(1, "VALIDATION_LESSON_REQUIRED").optional(),
+  })
+  .superRefine((data, ctx) => {
+    const touchesTaxonomy = data.gradeId !== undefined || data.subjectId !== undefined || data.lessonId !== undefined;
+    if (!touchesTaxonomy) return;
+
+    if (data.gradeId === undefined) ctx.addIssue({ code: "custom", message: "VALIDATION_GRADE_REQUIRED", path: ["gradeId"] });
+    if (data.subjectId === undefined) ctx.addIssue({ code: "custom", message: "VALIDATION_SUBJECT_REQUIRED", path: ["subjectId"] });
+    if (data.lessonId === undefined) ctx.addIssue({ code: "custom", message: "VALIDATION_LESSON_REQUIRED", path: ["lessonId"] });
+  });
 
 /**
  * Metadata schema for the taxonomy-aware upload flow (Step 6A) — distinct

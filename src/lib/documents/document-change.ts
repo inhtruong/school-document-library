@@ -8,14 +8,11 @@ import type { UpdateDocumentInput } from "@/lib/validation/document";
  * `documentType` affects what the document IS (a Lesson note vs. an Exam) —
  * it changes discovery/meaning, so it's material.
  *
- * `subject` is the legacy free-text categorization field. As of this audit,
- * structured `gradeId`/`subjectId`/`lessonId` are NOT editable via
- * `PUT /api/documents/[id]` at all (only `uploadDocument()` sets them, at
- * creation time) — so there is no `subjectId` edit path to classify here.
- * `subject` plays the exact same "what is this filed under" role `subjectId`
- * would for a taxonomy-backed document, so it is classified identically:
- * material. If structured taxonomy editing is ever added to this endpoint,
- * `gradeId`/`subjectId`/`lessonId` must be added to this set too.
+ * `subject` is the legacy free-text categorization field; `gradeId`/
+ * `subjectId`/`lessonId` (FEAT-15D: now editable via `PUT
+ * /api/documents/[id]`, see `updateDocumentSchema`) play the exact same
+ * "what is this filed under" role for a taxonomy-backed document, so all
+ * four are classified identically: material.
  *
  * Everything else PUT can currently change — `title`, `description`,
  * `academicYear` — is a correction/metadata field: changing it doesn't
@@ -27,7 +24,13 @@ import type { UpdateDocumentInput } from "@/lib/validation/document";
  * built here, per FEAT-10E's scope. Any future file-replacement feature
  * must be treated as material and trigger re-review.
  */
-const MATERIAL_DOCUMENT_FIELDS = new Set<keyof UpdateDocumentInput>(["subject", "documentType"]);
+const MATERIAL_DOCUMENT_FIELDS = new Set<keyof UpdateDocumentInput>([
+  "subject",
+  "documentType",
+  "gradeId",
+  "subjectId",
+  "lessonId",
+]);
 
 export type DocumentChangeSource = {
   title: string;
@@ -35,6 +38,9 @@ export type DocumentChangeSource = {
   subject: string;
   documentType: string;
   academicYear: string;
+  gradeId: string | null;
+  subjectId: string | null;
+  lessonId: string | null;
 };
 
 export type DocumentChangeClassification = {

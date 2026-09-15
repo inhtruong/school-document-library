@@ -683,6 +683,64 @@
         "ratings": "Ratings",
         "reports": "Reports"
       }
+    },
+    "documents": {
+      "heading": "Documents",
+      "subtitle": "Find, inspect, and manage every document across all moderation statuses.",
+      "documentCount": "{count, plural, one {# document} other {# documents}}",
+      "noDocuments": "No documents match these filters.",
+      "unknownUploader": "Unknown uploader",
+      "sourceFile": "File",
+      "sourceYoutube": "YouTube",
+      "filters": {
+        "searchLabel": "Search",
+        "searchPlaceholder": "Search by title or description",
+        "statusLabel": "Status",
+        "allStatuses": "All statuses",
+        "sourceLabel": "Source",
+        "allSources": "All sources",
+        "sourceFile": "File",
+        "sourceYoutube": "YouTube",
+        "allTypes": "All types",
+        "allGrades": "All grades",
+        "allSubjects": "All subjects",
+        "allLessons": "All lessons"
+      },
+      "detail": {
+        "backToDocuments": "Back to Documents",
+        "sourceSection": "Source",
+        "sourceFile": "File",
+        "sourceYoutube": "YouTube",
+        "openOnYoutube": "Open on YouTube",
+        "fileName": "File name",
+        "fileSize": "File size",
+        "taxonomySection": "Taxonomy",
+        "noTaxonomy": "No taxonomy assigned",
+        "uploader": "Uploader",
+        "unknownUploader": "Unknown uploader",
+        "createdAt": "Created",
+        "reviewedAt": "Reviewed",
+        "reviewedBy": "Reviewed by",
+        "rejectionReason": "Rejection reason",
+        "activity": "Activity",
+        "ratings": "Ratings",
+        "comments": "Comments",
+        "reports": "Reports",
+        "reviewInModeration": "Review in Moderation",
+        "viewPublicDetail": "View public document page"
+      },
+      "edit": {
+        "title": "Edit document",
+        "titleLabel": "Title",
+        "descriptionLabel": "Description",
+        "noTaxonomy": "No taxonomy",
+        "taxonomyIncompleteHint": "Select a Grade, Subject, and Lesson to change the taxonomy — or leave all three blank to keep it unchanged.",
+        "saving": "Saving…",
+        "updateSuccess": "Document updated",
+        "deleteTitle": "Delete document?",
+        "deleteDescription": "This cannot be undone. \"{title}\" and its file will be permanently removed.",
+        "deleteSuccess": "Document deleted"
+      }
     }
   },
   "footer": {

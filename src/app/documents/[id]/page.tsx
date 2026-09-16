@@ -274,7 +274,7 @@ export default async function DocumentDetailPage({ params, searchParams }: Docum
               <div className="mt-2 flex items-center gap-2.5">
                 <span
                   aria-hidden
-                  className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-accent-soft text-sm font-semibold text-accent"
+                  className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-accent-soft text-sm font-semibold text-accent-strong"
                 >
                   {doc.uploadedBy.name.slice(0, 1).toUpperCase()}
                 </span>

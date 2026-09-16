@@ -107,7 +107,7 @@ export function CommentSection({
           <p className="text-sm text-muted">
             <a
               href={documentLoginHref(documentId)}
-              className="font-medium text-ink underline underline-offset-2 hover:text-accent"
+              className="font-medium text-ink underline underline-offset-2 hover:text-accent-strong"
             >
               {tAuth("login")}
             </a>{" "}

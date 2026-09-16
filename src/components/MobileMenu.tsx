@@ -65,7 +65,7 @@ export function MobileMenu(props: MobileMenuProps) {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger
-        className="flex h-11 w-11 items-center justify-center rounded-xl border border-line bg-card text-ink outline-none transition-colors hover:bg-surface focus-visible:ring-2 focus-visible:ring-accent"
+        className="flex h-11 w-11 items-center justify-center rounded-xl border border-line bg-card text-ink outline-none transition-colors hover:bg-surface focus-visible:ring-2 focus-visible:ring-canvas"
         aria-label={props.openMenuLabel}
       >
         <Menu className="h-5 w-5" aria-hidden />
@@ -161,7 +161,7 @@ export function MobileMenu(props: MobileMenuProps) {
               <Link href="/login">{props.labels.login}</Link>
             </DropdownMenuItem>
             <DropdownMenuItem asChild>
-              <Link href="/register" className="font-medium text-accent">
+              <Link href="/register" className="font-medium text-accent-strong">
                 {props.labels.register}
               </Link>
             </DropdownMenuItem>

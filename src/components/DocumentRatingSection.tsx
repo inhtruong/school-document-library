@@ -78,7 +78,7 @@ export function DocumentRatingSection({ documentId, isAuthenticated, initialSumm
           ) : (
             <a
               href={documentLoginHref(documentId)}
-              className="text-sm font-medium text-accent underline-offset-2 hover:underline"
+              className="text-sm font-medium text-accent-strong underline-offset-2 hover:underline"
             >
               {tRating("loginToRate")}
             </a>

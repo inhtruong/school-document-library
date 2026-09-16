@@ -57,7 +57,7 @@ export function LanguageSwitcher({ currentLocale, label }: LanguageSwitcherProps
       <DropdownMenuTrigger
         aria-label={label}
         disabled={isPending}
-        className="flex h-11 w-11 items-center justify-center rounded-xl border border-line bg-card text-ink outline-none transition-colors hover:bg-surface focus-visible:ring-2 focus-visible:ring-accent disabled:opacity-50 md:h-9 md:w-9"
+        className="flex h-11 w-11 items-center justify-center rounded-xl border border-line bg-card text-ink outline-none transition-colors hover:bg-surface focus-visible:ring-2 focus-visible:ring-canvas disabled:opacity-50 md:h-9 md:w-9"
       >
         <Languages className="h-4 w-4" aria-hidden />
       </DropdownMenuTrigger>

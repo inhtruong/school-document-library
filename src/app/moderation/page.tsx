@@ -112,7 +112,7 @@ export default async function ModerationPage({ searchParams }: ModerationPagePro
 
               return (
                 <li key={doc.id}>
-                  <Card className="flex gap-3 p-4 transition-all hover:-translate-y-px hover:border-ink/20 hover:shadow-[0_4px_12px_rgba(18,22,31,0.06)] sm:items-center">
+                  <Card className="flex gap-3 p-4 transition-all hover:-translate-y-px hover:border-ink/20 hover:shadow-[0_4px_12px_rgba(28,25,23,0.06)] sm:items-center">
                     <span
                       aria-hidden
                       className="w-1 shrink-0 self-stretch rounded-full"

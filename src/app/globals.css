@@ -1,7 +1,8 @@
 @import "tailwindcss";
 
 /*
- * Design tokens (UI-1 — Frontend Foundation).
+ * Design tokens (UI-1 — Frontend Foundation; palette replaced by UI-6 —
+ * Global Theme Refresh; revised again by the UI-6 Palette Revision).
  *
  * `paper`, `ink`, `surface`, `line`, `muted`, `accent`, `accent-soft` are the
  * ORIGINAL token names, kept unchanged on purpose — they're already used
@@ -10,36 +11,73 @@
  * in particular is already established everywhere as a MUTED FILL color
  * (empty-state boxes, hover backgrounds, file-input buttons) — repurposing
  * it as a "card surface" would have silently changed the look of every one
- * of those out-of-scope pages. Only VALUES were refined (see below), and
- * only where verified safe; no existing token was renamed or repurposed.
+ * of those out-of-scope pages. Only VALUES change here — no token was
+ * renamed or repurposed, so every one of those ~20+ call sites picks up the
+ * revised warm red/cream identity for free.
  *
- * `card` is the one genuinely new background token: a crisp white surface
- * for the Card primitive, distinct from the now slightly-off-white `paper`
- * page background — this is what gives cards visible depth against the
- * page instead of blending into it (the "too much flat white" issue).
+ * `card` is the one genuinely new background token for the Card primitive.
+ * The Palette Revision intentionally sets `card` equal to `paper` (both
+ * warm white #FFFAF3) — the brief's own hierarchy explicitly allows "Normal
+ * Card: #FFFAF3 or #FFF2DB depending on context" and separately lists
+ * "large content areas" under the warm-white background's own usage list,
+ * so cards read as part of one continuous warm-white surface (depth comes
+ * from `border-line` + the existing restrained shadow, not from a second
+ * near-white shade — the four-color brief gives no fifth "pure white" to
+ * spend on that). `surface` (#FFF2DB, "soft surface") is the genuinely
+ * distinct secondary tier — every existing `bg-surface` call site (empty
+ * states, hover fills, subtle sections) is what actually carries the
+ * visible warm-cream separation from the page.
  *
- * `accent-strong`, `success`, `warning`, `destructive` (+ `-soft` pairs) are
- * new semantic additions for Badge's status variants and interactive hover/
- * active states — used only by primitives this step edits, not retrofitted
- * onto existing pages.
+ * `line` (#FFE5BF, the brief's "Secondary Surface") does double duty on
+ * purpose: as `border-line` it's the warm low-contrast border color the
+ * brief asks for, and — reusing the exact same token via Tailwind's
+ * opacity modifiers (`bg-line`, `bg-line/NN`) — it's also the "stronger
+ * warm surface" used selectively for highlighted/callout backgrounds
+ * (Button's existing `subtle` variant already does exactly this:
+ * `hover:bg-line/60`). No new token was needed for this tier.
+ *
+ * `canvas` (#FFFFFF, added by the Header/Background Adjustment) is the ONE
+ * new token this pass introduces — used ONLY by `body`'s background. It
+ * exists because `paper` (#FFFAF3) turned out to be load-bearing for far
+ * more than the page canvas: every `<input>`/`<textarea>`/`<select>`
+ * surface, Dialog, SiteFooter, and the "light text on a colored surface"
+ * role (`text-paper` on solid buttons/badges) all read `paper` too — so
+ * repointing `paper` itself to pure white would have silently whitened
+ * every one of those warm surfaces the brief explicitly says to preserve.
+ * `paper`'s own value is untouched; `canvas` carries the page-background
+ * role that used to be bundled into it.
+ *
+ * Palette Revision direction: red (#F62440) + warm white (#FFFAF3) as the
+ * dominant identity, cream surfaces (#FFF2DB/#FFE5BF) for hierarchy instead
+ * of the previous charcoal/light-gray neutrals. `ink`/`muted` move from a
+ * cool blue-gray (#1F2937/#6B7280) to a warm near-black/warm-gray (Tailwind
+ * stone-900/stone-600) — functional text neutrals, NOT a second brand
+ * color, per the brief's own explicit instruction. `success`/`warning`
+ * keep their existing green/amber semantics untouched (status meaning is a
+ * SEPARATE concern from brand color). `destructive` stays a distinctly
+ * darker/more muted red (not the same hue as the now much brighter/pinker
+ * `accent`) so a destructive action and a primary action never read as the
+ * same red at a glance; `MODERATION_STATUS_COLOR`
+ * (moderation-status-style.ts) still mirrors this exact value.
  */
 @theme {
-  --color-paper: #f7f8fb;
-  --color-card: #ffffff;
-  --color-ink: #12161f;
-  --color-surface: #eef1f7;
-  --color-line: #d7dce5;
-  --color-muted: #5c6577;
-  --color-accent: #2647cc;
-  --color-accent-soft: #eaeeff;
-  --color-accent-strong: #1c37a3;
+  --color-canvas: #ffffff;
+  --color-paper: #fffaf3;
+  --color-card: #fffaf3;
+  --color-ink: #1c1917;
+  --color-surface: #fff2db;
+  --color-line: #ffe5bf;
+  --color-muted: #57534e;
+  --color-accent: #f62440;
+  --color-accent-soft: #ffe6ec;
+  --color-accent-strong: #d6142f;
 
   --color-success: #15803d;
   --color-success-soft: #ecfdf3;
   --color-warning: #b45309;
   --color-warning-soft: #fffbeb;
-  --color-destructive: #b91c1c;
-  --color-destructive-soft: #fef2f2;
+  --color-destructive: #991b1b;
+  --color-destructive-soft: #fee2e2;
 
   /* UI-5: display and body intentionally share one face (Be Vietnam Pro,
      loaded once in layout.tsx as --font-sans-face) — kept as two token
@@ -52,7 +90,7 @@
 
 @layer base {
   body {
-    background-color: var(--color-paper);
+    background-color: var(--color-canvas);
     color: var(--color-ink);
     font-family: var(--font-body);
     -webkit-font-smoothing: antialiased;

@@ -153,7 +153,7 @@ export function CommentItem({ comment, documentId, currentUserId, isAdmin, onUpd
           {canDelete ? (
             <button
               type="button"
-              className="text-muted transition-colors hover:text-red-600"
+              className="text-muted transition-colors hover:text-destructive"
               onClick={() => setMode("confirm-delete")}
             >
               {tComments("delete")}

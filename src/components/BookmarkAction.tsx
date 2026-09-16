@@ -22,7 +22,7 @@ function actionClassName(active: boolean): string {
   return cn(
     buttonVariants({ variant: "outline" }),
     "w-full",
-    active && "border-accent bg-accent-soft text-accent hover:bg-accent-soft"
+    active && "border-accent bg-accent-soft text-accent-strong hover:bg-accent-soft"
   );
 }
 

@@ -75,7 +75,7 @@ export function NotificationBell({ initialNotifications, initialUnreadCount }: N
     <DropdownMenu open={open} onOpenChange={setOpen}>
       <DropdownMenuTrigger
         aria-label={unreadCount > 0 ? tNotifications("ariaLabelUnread", { count: unreadCount }) : tNotifications("ariaLabel")}
-        className="relative inline-flex h-11 w-11 items-center justify-center rounded-xl border border-line bg-card text-ink outline-none transition-colors hover:bg-surface focus-visible:ring-2 focus-visible:ring-accent"
+        className="relative inline-flex h-11 w-11 items-center justify-center rounded-xl border border-line bg-card text-ink outline-none transition-colors hover:bg-surface focus-visible:ring-2 focus-visible:ring-canvas"
       >
         <Bell className="h-4 w-4" aria-hidden />
         {unreadCount > 0 ? (

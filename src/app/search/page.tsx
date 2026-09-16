@@ -135,7 +135,7 @@ export default async function SearchPage({ searchParams: searchParamsPromise }: 
             <Link
               key={filter.key}
               href={filter.removeHref}
-              className="inline-flex items-center gap-1 rounded-full border border-line bg-accent-soft px-2.5 py-1 text-xs font-medium text-accent transition-colors hover:border-accent"
+              className="inline-flex items-center gap-1 rounded-full border border-line bg-accent-soft px-2.5 py-1 text-xs font-medium text-accent-strong transition-colors hover:border-accent"
             >
               {filter.label}
               <X className="h-3 w-3" aria-hidden />

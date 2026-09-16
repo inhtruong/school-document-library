@@ -55,7 +55,7 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
       <h1 className="font-display text-2xl font-semibold tracking-tight">{tAuth("login")}</h1>
 
       {error ? (
-        <p className="mt-4 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+        <p className="mt-4 rounded-lg border border-destructive/20 bg-destructive-soft px-3 py-2 text-sm text-destructive">
           {error}
         </p>
       ) : null}

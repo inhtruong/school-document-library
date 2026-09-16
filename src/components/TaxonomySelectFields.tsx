@@ -133,7 +133,7 @@ export function TaxonomySelectFields({ grades }: TaxonomySelectFieldsProps) {
           ))}
         </select>
         {subjectsError ? (
-          <span className="text-xs text-red-600">{tUpload("subjectsLoadError")}</span>
+          <span className="text-xs text-destructive">{tUpload("subjectsLoadError")}</span>
         ) : null}
       </label>
 
@@ -159,7 +159,7 @@ export function TaxonomySelectFields({ grades }: TaxonomySelectFieldsProps) {
           ))}
         </select>
         {lessonsError ? (
-          <span className="text-xs text-red-600">{tUpload("lessonsLoadError")}</span>
+          <span className="text-xs text-destructive">{tUpload("lessonsLoadError")}</span>
         ) : null}
       </label>
 

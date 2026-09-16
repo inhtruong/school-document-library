@@ -45,7 +45,7 @@ export function FollowedLessonsList({ initialLessons }: FollowedLessonsListProps
         <BellOff className="h-5 w-5 text-muted" aria-hidden />
         <p className="text-sm text-muted">
           {tFollowing("noLessonsYet")}{" "}
-          <Link href="/search" className="font-medium text-ink underline underline-offset-2 hover:text-accent">
+          <Link href="/search" className="font-medium text-ink underline underline-offset-2 hover:text-accent-strong">
             {tSaved("browseDocuments")}
           </Link>
         </p>

@@ -30,6 +30,27 @@ export async function isBookmarked(documentId: string, userId: string | null): P
   return bookmark !== null;
 }
 
+/**
+ * UI-7A: batched bookmark-status lookup for a list of document ids — ONE
+ * query regardless of list size, never one `isBookmarked()` call per card.
+ * Mirrors `getUploaderSummaries()`'s exact shape/reasoning (document-
+ * uploaders.ts) for the same reason: only the pages that actually render a
+ * per-card bookmark toggle in a list (currently `/search`) need this, so
+ * it stays a separate helper rather than folding into `searchDocuments()`.
+ */
+export async function getBookmarkedDocumentIds(
+  documentIds: string[],
+  userId: string | null
+): Promise<Set<string>> {
+  if (!userId || documentIds.length === 0) return new Set();
+
+  const rows = await prisma.documentBookmark.findMany({
+    where: { userId, documentId: { in: documentIds } },
+    select: { documentId: true },
+  });
+  return new Set(rows.map((row) => row.documentId));
+}
+
 /** Idempotent — a repeat bookmark of the same Document by the same user never creates a second row. */
 export async function addBookmark(documentId: string, userId: string): Promise<void> {
   await prisma.documentBookmark.upsert({

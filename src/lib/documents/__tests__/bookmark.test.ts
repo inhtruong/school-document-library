@@ -14,7 +14,13 @@ vi.mock("@/lib/prisma", () => ({
 
 import { prisma } from "@/lib/prisma";
 import { SAVED_PAGE_SIZE } from "@/lib/documents/bookmark-config";
-import { addBookmark, isBookmarked, listUserBookmarks, removeBookmark } from "@/lib/documents/bookmark";
+import {
+  addBookmark,
+  getBookmarkedDocumentIds,
+  isBookmarked,
+  listUserBookmarks,
+  removeBookmark,
+} from "@/lib/documents/bookmark";
 
 const now = new Date("2025-01-01T00:00:00.000Z");
 const mockDocument = {
@@ -180,5 +186,44 @@ describe("listUserBookmarks", () => {
     const result = await listUserBookmarks("user_1", 1);
 
     expect(result.totalPages).toBe(Math.ceil(25 / SAVED_PAGE_SIZE));
+  });
+});
+
+describe("getBookmarkedDocumentIds", () => {
+  test("returns an empty set without querying the database when userId is null (guest)", async () => {
+    const result = await getBookmarkedDocumentIds(["doc_1", "doc_2"], null);
+
+    expect(result).toEqual(new Set());
+    expect(prisma.documentBookmark.findMany).not.toHaveBeenCalled();
+  });
+
+  test("returns an empty set without querying the database when the id list is empty", async () => {
+    const result = await getBookmarkedDocumentIds([], "user_1");
+
+    expect(result).toEqual(new Set());
+    expect(prisma.documentBookmark.findMany).not.toHaveBeenCalled();
+  });
+
+  test("makes exactly ONE batched query for the whole list, never one per document", async () => {
+    vi.mocked(prisma.documentBookmark.findMany).mockResolvedValue([{ documentId: "doc_1" }] as never);
+
+    await getBookmarkedDocumentIds(["doc_1", "doc_2", "doc_3"], "user_1");
+
+    expect(prisma.documentBookmark.findMany).toHaveBeenCalledTimes(1);
+    expect(prisma.documentBookmark.findMany).toHaveBeenCalledWith({
+      where: { userId: "user_1", documentId: { in: ["doc_1", "doc_2", "doc_3"] } },
+      select: { documentId: true },
+    });
+  });
+
+  test("returns exactly the set of document ids the user has bookmarked, scoped to that user", async () => {
+    vi.mocked(prisma.documentBookmark.findMany).mockResolvedValue([
+      { documentId: "doc_1" },
+      { documentId: "doc_3" },
+    ] as never);
+
+    const result = await getBookmarkedDocumentIds(["doc_1", "doc_2", "doc_3"], "user_1");
+
+    expect(result).toEqual(new Set(["doc_1", "doc_3"]));
   });
 });

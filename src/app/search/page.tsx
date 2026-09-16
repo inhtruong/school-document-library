@@ -1,9 +1,11 @@
 import Link from "next/link";
 import { getTranslations } from "next-intl/server";
 import { SlidersHorizontal, X } from "lucide-react";
-import DocumentCard from "@/components/DocumentCard";
+import { auth } from "@/auth";
 import SearchBar from "@/components/SearchBar";
 import { SearchFilters } from "@/components/SearchFilters";
+import SearchResultCard from "@/components/SearchResultCard";
+import { getBookmarkedDocumentIds } from "@/lib/documents/bookmark";
 import { getUploaderSummaries } from "@/lib/documents/document-uploaders";
 import { documentTypeMessageKey } from "@/lib/documents/document-type";
 import { listGrades } from "@/lib/documents/grades";
@@ -63,9 +65,14 @@ export default async function SearchPage({ searchParams: searchParamsPromise }: 
   ]);
   const { documents: results, total, page = query.page, totalPages = 1, resolvedFilters } = searchResult;
 
-  // One batched lookup for the whole page of results — never one query per
-  // card (see document-uploaders.ts).
-  const uploaderByDocumentId = await getUploaderSummaries(results.map((doc) => doc.id));
+  const session = await auth();
+  const documentIds = results.map((doc) => doc.id);
+  // Both batched lookups for the whole page of results — never one query
+  // per card (see document-uploaders.ts / bookmark.ts).
+  const [uploaderByDocumentId, bookmarkedIds] = await Promise.all([
+    getUploaderSummaries(documentIds),
+    getBookmarkedDocumentIds(documentIds, session?.user?.id ?? null),
+  ]);
   const [tSearch, tCommon, tDocumentType] = await Promise.all([
     getTranslations("search"),
     getTranslations("common"),
@@ -121,8 +128,8 @@ export default async function SearchPage({ searchParams: searchParamsPromise }: 
         <SearchBar defaultValue={query.search ?? ""} size="compact" />
       </div>
 
-      <div className="mt-6 flex flex-wrap items-end gap-x-3 gap-y-2">
-        <span className="mb-2 hidden shrink-0 items-center gap-1.5 text-sm font-medium text-muted sm:flex">
+      <div className="mt-6 flex flex-wrap items-center gap-x-3 gap-y-2">
+        <span className="hidden shrink-0 items-center gap-1.5 text-sm font-medium text-muted sm:flex">
           <SlidersHorizontal className="h-4 w-4" aria-hidden />
           {tSearch("filters")}
         </span>
@@ -152,6 +159,7 @@ export default async function SearchPage({ searchParams: searchParamsPromise }: 
       ) : null}
 
       <div className="mt-8 flex flex-wrap items-baseline gap-x-2 border-t border-line pt-6">
+        <span className="text-sm text-muted">{tSearch("resultsLabel")}:</span>
         <p className="font-display text-lg font-semibold tracking-tight text-ink">
           {tCommon("documentCount", { count: total })}
         </p>
@@ -162,9 +170,15 @@ export default async function SearchPage({ searchParams: searchParamsPromise }: 
 
       {results.length > 0 ? (
         <>
-          <div className="mt-5 grid gap-4 sm:grid-cols-2">
+          <div className="mt-5 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
             {results.map((doc) => (
-              <DocumentCard key={doc.id} doc={doc} uploader={uploaderByDocumentId.get(doc.id)} />
+              <SearchResultCard
+                key={doc.id}
+                doc={doc}
+                uploader={uploaderByDocumentId.get(doc.id)}
+                isAuthenticated={!!session?.user}
+                bookmarked={bookmarkedIds.has(doc.id)}
+              />
             ))}
           </div>
 

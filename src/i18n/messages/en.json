@@ -246,6 +246,8 @@
   "search": {
     "heading": "Search documents",
     "filters": "Filters",
+    "resultsLabel": "Results",
+    "viewDocument": "View",
     "removeFilter": "Remove filter",
     "clearAll": "Clear all",
     "resultsFor": "for “{query}”",

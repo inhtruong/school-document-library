@@ -246,6 +246,8 @@
   "search": {
     "heading": "Tìm kiếm tài liệu",
     "filters": "Bộ lọc",
+    "resultsLabel": "Kết quả",
+    "viewDocument": "Xem",
     "removeFilter": "Xoá bộ lọc",
     "clearAll": "Xoá tất cả",
     "resultsFor": "cho “{query}”",

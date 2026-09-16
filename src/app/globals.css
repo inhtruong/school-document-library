@@ -2,7 +2,11 @@
 
 /*
  * Design tokens (UI-1 — Frontend Foundation; palette replaced by UI-6 —
- * Global Theme Refresh; revised again by the UI-6 Palette Revision).
+ * Global Theme Refresh; revised by the UI-6 Palette Revision and the
+ * Header/Background Adjustment; palette replaced again by the UI-6
+ * Palette Update — restored here as the prerequisite baseline for UI-7A,
+ * which explicitly names #FF0063/#FFFFFF/#EAF6F6/#66BFBF as the current
+ * authoritative palette).
  *
  * `paper`, `ink`, `surface`, `line`, `muted`, `accent`, `accent-soft` are the
  * ORIGINAL token names, kept unchanged on purpose — they're already used
@@ -13,64 +17,65 @@
  * it as a "card surface" would have silently changed the look of every one
  * of those out-of-scope pages. Only VALUES change here — no token was
  * renamed or repurposed, so every one of those ~20+ call sites picks up the
- * revised warm red/cream identity for free.
+ * new pink/white/teal identity for free.
  *
- * `card` is the one genuinely new background token for the Card primitive.
- * The Palette Revision intentionally sets `card` equal to `paper` (both
- * warm white #FFFAF3) — the brief's own hierarchy explicitly allows "Normal
- * Card: #FFFAF3 or #FFF2DB depending on context" and separately lists
- * "large content areas" under the warm-white background's own usage list,
- * so cards read as part of one continuous warm-white surface (depth comes
- * from `border-line` + the existing restrained shadow, not from a second
- * near-white shade — the four-color brief gives no fifth "pure white" to
- * spend on that). `surface` (#FFF2DB, "soft surface") is the genuinely
- * distinct secondary tier — every existing `bg-surface` call site (empty
- * states, hover fills, subtle sections) is what actually carries the
- * visible warm-cream separation from the page.
+ * Palette Update direction: hot pink/magenta (#FF0063) + pure white as the
+ * dominant identity, cool pale-teal surfaces (#EAF6F6) and a teal secondary
+ * accent (#66BFBF) for support — the previous warm cream system
+ * (#FFFAF3/#FFF2DB/#FFE5BF) is fully retired, not just papered over:
  *
- * `line` (#FFE5BF, the brief's "Secondary Surface") does double duty on
- * purpose: as `border-line` it's the warm low-contrast border color the
- * brief asks for, and — reusing the exact same token via Tailwind's
- * opacity modifiers (`bg-line`, `bg-line/NN`) — it's also the "stronger
- * warm surface" used selectively for highlighted/callout backgrounds
- * (Button's existing `subtle` variant already does exactly this:
- * `hover:bg-line/60`). No new token was needed for this tier.
+ * - `canvas`, `paper`, `card` all become pure white (#FFFFFF). `canvas` was
+ *   already white (added by the Header/Background Adjustment for exactly
+ *   the page canvas); `paper`/`card` now join it because the palette has
+ *   no warm/cream tier left to preserve them as (every
+ *   `<input>`/`<textarea>`/`<select>`/Dialog/SiteFooter/chip-trigger
+ *   surface that reads `paper`, and the Card primitive, all move to white
+ *   together). The three token NAMES stay distinct — same architecture,
+ *   just no longer coincidentally-cream — so nothing that references them
+ *   by name needed to change.
+ * - `surface` (empty states, hover fills, subtle sections — its role never
+ *   changed) becomes #EAF6F6, exactly the palette's own "Secondary Soft"
+ *   color and role description.
+ * - `line` (borders, plus the `bg-line`/`bg-line/NN` "stronger surface"
+ *   reuse from Button's `subtle` variant) becomes a derived cool teal-gray
+ *   (#A8DBDB — a blend between the soft surface and the secondary accent,
+ *   NOT the full-strength #66BFBF, which would be "a strong teal outline
+ *   around every component").
+ * - `accent`/`accent-soft`/`accent-strong` stay a tonal family of the SAME
+ *   brand hue, derived from #FF0063: `accent-soft` (#FFE6EF) is a
+ *   ~90%-white tint for selected/soft backgrounds; `accent-strong`
+ *   (#C40048) is a darker, AA-text-safe shade — measured 6.10:1 on white —
+ *   used wherever the brand color needs to be READ AS TEXT (links, badge
+ *   labels, avatar initials) rather than just filled as a background.
+ * - `secondary`/`secondary-strong` mirror that same vivid/text-safe
+ *   pairing for the palette's distinct "Secondary Accent" (#66BFBF
+ *   measures only 2.15:1 against white — far too low for text or icon
+ *   strokes — so `secondary-strong` (#2E7373, 5.50:1 on white) is the
+ *   text/icon-safe darker teal; raw `secondary` stays for backgrounds/
+ *   decorative fills, always paired with dark `ink` text on top when text
+ *   sits directly on it, which measures 8.14:1).
  *
- * `canvas` (#FFFFFF, added by the Header/Background Adjustment) is the ONE
- * new token this pass introduces — used ONLY by `body`'s background. It
- * exists because `paper` (#FFFAF3) turned out to be load-bearing for far
- * more than the page canvas: every `<input>`/`<textarea>`/`<select>`
- * surface, Dialog, SiteFooter, and the "light text on a colored surface"
- * role (`text-paper` on solid buttons/badges) all read `paper` too — so
- * repointing `paper` itself to pure white would have silently whitened
- * every one of those warm surfaces the brief explicitly says to preserve.
- * `paper`'s own value is untouched; `canvas` carries the page-background
- * role that used to be bundled into it.
- *
- * Palette Revision direction: red (#F62440) + warm white (#FFFAF3) as the
- * dominant identity, cream surfaces (#FFF2DB/#FFE5BF) for hierarchy instead
- * of the previous charcoal/light-gray neutrals. `ink`/`muted` move from a
- * cool blue-gray (#1F2937/#6B7280) to a warm near-black/warm-gray (Tailwind
- * stone-900/stone-600) — functional text neutrals, NOT a second brand
- * color, per the brief's own explicit instruction. `success`/`warning`
- * keep their existing green/amber semantics untouched (status meaning is a
- * SEPARATE concern from brand color). `destructive` stays a distinctly
- * darker/more muted red (not the same hue as the now much brighter/pinker
- * `accent`) so a destructive action and a primary action never read as the
- * same red at a glance; `MODERATION_STATUS_COLOR`
+ * `ink`/`muted` are UNCHANGED (#1C1917/#57534E) — functional text neutrals,
+ * not brand colors, and they already comfortably pass AA against every new
+ * surface (white, #EAF6F6, #66BFBF). `success`/`warning` keep their
+ * existing green/amber semantics untouched. `destructive` (#991B1B, a
+ * brick/maroon red) stays unchanged too — its hue reads as clearly
+ * distinct from the hot-pink `accent`; `MODERATION_STATUS_COLOR`
  * (moderation-status-style.ts) still mirrors this exact value.
  */
 @theme {
   --color-canvas: #ffffff;
-  --color-paper: #fffaf3;
-  --color-card: #fffaf3;
+  --color-paper: #ffffff;
+  --color-card: #ffffff;
   --color-ink: #1c1917;
-  --color-surface: #fff2db;
-  --color-line: #ffe5bf;
+  --color-surface: #eaf6f6;
+  --color-line: #a8dbdb;
   --color-muted: #57534e;
-  --color-accent: #f62440;
-  --color-accent-soft: #ffe6ec;
-  --color-accent-strong: #d6142f;
+  --color-accent: #ff0063;
+  --color-accent-soft: #ffe6ef;
+  --color-accent-strong: #c40048;
+  --color-secondary: #66bfbf;
+  --color-secondary-strong: #2e7373;
 
   --color-success: #15803d;
   --color-success-soft: #ecfdf3;

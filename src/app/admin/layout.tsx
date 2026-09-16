@@ -25,7 +25,7 @@ export default async function AdminLayout({ children }: Readonly<{ children: Rea
     { href: "/admin/taxonomy", label: tAdminNav("taxonomy") },
     { href: "/admin/users", label: tAdminNav("users") },
     { href: "/admin/documents", label: tAdminNav("documents") },
-    { href: "/admin/reports", label: tAdminNav("reports"), disabled: true },
+    { href: "/admin/reports", label: tAdminNav("reports") },
   ];
 
   return (

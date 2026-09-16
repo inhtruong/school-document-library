@@ -99,6 +99,21 @@ describe("createReport", () => {
     );
   });
 
+  test("allows a new report for the same user/document/reason once the prior one is no longer OPEN (FEAT-15E)", async () => {
+    // The duplicate check is scoped to status: "OPEN" (see the "checks duplicates
+    // scoped to OPEN status only" test above), so once the earlier report has been
+    // resolved/dismissed, findFirst correctly finds nothing and a fresh report may
+    // be created — this locks in that existing, unmodified behavior.
+    vi.mocked(prisma.documentReport.findFirst).mockResolvedValue(null);
+    vi.mocked(prisma.documentReport.create).mockResolvedValue(
+      { id: "report_3", reason: "BROKEN_FILE", status: "OPEN" } as never
+    );
+
+    const result = await createReport("doc_1", "user_1", "BROKEN_FILE", null);
+
+    expect(result).toEqual({ outcome: "created", report: { id: "report_3", reason: "BROKEN_FILE", status: "OPEN" } });
+  });
+
   test("a duplicate report never writes an audit row", async () => {
     vi.mocked(prisma.documentReport.findFirst).mockResolvedValue({ id: "existing" } as never);
 

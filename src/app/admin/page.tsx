@@ -29,11 +29,13 @@ type StatCardProps = {
   icon: typeof FileText;
   label: string;
   value: number;
+  /** FEAT-15E: when set, the whole card links out (e.g. Open Reports -> the filtered Admin Reports queue) instead of being a plain display tile. */
+  href?: string;
 };
 
-function StatCard({ icon: Icon, label, value }: StatCardProps) {
-  return (
-    <Card className="flex items-center gap-3 p-4">
+function StatCard({ icon: Icon, label, value, href }: StatCardProps) {
+  const content = (
+    <Card className={cn("flex items-center gap-3 p-4", href ? "transition-colors hover:border-ink/25" : undefined)}>
       <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-accent-soft text-accent">
         <Icon className="h-5 w-5" aria-hidden />
       </span>
@@ -43,6 +45,8 @@ function StatCard({ icon: Icon, label, value }: StatCardProps) {
       </div>
     </Card>
   );
+
+  return href ? <Link href={href}>{content}</Link> : content;
 }
 
 /**
@@ -86,7 +90,12 @@ export default async function AdminDashboardPage() {
         <StatCard icon={FileText} label={tDashboard("totalDocuments")} value={data.documents.total} />
         <StatCard icon={ClipboardList} label={tDashboard("pendingModeration")} value={data.documents.pending} />
         <StatCard icon={Users} label={tDashboard("totalUsers")} value={data.users.total} />
-        <StatCard icon={Flag} label={tDashboard("openReports")} value={data.openReportCount} />
+        <StatCard
+          icon={Flag}
+          label={tDashboard("openReports")}
+          value={data.openReportCount}
+          href="/admin/reports?status=OPEN"
+        />
       </section>
 
       <div className="grid gap-6 lg:grid-cols-2">

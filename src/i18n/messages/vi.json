@@ -239,7 +239,12 @@
       "userRoleChangeConflict": "Thay đổi bị xung đột với một cập nhật khác. Vui lòng thử lại.",
       "failedLoadUsers": "Không thể tải danh sách người dùng",
       "failedLoadUser": "Không thể tải thông tin người dùng",
-      "failedUpdateUserRole": "Không thể cập nhật vai trò người dùng"
+      "failedUpdateUserRole": "Không thể cập nhật vai trò người dùng",
+      "reportNotFound": "Không tìm thấy báo cáo",
+      "reportAlreadyHandled": "Báo cáo này đã được xử lý hoặc bỏ qua trước đó",
+      "validationReportStatusInvalid": "Vui lòng chọn trạng thái báo cáo hợp lệ",
+      "failedLoadReports": "Không thể tải danh sách báo cáo",
+      "failedUpdateReport": "Không thể cập nhật báo cáo"
     }
   },
   "documentType": {
@@ -536,7 +541,9 @@
       "lessonCreated": "Tạo bài học",
       "lessonUpdated": "Cập nhật bài học",
       "lessonDeleted": "Xoá bài học",
-      "userRoleChanged": "Đổi vai trò người dùng"
+      "userRoleChanged": "Đổi vai trò người dùng",
+      "reportResolved": "Xử lý báo cáo",
+      "reportDismissed": "Bỏ qua báo cáo"
     },
     "entities": {
       "user": "Người dùng",
@@ -740,6 +747,44 @@
         "deleteTitle": "Xoá tài liệu?",
         "deleteDescription": "Không thể hoàn tác. \"{title}\" và tệp của nó sẽ bị xoá vĩnh viễn.",
         "deleteSuccess": "Đã xoá tài liệu"
+      }
+    },
+    "reports": {
+      "heading": "Báo cáo",
+      "subtitle": "Xem, xử lý hoặc bỏ qua các báo cáo về tài liệu.",
+      "statusNav": "Trạng thái báo cáo",
+      "searchLabel": "Tìm kiếm",
+      "searchPlaceholder": "Tìm theo tiêu đề tài liệu",
+      "reasonLabel": "Lý do",
+      "allReasons": "Tất cả lý do",
+      "reportCount": "{count, plural, other {# báo cáo}}",
+      "noReports": "Không có báo cáo nào khớp với bộ lọc này.",
+      "status": {
+        "open": "Đang mở",
+        "resolved": "Đã xử lý",
+        "dismissed": "Đã bỏ qua"
+      },
+      "detail": {
+        "backToReports": "Về danh sách báo cáo",
+        "description": "Mô tả",
+        "documentSection": "Tài liệu bị báo cáo",
+        "viewPublicDetail": "Xem trang tài liệu công khai",
+        "manageDocument": "Quản lý tài liệu",
+        "reviewInModeration": "Xem trong Kiểm duyệt",
+        "reporter": "Người báo cáo",
+        "createdAt": "Ngày báo cáo",
+        "handledBy": "Người xử lý",
+        "handledAt": "Ngày xử lý",
+        "unknownHandler": "Không rõ",
+        "resolve": "Xử lý",
+        "resolveDialogTitle": "Xử lý báo cáo?",
+        "resolveDialogDescription": "Đánh dấu báo cáo \"{reason}\" trên \"{title}\" là đã xử lý. Thao tác này không thay đổi tài liệu.",
+        "dismiss": "Bỏ qua",
+        "dismissDialogTitle": "Bỏ qua báo cáo?",
+        "dismissDialogDescription": "Báo cáo này sẽ được lưu lại là đã bỏ qua. Tài liệu sẽ không thay đổi.",
+        "resolveSuccess": "Đã xử lý báo cáo",
+        "dismissSuccess": "Đã bỏ qua báo cáo",
+        "saving": "Đang lưu…"
       }
     }
   },

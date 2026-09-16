@@ -175,6 +175,11 @@ export const ERROR_CODE_MESSAGE_KEYS = {
   FAILED_LOAD_USERS: "failedLoadUsers",
   FAILED_LOAD_USER: "failedLoadUser",
   FAILED_UPDATE_USER_ROLE: "failedUpdateUserRole",
+  REPORT_NOT_FOUND: "reportNotFound",
+  REPORT_ALREADY_HANDLED: "reportAlreadyHandled",
+  VALIDATION_REPORT_STATUS_INVALID: "validationReportStatusInvalid",
+  FAILED_LOAD_REPORTS: "failedLoadReports",
+  FAILED_UPDATE_REPORT: "failedUpdateReport",
 } as const satisfies Record<string, string>;
 
 export type ErrorCode = keyof typeof ERROR_CODE_MESSAGE_KEYS;

@@ -239,7 +239,12 @@
       "userRoleChangeConflict": "This change conflicted with another update. Please try again.",
       "failedLoadUsers": "Failed to load users",
       "failedLoadUser": "Failed to load user",
-      "failedUpdateUserRole": "Failed to update user role"
+      "failedUpdateUserRole": "Failed to update user role",
+      "reportNotFound": "Report not found",
+      "reportAlreadyHandled": "This report has already been resolved or dismissed",
+      "validationReportStatusInvalid": "Select a valid report status",
+      "failedLoadReports": "Failed to load reports",
+      "failedUpdateReport": "Failed to update report"
     }
   },
   "documentType": {
@@ -536,7 +541,9 @@
       "lessonCreated": "Created lesson",
       "lessonUpdated": "Updated lesson",
       "lessonDeleted": "Deleted lesson",
-      "userRoleChanged": "Changed user role"
+      "userRoleChanged": "Changed user role",
+      "reportResolved": "Resolved report",
+      "reportDismissed": "Dismissed report"
     },
     "entities": {
       "user": "User",
@@ -740,6 +747,44 @@
         "deleteTitle": "Delete document?",
         "deleteDescription": "This cannot be undone. \"{title}\" and its file will be permanently removed.",
         "deleteSuccess": "Document deleted"
+      }
+    },
+    "reports": {
+      "heading": "Reports",
+      "subtitle": "Review, resolve, or dismiss reports submitted about documents.",
+      "statusNav": "Report status",
+      "searchLabel": "Search",
+      "searchPlaceholder": "Search by document title",
+      "reasonLabel": "Reason",
+      "allReasons": "All reasons",
+      "reportCount": "{count, plural, one {# report} other {# reports}}",
+      "noReports": "No reports match these filters.",
+      "status": {
+        "open": "Open",
+        "resolved": "Resolved",
+        "dismissed": "Dismissed"
+      },
+      "detail": {
+        "backToReports": "Back to Reports",
+        "description": "Description",
+        "documentSection": "Reported document",
+        "viewPublicDetail": "View public document page",
+        "manageDocument": "Manage document",
+        "reviewInModeration": "Review in Moderation",
+        "reporter": "Reporter",
+        "createdAt": "Reported at",
+        "handledBy": "Handled by",
+        "handledAt": "Handled at",
+        "unknownHandler": "Unknown",
+        "resolve": "Resolve",
+        "resolveDialogTitle": "Resolve report?",
+        "resolveDialogDescription": "Mark this {reason} report on \"{title}\" as resolved. This does not change the document itself.",
+        "dismiss": "Dismiss",
+        "dismissDialogTitle": "Dismiss report?",
+        "dismissDialogDescription": "This report will stay in history as dismissed. Nothing changes on the document.",
+        "resolveSuccess": "Report resolved",
+        "dismissSuccess": "Report dismissed",
+        "saving": "Saving…"
       }
     }
   },

@@ -325,7 +325,9 @@
     "notPublicYet": "This document is not public yet.",
     "publiclyAvailable": "This document is publicly available.",
     "uploadedBy": "Uploaded by",
-    "rating": "Rating"
+    "rating": "Rating",
+    "information": "Document information",
+    "fileType": "File type"
   },
   "comments": {
     "heading": "Comments",

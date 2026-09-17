@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { Flag } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -17,7 +18,8 @@ const selectClassName =
   "h-10 rounded-lg border border-line bg-paper px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-accent disabled:cursor-not-allowed disabled:opacity-50";
 const textareaClassName =
   "w-full rounded-lg border border-line bg-paper p-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-accent disabled:cursor-not-allowed disabled:opacity-50";
-const linkClassName = "text-xs text-muted underline underline-offset-2 transition-colors hover:text-ink";
+const linkClassName =
+  "inline-flex items-center gap-1.5 text-xs text-muted underline underline-offset-2 transition-colors hover:text-destructive";
 
 /**
  * A small, secondary action — styled as a plain text link, not a Button,
@@ -108,6 +110,7 @@ export function ReportDocumentAction({ documentId, isAuthenticated }: ReportDocu
   if (!isAuthenticated) {
     return (
       <a href={documentLoginHref(documentId)} className={linkClassName}>
+        <Flag className="h-3.5 w-3.5" aria-hidden />
         {tReport("reportDocument")}
       </a>
     );
@@ -116,6 +119,7 @@ export function ReportDocumentAction({ documentId, isAuthenticated }: ReportDocu
   if (!isOpen) {
     return (
       <button type="button" onClick={openForm} className={linkClassName}>
+        <Flag className="h-3.5 w-3.5" aria-hidden />
         {tReport("reportDocument")}
       </button>
     );

@@ -325,7 +325,9 @@
     "notPublicYet": "Tài liệu này chưa công khai.",
     "publiclyAvailable": "Tài liệu này đang được công khai.",
     "uploadedBy": "Người tải lên",
-    "rating": "Đánh giá"
+    "rating": "Đánh giá",
+    "information": "Thông tin tài liệu",
+    "fileType": "Loại file"
   },
   "comments": {
     "heading": "Bình luận",

@@ -1,13 +1,28 @@
 import Link from "next/link";
-import { CalendarDays } from "lucide-react";
+import {
+  CalendarDays,
+  FileSpreadsheet,
+  FileText,
+  Image as ImageIcon,
+  Inbox,
+  PlayCircle,
+  Presentation,
+  Upload,
+} from "lucide-react";
 import { ModerationStatusBadge } from "@/components/moderation/ModerationStatusBadge";
 import { ResubmitAction } from "@/components/teacher-uploads/ResubmitAction";
+import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { buttonVariants } from "@/components/ui/button";
 import { getFormatter, getTranslations } from "next-intl/server";
 import type { DateTimeFormatter } from "@/i18n/formats";
 import { documentTypeMessageKey } from "@/lib/documents/document-type";
-import { listTeacherUploads, type TeacherUploadStatusFilter } from "@/lib/documents/teacher-uploads";
+import {
+  getTeacherUploadStatusCounts,
+  listTeacherUploads,
+  type TeacherUploadListItem,
+  type TeacherUploadStatusFilter,
+} from "@/lib/documents/teacher-uploads";
 import { requireRole } from "@/lib/auth/authorize";
 import { MODERATION_STATUS_COLOR } from "@/lib/moderation/moderation-status-style";
 import { cn } from "@/lib/utils";
@@ -50,6 +65,25 @@ function formatDate(iso: string, format: DateTimeFormatter): string {
   return format.dateTime(new Date(iso), "dateTimeShort");
 }
 
+/** Real source/file type only — same convention as documents/[id] and SearchResultCard's local helper (duplicated on purpose, no shared export exists — see their own comments). */
+function fileTypeIcon(doc: Pick<TeacherUploadListItem, "sourceType" | "fileCategory">) {
+  if (doc.sourceType === "YOUTUBE") return PlayCircle;
+  switch (doc.fileCategory) {
+    case "EXCEL":
+      return FileSpreadsheet;
+    case "POWERPOINT":
+      return Presentation;
+    case "IMAGE":
+      return ImageIcon;
+    case "VIDEO":
+      return PlayCircle;
+    case "PDF":
+    case "WORD":
+    default:
+      return FileText;
+  }
+}
+
 export default async function MyUploadsPage({ searchParams }: MyUploadsPageProps) {
   const session = await requireRole("TEACHER");
 
@@ -57,7 +91,10 @@ export default async function MyUploadsPage({ searchParams }: MyUploadsPageProps
   const filter = parseFilter(rawStatus);
   const page = parsePage(rawPage);
 
-  const result = await listTeacherUploads(session.user.id, filter, page);
+  const [result, counts] = await Promise.all([
+    listTeacherUploads(session.user.id, filter, page),
+    getTeacherUploadStatusCounts(session.user.id),
+  ]);
   const [tDocumentType, tMyUploads, tModeration, tCommon, tUpload, format] = await Promise.all([
     getTranslations("documentType"),
     getTranslations("myUploads"),
@@ -78,74 +115,107 @@ export default async function MyUploadsPage({ searchParams }: MyUploadsPageProps
     APPROVED: tMyUploads("emptyApproved"),
     REJECTED: tMyUploads("emptyRejected"),
   };
+  const STAT_ITEMS = [
+    { key: "total", label: tMyUploads("totalDocuments"), value: counts.total },
+    { key: "pending", label: tModeration("status.pending"), value: counts.pending },
+    { key: "approved", label: tModeration("status.approved"), value: counts.approved },
+    { key: "rejected", label: tModeration("status.rejected"), value: counts.rejected },
+  ];
 
   return (
-    <div className="mx-auto max-w-3xl px-5 py-8 sm:py-10">
-      <h1 className="font-display text-2xl font-semibold tracking-tight">{tMyUploads("heading")}</h1>
+    <div className="mx-auto max-w-5xl px-5 py-8 sm:py-10">
+      <h1 className="font-display text-2xl font-semibold tracking-tight">
+        {session.user.name ? tMyUploads("greeting", { name: session.user.name }) : tMyUploads("heading")}
+      </h1>
       <p className="mt-1 text-sm text-muted">{tMyUploads("subtitle")}</p>
 
-      <nav aria-label={tMyUploads("statusNav")} className="mt-6 flex flex-wrap gap-2">
-        {FILTER_VALUES.map((f) => (
-          <Link
-            key={f}
-            href={tabHref(f)}
-            aria-current={f === filter ? "page" : undefined}
-            className={`inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-sm font-medium transition-colors ${
-              f === filter ? "border-accent bg-accent text-paper" : "border-line text-ink hover:border-ink/25"
-            }`}
-          >
-            {f !== "ALL" ? (
-              <span
-                aria-hidden
-                className="h-1.5 w-1.5 shrink-0 rounded-full"
-                style={{ backgroundColor: f === filter ? "currentColor" : MODERATION_STATUS_COLOR[f] }}
-              />
-            ) : null}
-            {FILTER_LABELS[f]}
-          </Link>
+      <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
+        {STAT_ITEMS.map((item) => (
+          <div key={item.key} className="rounded-xl border border-line bg-card p-4">
+            <p className="text-xs text-muted">{item.label}</p>
+            <p className="mt-1.5 text-2xl font-semibold text-ink">{item.value}</p>
+          </div>
         ))}
-      </nav>
+      </div>
+
+      <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <Link href="/upload" className={cn(buttonVariants({ size: "default" }), "gap-2")}>
+          <Upload className="h-4 w-4" aria-hidden />
+          {tUpload("heading")}
+        </Link>
+
+        <nav aria-label={tMyUploads("statusNav")} className="flex flex-wrap gap-2">
+          {FILTER_VALUES.map((f) => (
+            <Link
+              key={f}
+              href={tabHref(f)}
+              aria-current={f === filter ? "page" : undefined}
+              className={`inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-sm font-medium transition-colors ${
+                f === filter ? "border-accent bg-accent text-paper" : "border-line text-ink hover:border-ink/25"
+              }`}
+            >
+              {f !== "ALL" ? (
+                <span
+                  aria-hidden
+                  className="h-1.5 w-1.5 shrink-0 rounded-full"
+                  style={{ backgroundColor: f === filter ? "currentColor" : MODERATION_STATUS_COLOR[f] }}
+                />
+              ) : null}
+              {FILTER_LABELS[f]}
+            </Link>
+          ))}
+        </nav>
+      </div>
 
       <p className="mt-4 text-sm text-muted">{tCommon("documentCount", { count: result.total })}</p>
 
       {result.documents.length > 0 ? (
         <>
-          <ul className="mt-4 flex flex-col gap-3">
+          <ul className="mt-4 flex flex-col gap-2">
             {result.documents.map((doc) => {
               const taxonomy = [doc.grade?.name, doc.subjectRef?.name, doc.lesson?.name].filter(Boolean).join(" · ");
               const fileSize = formatFileSize(doc.fileSize);
               const isRejected = doc.moderationStatus === "REJECTED";
+              const Icon = fileTypeIcon(doc);
 
               return (
                 <li key={doc.id}>
-                  <Card className="flex gap-3 p-4">
-                    <span
-                      aria-hidden
-                      className="w-1 shrink-0 self-stretch rounded-full"
-                      style={{ backgroundColor: MODERATION_STATUS_COLOR[doc.moderationStatus] }}
-                    />
-                    <div className="flex min-w-0 flex-1 flex-col gap-3">
-                      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                  <Card className="p-4">
+                    <div className="grid grid-cols-1 gap-3 sm:grid-cols-[minmax(0,1fr)_auto_auto_auto] sm:items-center sm:gap-4">
+                      <div className="flex min-w-0 items-center gap-3">
+                        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-accent-soft">
+                          <Icon className="h-[18px] w-[18px] text-accent" aria-hidden />
+                        </span>
                         <div className="min-w-0">
-                          <div className="flex flex-wrap items-center gap-2">
-                            <p className="truncate font-medium text-ink">{doc.title}</p>
-                            <ModerationStatusBadge status={doc.moderationStatus} />
-                          </div>
-                          <p className="mt-1 truncate text-sm text-muted">
+                          <p className="truncate font-medium text-ink">{doc.title}</p>
+                          <p className="truncate text-xs text-muted">
                             {taxonomy || tDocumentType(documentTypeMessageKey(doc.documentType as DocumentTypeValue))}
                           </p>
-                          <p className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted">
-                            {[doc.fileCategory, fileSize].filter(Boolean).length > 0 ? (
-                              <span>{[doc.fileCategory, fileSize].filter(Boolean).join(" · ")}</span>
-                            ) : null}
-                            <span className="inline-flex items-center gap-1">
-                              <CalendarDays className="h-3.5 w-3.5" aria-hidden />
-                              {doc.reviewedAt
-                                ? tModeration("reviewedOn", { date: formatDate(doc.reviewedAt, format) })
-                                : tModeration("uploadedOn", { date: formatDate(doc.createdAt, format) })}
-                            </span>
-                          </p>
+                          {doc.fileCategory || fileSize ? (
+                            <p className="truncate text-xs text-muted">
+                              {[doc.fileCategory, fileSize].filter(Boolean).join(" · ")}
+                            </p>
+                          ) : null}
                         </div>
+                      </div>
+
+                      <div className="flex sm:justify-center">
+                        <Badge variant="secondary">
+                          {tDocumentType(documentTypeMessageKey(doc.documentType as DocumentTypeValue))}
+                        </Badge>
+                      </div>
+
+                      <div className="flex flex-wrap items-center gap-2 sm:flex-col sm:items-end sm:gap-1.5">
+                        <ModerationStatusBadge status={doc.moderationStatus} />
+                        <span className="inline-flex items-center gap-1 whitespace-nowrap text-xs text-muted">
+                          <CalendarDays className="h-3.5 w-3.5" aria-hidden />
+                          {doc.reviewedAt
+                            ? tModeration("reviewedOn", { date: formatDate(doc.reviewedAt, format) })
+                            : tModeration("uploadedOn", { date: formatDate(doc.createdAt, format) })}
+                        </span>
+                      </div>
+
+                      <div className="flex sm:justify-end">
                         <Link
                           href={`/documents/${doc.id}?from=my-uploads`}
                           className={cn(buttonVariants({ variant: "outline", size: "sm" }), "shrink-0")}
@@ -153,20 +223,20 @@ export default async function MyUploadsPage({ searchParams }: MyUploadsPageProps
                           {tMyUploads("view")}
                         </Link>
                       </div>
-
-                      {isRejected && doc.rejectionReason ? (
-                        <div className="rounded-lg border border-destructive-soft bg-destructive-soft p-3">
-                          <p className="text-xs font-medium uppercase tracking-wide text-destructive">{tModeration("reasonLabel")}</p>
-                          <p className="mt-1 text-sm text-ink">{doc.rejectionReason}</p>
-                        </div>
-                      ) : null}
-
-                      {isRejected ? (
-                        <div>
-                          <ResubmitAction documentId={doc.id} size="sm" />
-                        </div>
-                      ) : null}
                     </div>
+
+                    {isRejected && doc.rejectionReason ? (
+                      <div className="mt-3 rounded-lg border border-destructive-soft bg-destructive-soft p-3">
+                        <p className="text-xs font-medium uppercase tracking-wide text-destructive">{tModeration("reasonLabel")}</p>
+                        <p className="mt-1 text-sm text-ink">{doc.rejectionReason}</p>
+                      </div>
+                    ) : null}
+
+                    {isRejected ? (
+                      <div className="mt-3">
+                        <ResubmitAction documentId={doc.id} size="sm" />
+                      </div>
+                    ) : null}
                   </Card>
                 </li>
               );
@@ -217,13 +287,17 @@ export default async function MyUploadsPage({ searchParams }: MyUploadsPageProps
           ) : null}
         </>
       ) : (
-        <div className="mt-6 rounded-xl border border-dashed border-line bg-surface p-8 text-center">
-          <p className="text-sm text-muted">{EMPTY_MESSAGES[filter]}</p>
+        <div className="mt-6 flex flex-col items-center rounded-xl border border-dashed border-line bg-surface p-8 text-center">
+          <span className="flex h-12 w-12 items-center justify-center rounded-full bg-card">
+            <Inbox className="h-6 w-6 text-muted" aria-hidden />
+          </span>
+          <p className="mt-3 text-sm text-muted">{EMPTY_MESSAGES[filter]}</p>
           {filter === "ALL" ? (
             <Link
               href="/upload"
-              className="mt-5 inline-flex h-10 items-center rounded-xl bg-accent px-4 text-sm font-medium text-paper transition-colors hover:bg-accent-strong"
+              className={cn(buttonVariants({ size: "default" }), "mt-5 gap-2")}
             >
+              <Upload className="h-4 w-4" aria-hidden />
               {tUpload("heading")}
             </Link>
           ) : null}

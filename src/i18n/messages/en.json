@@ -316,7 +316,9 @@
     "emptyAll": "You haven't uploaded any documents yet.",
     "emptyApproved": "No approved documents yet.",
     "emptyRejected": "No rejected documents.",
-    "view": "View"
+    "view": "View",
+    "greeting": "Hi, {name}",
+    "totalDocuments": "Total documents"
   },
   "documents": {
     "backToSearch": "Back to search",

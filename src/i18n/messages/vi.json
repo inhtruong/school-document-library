@@ -316,7 +316,9 @@
     "emptyAll": "Bạn chưa tải lên tài liệu nào.",
     "emptyApproved": "Chưa có tài liệu nào được duyệt.",
     "emptyRejected": "Không có tài liệu bị từ chối.",
-    "view": "Xem"
+    "view": "Xem",
+    "greeting": "Xin chào, {name}",
+    "totalDocuments": "Tổng số tài liệu"
   },
   "documents": {
     "backToSearch": "Quay lại tìm kiếm",

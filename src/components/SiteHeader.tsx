@@ -81,17 +81,6 @@ export default async function SiteHeader() {
           </span>
         </Link>
 
-        <nav aria-label={tNav("primary")} className="hidden items-center gap-1 md:flex">
-          <Link href="/search" className={navLinkClassName}>
-            {tNav("documents")}
-          </Link>
-          {canUpload ? (
-            <Link href="/upload" className={navLinkClassName}>
-              {tNav("upload")}
-            </Link>
-          ) : null}
-        </nav>
-
         <div className="ml-auto flex items-center gap-2">
           <LanguageSwitcher currentLocale={locale} label={tLanguage("label")} />
 

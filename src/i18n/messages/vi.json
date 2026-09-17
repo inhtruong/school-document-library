@@ -275,7 +275,35 @@
     "latestDocuments": "Tài liệu mới nhất",
     "viewAllDocuments": "Xem tất cả tài liệu",
     "noSubjectsYet": "Chưa có môn học nào.",
-    "noDocumentsYet": "Chưa có tài liệu nào."
+    "noDocumentsYet": "Chưa có tài liệu nào.",
+    "hero": {
+      "findDocuments": "Tìm tài liệu"
+    },
+    "stats": {
+      "documents": "Tài liệu",
+      "subjects": "Môn học",
+      "grades": "Khối lớp"
+    },
+    "audience": {
+      "heading": "Dành cho ai?",
+      "student": {
+        "title": "Học sinh",
+        "bullet1": "Tìm kiếm và lọc theo khối lớp, môn học, bài học",
+        "bullet2": "Xem trước các định dạng file được hỗ trợ",
+        "bullet3": "Tải xuống sau khi đăng nhập",
+        "bullet4": "Lưu tài liệu để xem lại sau",
+        "bullet5": "Đánh giá và bình luận tài liệu",
+        "cta": "Khám phá tài liệu"
+      },
+      "teacher": {
+        "title": "Giáo viên",
+        "bullet1": "Tải lên file hoặc video YouTube",
+        "bullet2": "Quản lý tài liệu đã tải lên tại Tài liệu của tôi",
+        "bullet3": "Theo dõi trạng thái kiểm duyệt — chờ duyệt, đã duyệt hoặc bị từ chối",
+        "bullet4": "Gửi lại tài liệu sau khi khắc phục lý do bị từ chối",
+        "cta": "Bắt đầu tải lên"
+      }
+    }
   },
   "saved": {
     "heading": "Tài liệu đã lưu",

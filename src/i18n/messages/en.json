@@ -241,7 +241,9 @@
     "dragDropText": "Drag a file here, or click to browse",
     "clickToChange": "Click to change file",
     "acceptedFormats": "PDF, Word, Excel, PowerPoint, images, or video",
-    "upToSize": "up to {size} MB"
+    "upToSize": "up to {size} MB",
+    "tip": "Tip",
+    "tipText": "Use a clear, descriptive title and pick the correct grade, subject, and lesson so students can find this document. Double-check your file or video link before uploading."
   },
   "search": {
     "heading": "Search documents",

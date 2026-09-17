@@ -241,7 +241,9 @@
     "dragDropText": "Kéo file vào đây, hoặc bấm để chọn",
     "clickToChange": "Bấm để đổi file",
     "acceptedFormats": "PDF, Word, Excel, PowerPoint, hình ảnh, hoặc video",
-    "upToSize": "tối đa {size} MB"
+    "upToSize": "tối đa {size} MB",
+    "tip": "Mẹo",
+    "tipText": "Đặt tên tài liệu rõ ràng, dễ hiểu và chọn đúng khối lớp, môn học, bài học để học sinh dễ tìm thấy. Hãy kiểm tra lại file hoặc đường dẫn video trước khi tải lên."
   },
   "search": {
     "heading": "Tìm kiếm tài liệu",

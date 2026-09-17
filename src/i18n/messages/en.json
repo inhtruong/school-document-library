@@ -241,11 +241,15 @@
     "dragDropText": "Drag a file here, or click to browse",
     "clickToChange": "Click to change file",
     "acceptedFormats": "PDF, Word, Excel, PowerPoint, images, or video",
-    "upToSize": "up to {size} MB"
+    "upToSize": "up to {size} MB",
+    "tip": "Tip",
+    "tipText": "Use a clear, descriptive title and pick the correct grade, subject, and lesson so students can find this document. Double-check your file or video link before uploading."
   },
   "search": {
     "heading": "Search documents",
     "filters": "Filters",
+    "resultsLabel": "Results",
+    "viewDocument": "View",
     "removeFilter": "Remove filter",
     "clearAll": "Clear all",
     "resultsFor": "for “{query}”",
@@ -271,7 +275,35 @@
     "latestDocuments": "Latest documents",
     "viewAllDocuments": "View all documents",
     "noSubjectsYet": "No subjects yet.",
-    "noDocumentsYet": "No documents yet."
+    "noDocumentsYet": "No documents yet.",
+    "hero": {
+      "findDocuments": "Find documents"
+    },
+    "stats": {
+      "documents": "Documents",
+      "subjects": "Subjects",
+      "grades": "Grades"
+    },
+    "audience": {
+      "heading": "Who is it for?",
+      "student": {
+        "title": "Student",
+        "bullet1": "Search and filter by grade, subject and lesson",
+        "bullet2": "Preview supported files before downloading",
+        "bullet3": "Download files once signed in",
+        "bullet4": "Save documents to find again later",
+        "bullet5": "Rate and comment on documents",
+        "cta": "Explore documents"
+      },
+      "teacher": {
+        "title": "Teacher",
+        "bullet1": "Upload files or YouTube videos",
+        "bullet2": "Manage your uploads from My uploads",
+        "bullet3": "Track moderation status — pending, approved or rejected",
+        "bullet4": "Resubmit a document after fixing a rejection",
+        "cta": "Start uploading"
+      }
+    }
   },
   "saved": {
     "heading": "Saved documents",
@@ -312,7 +344,9 @@
     "emptyAll": "You haven't uploaded any documents yet.",
     "emptyApproved": "No approved documents yet.",
     "emptyRejected": "No rejected documents.",
-    "view": "View"
+    "view": "View",
+    "greeting": "Hi, {name}",
+    "totalDocuments": "Total documents"
   },
   "documents": {
     "backToSearch": "Back to search",
@@ -323,7 +357,9 @@
     "notPublicYet": "This document is not public yet.",
     "publiclyAvailable": "This document is publicly available.",
     "uploadedBy": "Uploaded by",
-    "rating": "Rating"
+    "rating": "Rating",
+    "information": "Document information",
+    "fileType": "File type"
   },
   "comments": {
     "heading": "Comments",

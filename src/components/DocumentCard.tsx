@@ -33,7 +33,7 @@ export default async function DocumentCard({ doc, uploader }: DocumentCardProps)
       href={`/documents/${doc.id}`}
       className="group block rounded-xl outline-none focus-visible:ring-2 focus-visible:ring-accent"
     >
-      <Card className="flex h-full gap-3 p-4 transition-all group-hover:-translate-y-px group-hover:border-ink/20 group-hover:shadow-[0_6px_16px_rgba(18,22,31,0.07)] sm:p-5">
+      <Card className="flex h-full gap-3 p-4 transition-all group-hover:-translate-y-px group-hover:border-ink/20 group-hover:shadow-[0_6px_16px_rgba(28,25,23,0.07)] sm:p-5">
         <span
           aria-hidden
           className="w-1 shrink-0 self-stretch rounded-full"

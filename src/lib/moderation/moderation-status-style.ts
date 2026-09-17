@@ -11,5 +11,5 @@ import type { DocumentModerationStatus } from "@prisma/client";
 export const MODERATION_STATUS_COLOR: Record<DocumentModerationStatus, string> = {
   PENDING: "#b45309",
   APPROVED: "#15803d",
-  REJECTED: "#b91c1c",
+  REJECTED: "#991b1b",
 };

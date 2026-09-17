@@ -49,8 +49,8 @@ export function FileDropzone({ id, name, accept, required, acceptedFormatsLabel,
         onDragLeave={(event) => handleDrag(event, false)}
         onDrop={(event) => handleDrag(event, false)}
         className={cn(
-          "relative flex flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed px-6 py-8 text-center transition-colors",
-          isDragOver ? "border-accent bg-accent-soft" : "border-line bg-surface hover:border-ink/25"
+          "relative flex flex-col items-center justify-center gap-3 rounded-2xl border-2 border-dashed px-6 py-10 text-center transition-colors",
+          isDragOver ? "border-accent bg-accent-soft" : "border-line bg-surface hover:border-accent/40"
         )}
       >
         <input
@@ -68,16 +68,22 @@ export function FileDropzone({ id, name, accept, required, acceptedFormatsLabel,
         />
 
         {file ? (
-          <>
-            <FileText className="h-6 w-6 text-accent" aria-hidden />
-            <p className="max-w-full truncate text-sm font-medium text-ink">{file.name}</p>
-            <p className="text-xs text-muted">
-              {formatFileSize(file.size)} · {tUpload("clickToChange")}
-            </p>
-          </>
+          <div className="flex w-full max-w-xs items-center gap-3 rounded-xl bg-card px-4 py-3 text-left shadow-sm">
+            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-accent-soft">
+              <FileText className="h-[18px] w-[18px] text-accent" aria-hidden />
+            </div>
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-sm font-medium text-ink">{file.name}</p>
+              <p className="text-xs text-muted">
+                {formatFileSize(file.size)} · {tUpload("clickToChange")}
+              </p>
+            </div>
+          </div>
         ) : (
           <>
-            <Upload className="h-6 w-6 text-muted" aria-hidden />
+            <div className="flex h-14 w-14 items-center justify-center rounded-xl bg-accent-soft">
+              <Upload className="h-6 w-6 text-accent" aria-hidden />
+            </div>
             <p className="text-sm font-medium text-ink">{tUpload("dragDropText")}</p>
             <p className="text-xs text-muted">
               {acceptedFormatsLabel} · {tUpload("upToSize", { size: maxSizeMB })}

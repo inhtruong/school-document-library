@@ -1,7 +1,12 @@
 @import "tailwindcss";
 
 /*
- * Design tokens (UI-1 — Frontend Foundation).
+ * Design tokens (UI-1 — Frontend Foundation; palette replaced by UI-6 —
+ * Global Theme Refresh; revised by the UI-6 Palette Revision and the
+ * Header/Background Adjustment; palette replaced again by the UI-6
+ * Palette Update — restored here as the prerequisite baseline for UI-7A,
+ * which explicitly names #FF0063/#FFFFFF/#EAF6F6/#66BFBF as the current
+ * authoritative palette).
  *
  * `paper`, `ink`, `surface`, `line`, `muted`, `accent`, `accent-soft` are the
  * ORIGINAL token names, kept unchanged on purpose — they're already used
@@ -10,36 +15,74 @@
  * in particular is already established everywhere as a MUTED FILL color
  * (empty-state boxes, hover backgrounds, file-input buttons) — repurposing
  * it as a "card surface" would have silently changed the look of every one
- * of those out-of-scope pages. Only VALUES were refined (see below), and
- * only where verified safe; no existing token was renamed or repurposed.
+ * of those out-of-scope pages. Only VALUES change here — no token was
+ * renamed or repurposed, so every one of those ~20+ call sites picks up the
+ * new pink/white/teal identity for free.
  *
- * `card` is the one genuinely new background token: a crisp white surface
- * for the Card primitive, distinct from the now slightly-off-white `paper`
- * page background — this is what gives cards visible depth against the
- * page instead of blending into it (the "too much flat white" issue).
+ * Palette Update direction: hot pink/magenta (#FF0063) + pure white as the
+ * dominant identity, cool pale-teal surfaces (#EAF6F6) and a teal secondary
+ * accent (#66BFBF) for support — the previous warm cream system
+ * (#FFFAF3/#FFF2DB/#FFE5BF) is fully retired, not just papered over:
  *
- * `accent-strong`, `success`, `warning`, `destructive` (+ `-soft` pairs) are
- * new semantic additions for Badge's status variants and interactive hover/
- * active states — used only by primitives this step edits, not retrofitted
- * onto existing pages.
+ * - `canvas`, `paper`, `card` all become pure white (#FFFFFF). `canvas` was
+ *   already white (added by the Header/Background Adjustment for exactly
+ *   the page canvas); `paper`/`card` now join it because the palette has
+ *   no warm/cream tier left to preserve them as (every
+ *   `<input>`/`<textarea>`/`<select>`/Dialog/SiteFooter/chip-trigger
+ *   surface that reads `paper`, and the Card primitive, all move to white
+ *   together). The three token NAMES stay distinct — same architecture,
+ *   just no longer coincidentally-cream — so nothing that references them
+ *   by name needed to change.
+ * - `surface` (empty states, hover fills, subtle sections — its role never
+ *   changed) becomes #EAF6F6, exactly the palette's own "Secondary Soft"
+ *   color and role description.
+ * - `line` (borders, plus the `bg-line`/`bg-line/NN` "stronger surface"
+ *   reuse from Button's `subtle` variant) becomes a derived cool teal-gray
+ *   (#A8DBDB — a blend between the soft surface and the secondary accent,
+ *   NOT the full-strength #66BFBF, which would be "a strong teal outline
+ *   around every component").
+ * - `accent`/`accent-soft`/`accent-strong` stay a tonal family of the SAME
+ *   brand hue, derived from #FF0063: `accent-soft` (#FFE6EF) is a
+ *   ~90%-white tint for selected/soft backgrounds; `accent-strong`
+ *   (#C40048) is a darker, AA-text-safe shade — measured 6.10:1 on white —
+ *   used wherever the brand color needs to be READ AS TEXT (links, badge
+ *   labels, avatar initials) rather than just filled as a background.
+ * - `secondary`/`secondary-strong` mirror that same vivid/text-safe
+ *   pairing for the palette's distinct "Secondary Accent" (#66BFBF
+ *   measures only 2.15:1 against white — far too low for text or icon
+ *   strokes — so `secondary-strong` (#2E7373, 5.50:1 on white) is the
+ *   text/icon-safe darker teal; raw `secondary` stays for backgrounds/
+ *   decorative fills, always paired with dark `ink` text on top when text
+ *   sits directly on it, which measures 8.14:1).
+ *
+ * `ink`/`muted` are UNCHANGED (#1C1917/#57534E) — functional text neutrals,
+ * not brand colors, and they already comfortably pass AA against every new
+ * surface (white, #EAF6F6, #66BFBF). `success`/`warning` keep their
+ * existing green/amber semantics untouched. `destructive` (#991B1B, a
+ * brick/maroon red) stays unchanged too — its hue reads as clearly
+ * distinct from the hot-pink `accent`; `MODERATION_STATUS_COLOR`
+ * (moderation-status-style.ts) still mirrors this exact value.
  */
 @theme {
-  --color-paper: #f7f8fb;
+  --color-canvas: #ffffff;
+  --color-paper: #ffffff;
   --color-card: #ffffff;
-  --color-ink: #12161f;
-  --color-surface: #eef1f7;
-  --color-line: #d7dce5;
-  --color-muted: #5c6577;
-  --color-accent: #2647cc;
-  --color-accent-soft: #eaeeff;
-  --color-accent-strong: #1c37a3;
+  --color-ink: #1c1917;
+  --color-surface: #eaf6f6;
+  --color-line: #a8dbdb;
+  --color-muted: #57534e;
+  --color-accent: #ff0063;
+  --color-accent-soft: #ffe6ef;
+  --color-accent-strong: #c40048;
+  --color-secondary: #66bfbf;
+  --color-secondary-strong: #2e7373;
 
   --color-success: #15803d;
   --color-success-soft: #ecfdf3;
   --color-warning: #b45309;
   --color-warning-soft: #fffbeb;
-  --color-destructive: #b91c1c;
-  --color-destructive-soft: #fef2f2;
+  --color-destructive: #991b1b;
+  --color-destructive-soft: #fee2e2;
 
   /* UI-5: display and body intentionally share one face (Be Vietnam Pro,
      loaded once in layout.tsx as --font-sans-face) — kept as two token
@@ -52,7 +95,7 @@
 
 @layer base {
   body {
-    background-color: var(--color-paper);
+    background-color: var(--color-canvas);
     color: var(--color-ink);
     font-family: var(--font-body);
     -webkit-font-smoothing: antialiased;

@@ -12,9 +12,20 @@ type SearchFiltersProps = {
   grades: Option[];
 };
 
+/**
+ * UI-7A: restyled from stacked "label above a boxy select" blocks into a
+ * flex-wrapping row of compact pill chips (closer to the reference demo's
+ * filter-chip look). The label and the real, fully-functional `<select>`
+ * now share ONE rounded pill, with the select itself borderless/
+ * transparent so the pill's own border/background carry the visual
+ * weight; `focus-within` on the pill highlights the whole chip. Still a
+ * real, keyboard/screen-reader-native `<select>` — never a fake
+ * non-functional button.
+ */
+const pillClassName =
+  "inline-flex items-center gap-1.5 rounded-full border border-line bg-surface px-3 py-1.5 text-sm transition-colors focus-within:border-accent has-[:disabled]:opacity-50";
 const selectClassName =
-  "h-10 rounded-xl border border-line bg-card px-3 text-sm text-ink outline-none transition-colors hover:border-ink/20 focus-visible:border-accent focus-visible:ring-2 focus-visible:ring-accent disabled:cursor-not-allowed disabled:opacity-50";
-const labelClassName = "flex flex-col gap-1.5 text-sm font-medium text-ink";
+  "min-w-0 max-w-[9rem] truncate border-0 bg-transparent p-0 text-sm font-medium text-ink outline-none disabled:cursor-not-allowed sm:max-w-[11rem]";
 
 /**
  * Grade → Subject → Lesson/Topic cascading filters, plus Document Type and
@@ -112,9 +123,9 @@ export function SearchFilters({ grades }: SearchFiltersProps) {
   }
 
   return (
-    <div className="grid flex-1 grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5 lg:items-end">
-      <label className={labelClassName} htmlFor="filter-grade">
-        {tCommon("grade")}
+    <div className="flex flex-1 flex-wrap items-center gap-2">
+      <label className={pillClassName} htmlFor="filter-grade">
+        <span className="text-muted">{tCommon("grade")}:</span>
         <select
           id="filter-grade"
           value={gradeId}
@@ -132,8 +143,8 @@ export function SearchFilters({ grades }: SearchFiltersProps) {
         </select>
       </label>
 
-      <label className={labelClassName} htmlFor="filter-subject">
-        {tCommon("subject")}
+      <label className={pillClassName} htmlFor="filter-subject">
+        <span className="text-muted">{tCommon("subject")}:</span>
         <select
           id="filter-subject"
           value={subjectId}
@@ -148,13 +159,11 @@ export function SearchFilters({ grades }: SearchFiltersProps) {
             </option>
           ))}
         </select>
-        {subjectsError ? (
-          <span className="text-xs text-destructive">{tSearch("subjectsLoadError")}</span>
-        ) : null}
       </label>
+      {subjectsError ? <span className="text-xs text-destructive">{tSearch("subjectsLoadError")}</span> : null}
 
-      <label className={labelClassName} htmlFor="filter-lesson">
-        {tCommon("lessonTopic")}
+      <label className={pillClassName} htmlFor="filter-lesson">
+        <span className="text-muted">{tCommon("lessonTopic")}:</span>
         <select
           id="filter-lesson"
           value={lessonId}
@@ -169,13 +178,11 @@ export function SearchFilters({ grades }: SearchFiltersProps) {
             </option>
           ))}
         </select>
-        {lessonsError ? (
-          <span className="text-xs text-destructive">{tSearch("lessonsLoadError")}</span>
-        ) : null}
       </label>
+      {lessonsError ? <span className="text-xs text-destructive">{tSearch("lessonsLoadError")}</span> : null}
 
-      <label className={labelClassName} htmlFor="filter-documentType">
-        {tCommon("documentType")}
+      <label className={pillClassName} htmlFor="filter-documentType">
+        <span className="text-muted">{tCommon("documentType")}:</span>
         <select
           id="filter-documentType"
           value={documentType}
@@ -191,8 +198,8 @@ export function SearchFilters({ grades }: SearchFiltersProps) {
         </select>
       </label>
 
-      <label className={labelClassName} htmlFor="filter-sort">
-        {tCommon("sort")}
+      <label className={pillClassName} htmlFor="filter-sort">
+        <span className="text-muted">{tCommon("sort")}:</span>
         <select
           id="filter-sort"
           value={sort}

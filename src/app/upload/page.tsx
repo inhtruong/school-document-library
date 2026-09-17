@@ -1,9 +1,10 @@
 import { getTranslations } from "next-intl/server";
 import { redirect } from "next/navigation";
-import { AlertCircle, Info } from "lucide-react";
+import Link from "next/link";
+import { AlertCircle, ArrowLeft, Info } from "lucide-react";
 import { TaxonomySelectFields } from "@/components/TaxonomySelectFields";
 import { SourceTypeSelector } from "@/components/upload/SourceTypeSelector";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { requireRole } from "@/lib/auth/authorize";
 import { listGrades } from "@/lib/documents/grades";
@@ -24,6 +25,8 @@ export default async function UploadPage({ searchParams }: UploadPageProps) {
   const [{ error }, grades] = await Promise.all([searchParams, listGrades()]);
   const tUpload = await getTranslations("upload");
   const tNav = await getTranslations("navigation");
+  const tDocuments = await getTranslations("documents");
+  const tActions = await getTranslations("actions");
 
   async function uploadAction(formData: FormData) {
     "use server";
@@ -58,10 +61,20 @@ export default async function UploadPage({ searchParams }: UploadPageProps) {
   }
 
   const isTeacher = session.user.role === "TEACHER";
+  const backHref = isTeacher ? "/my-uploads" : "/";
+  const backLabel = isTeacher ? tDocuments("backToMyUploads") : tDocuments("backToSearch");
 
   return (
-    <div className="mx-auto max-w-lg px-5 py-8 sm:py-10">
-      <h1 className="font-display text-2xl font-semibold tracking-tight">{tUpload("heading")}</h1>
+    <div className="mx-auto max-w-2xl px-5 py-8 sm:py-10">
+      <Link
+        href={backHref}
+        className="inline-flex items-center gap-1.5 text-sm text-muted transition-colors hover:text-ink"
+      >
+        <ArrowLeft className="h-4 w-4" aria-hidden />
+        {backLabel}
+      </Link>
+
+      <h1 className="mt-4 font-display text-2xl font-semibold tracking-tight">{tUpload("heading")}</h1>
       <p className="mt-2 text-sm text-muted">{tUpload("subtitle")}</p>
 
       <div className="mt-5 flex items-start gap-2.5 rounded-xl border border-accent-soft bg-accent-soft p-3.5">
@@ -80,43 +93,6 @@ export default async function UploadPage({ searchParams }: UploadPageProps) {
 
       <form action={uploadAction} className="mt-8 flex flex-col gap-8">
         <div className="flex flex-col gap-4">
-          <h2 className="text-xs font-medium uppercase tracking-wide text-muted">{tUpload("documentDetails")}</h2>
-
-          <label className="flex flex-col gap-1.5 text-sm" htmlFor="upload-title">
-            {tUpload("title")}
-            <Input id="upload-title" name="title" type="text" required />
-          </label>
-
-          <label className="flex flex-col gap-1.5 text-sm" htmlFor="upload-description">
-            {tUpload("description")} <span className="font-normal text-muted">{tUpload("optional")}</span>
-            <textarea
-              id="upload-description"
-              name="description"
-              rows={3}
-              placeholder={tUpload("descriptionPlaceholder")}
-              className="w-full rounded-lg border border-line bg-paper px-3 py-2 text-sm outline-none placeholder:text-muted focus-visible:ring-2 focus-visible:ring-accent"
-            />
-          </label>
-        </div>
-
-        <div className="flex flex-col gap-4">
-          <h2 className="text-xs font-medium uppercase tracking-wide text-muted">{tUpload("whereItBelongs")}</h2>
-
-          <TaxonomySelectFields grades={grades} />
-
-          <label className="flex flex-col gap-1.5 text-sm" htmlFor="upload-academicYear">
-            {tUpload("academicYear")}
-            <Input
-              id="upload-academicYear"
-              name="academicYear"
-              type="text"
-              placeholder={tUpload("academicYearPlaceholder")}
-              required
-            />
-          </label>
-        </div>
-
-        <div className="flex flex-col gap-4">
           <h2 className="text-xs font-medium uppercase tracking-wide text-muted">{tUpload("content")}</h2>
 
           <SourceTypeSelector
@@ -126,10 +102,64 @@ export default async function UploadPage({ searchParams }: UploadPageProps) {
           />
         </div>
 
-        <Button type="submit" size="lg">
-          {tNav("upload")}
-        </Button>
+        <div className="flex flex-col gap-6 rounded-2xl border border-line bg-card p-5 sm:p-8">
+          <div className="flex flex-col gap-4">
+            <h2 className="text-xs font-medium uppercase tracking-wide text-muted">{tUpload("documentDetails")}</h2>
+
+            <label className="flex flex-col gap-1.5 text-sm" htmlFor="upload-title">
+              {tUpload("title")}
+              <Input id="upload-title" name="title" type="text" required />
+            </label>
+
+            <label className="flex flex-col gap-1.5 text-sm" htmlFor="upload-description">
+              {tUpload("description")} <span className="font-normal text-muted">{tUpload("optional")}</span>
+              <textarea
+                id="upload-description"
+                name="description"
+                rows={3}
+                placeholder={tUpload("descriptionPlaceholder")}
+                className="w-full rounded-lg border border-line bg-paper px-3 py-2 text-sm outline-none placeholder:text-muted focus-visible:ring-2 focus-visible:ring-accent"
+              />
+            </label>
+          </div>
+
+          <div className="border-t border-line" />
+
+          <div className="flex flex-col gap-4">
+            <h2 className="text-xs font-medium uppercase tracking-wide text-muted">{tUpload("whereItBelongs")}</h2>
+
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <TaxonomySelectFields grades={grades} />
+
+              <label className="flex flex-col gap-1.5 text-sm sm:col-span-2" htmlFor="upload-academicYear">
+                {tUpload("academicYear")}
+                <Input
+                  id="upload-academicYear"
+                  name="academicYear"
+                  type="text"
+                  placeholder={tUpload("academicYearPlaceholder")}
+                  required
+                />
+              </label>
+            </div>
+          </div>
+        </div>
+
+        <div className="flex flex-col gap-3 sm:flex-row">
+          <Button type="submit" size="lg" className="sm:flex-1">
+            {tNav("upload")}
+          </Button>
+          <Link href={backHref} className={buttonVariants({ variant: "outline", size: "lg", className: "sm:flex-1" })}>
+            {tActions("cancel")}
+          </Link>
+        </div>
       </form>
+
+      <div className="mt-8 flex items-start gap-2.5 rounded-xl border-l-4 border-accent bg-accent-soft p-4">
+        <p className="text-sm text-ink">
+          <strong>{tUpload("tip")}:</strong> {tUpload("tipText")}
+        </p>
+      </div>
     </div>
   );
 }

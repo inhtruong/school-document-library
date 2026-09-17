@@ -52,10 +52,10 @@ export function AccountMenu({ name, email, role, canModerate, canViewMyUploads, 
 
   return (
     <DropdownMenu>
-      <DropdownMenuTrigger className="flex items-center gap-1.5 rounded-full py-1 pl-1 pr-2 text-sm text-ink outline-none transition-colors hover:bg-surface focus-visible:ring-2 focus-visible:ring-accent">
+      <DropdownMenuTrigger className="flex items-center gap-1.5 rounded-full py-1 pl-1 pr-2 text-sm text-canvas outline-none transition-colors hover:bg-surface hover:text-ink focus-visible:ring-2 focus-visible:ring-canvas">
         <span
           aria-hidden
-          className="flex h-7 w-7 items-center justify-center rounded-full bg-accent-soft text-xs font-semibold text-accent"
+          className="flex h-7 w-7 items-center justify-center rounded-full bg-accent-soft text-xs font-semibold text-accent-strong"
         >
           {name.slice(0, 1).toUpperCase()}
         </span>

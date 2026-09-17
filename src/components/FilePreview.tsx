@@ -65,7 +65,7 @@ export async function FilePreview({
             href={watchUrl}
             target="_blank"
             rel="noopener noreferrer"
-            className="text-sm font-medium text-accent hover:underline"
+            className="text-sm font-medium text-accent-strong hover:underline"
           >
             {tPreview("openOnYouTube")}
           </a>

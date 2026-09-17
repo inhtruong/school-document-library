@@ -7,6 +7,7 @@ vi.mock("@/lib/prisma", () => {
       count: vi.fn(),
       findUnique: vi.fn(),
       updateMany: vi.fn(),
+      groupBy: vi.fn(),
     },
     user: { findMany: vi.fn() },
     notification: { createMany: vi.fn(), deleteMany: vi.fn() },
@@ -24,6 +25,7 @@ vi.mock("@/lib/prisma", () => {
 import { prisma } from "@/lib/prisma";
 import {
   getRejectionReasonForViewer,
+  getTeacherUploadStatusCounts,
   listTeacherUploads,
   resubmitDocument,
 } from "@/lib/documents/teacher-uploads";
@@ -39,6 +41,7 @@ const mockRow = {
   fileName: "test.pdf",
   fileSize: 1024,
   fileCategory: "PDF" as const,
+  sourceType: "FILE" as const,
   createdAt: now,
   reviewedAt: null,
   rejectionReason: null,
@@ -131,6 +134,48 @@ describe("listTeacherUploads", () => {
     expect(result.documents[0].id).toBe("doc_1");
     expect(result.documents[0].rejectionReason).toBe("Wrong grade");
     expect(result.documents[0].createdAt).toBe(now.toISOString());
+  });
+});
+
+describe("getTeacherUploadStatusCounts", () => {
+  test("scopes the groupBy query by uploadedById, never trusting a client-supplied id", async () => {
+    vi.mocked(prisma.document.groupBy).mockResolvedValue([]);
+
+    await getTeacherUploadStatusCounts("teacher_1");
+
+    const call = vi.mocked(prisma.document.groupBy).mock.calls[0][0];
+    expect(call.where).toEqual({ uploadedById: "teacher_1" });
+    expect(call.by).toEqual(["moderationStatus"]);
+  });
+
+  test("sums per-status groups into total/pending/approved/rejected", async () => {
+    vi.mocked(prisma.document.groupBy).mockResolvedValue([
+      { moderationStatus: "PENDING", _count: { _all: 2 } },
+      { moderationStatus: "APPROVED", _count: { _all: 5 } },
+      { moderationStatus: "REJECTED", _count: { _all: 1 } },
+    ] as never);
+
+    const result = await getTeacherUploadStatusCounts("teacher_1");
+
+    expect(result).toEqual({ total: 8, pending: 2, approved: 5, rejected: 1 });
+  });
+
+  test("a status with no documents stays 0 instead of missing from the result", async () => {
+    vi.mocked(prisma.document.groupBy).mockResolvedValue([
+      { moderationStatus: "APPROVED", _count: { _all: 3 } },
+    ] as never);
+
+    const result = await getTeacherUploadStatusCounts("teacher_1");
+
+    expect(result).toEqual({ total: 3, pending: 0, approved: 3, rejected: 0 });
+  });
+
+  test("no uploads at all returns all zeros", async () => {
+    vi.mocked(prisma.document.groupBy).mockResolvedValue([]);
+
+    const result = await getTeacherUploadStatusCounts("teacher_1");
+
+    expect(result).toEqual({ total: 0, pending: 0, approved: 0, rejected: 0 });
   });
 });
 

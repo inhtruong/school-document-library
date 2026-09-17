@@ -29,7 +29,7 @@ export default async function SubjectCard({ subject }: { subject: SubjectSummary
       href={`/search?subject=${encodeURIComponent(subject.subject)}`}
       className="block rounded-xl outline-none focus-visible:ring-2 focus-visible:ring-accent"
     >
-      <Card className="flex items-center gap-3 p-4 transition-all hover:-translate-y-px hover:border-ink/20 hover:shadow-[0_4px_12px_rgba(18,22,31,0.06)]">
+      <Card className="flex items-center gap-3 p-4 transition-all hover:-translate-y-px hover:border-ink/20 hover:shadow-[0_4px_12px_rgba(28,25,23,0.06)]">
         <span
           aria-hidden
           className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg"

@@ -12,7 +12,7 @@ export default async function GradeCard({ grade }: { grade: GradeWithDocumentCou
       href={`/search?gradeId=${encodeURIComponent(grade.id)}`}
       className="block rounded-xl outline-none focus-visible:ring-2 focus-visible:ring-accent"
     >
-      <Card className="flex flex-col items-center gap-1 px-3 py-4 text-center transition-all hover:-translate-y-px hover:border-ink/20 hover:shadow-[0_4px_12px_rgba(18,22,31,0.06)]">
+      <Card className="flex flex-col items-center gap-1 px-3 py-4 text-center transition-all hover:-translate-y-px hover:border-ink/20 hover:shadow-[0_4px_12px_rgba(28,25,23,0.06)]">
         <span className="font-display text-sm font-semibold text-ink sm:text-base">{grade.name}</span>
         <span className="text-xs text-muted">{tCommon("documentCount", { count: grade.documentCount })}</span>
       </Card>

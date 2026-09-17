@@ -56,7 +56,7 @@ export default async function RegisterPage({ searchParams }: RegisterPageProps) 
       <p className="mt-2 text-sm text-muted">{tAuth("createAccountSubtitle")}</p>
 
       {error ? (
-        <p className="mt-4 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+        <p className="mt-4 rounded-lg border border-destructive/20 bg-destructive-soft px-3 py-2 text-sm text-destructive">
           {error}
         </p>
       ) : null}

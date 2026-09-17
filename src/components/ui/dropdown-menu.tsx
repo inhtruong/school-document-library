@@ -22,7 +22,7 @@ const DropdownMenuContent = React.forwardRef<
         // No animation library — Radix mounts/unmounts the panel directly.
         // A plain opacity transition (native Tailwind, no plugin) is enough
         // polish without adding tailwindcss-animate as a new dependency.
-        "z-50 min-w-56 overflow-hidden rounded-xl border border-line bg-card p-1.5 text-ink shadow-[0_8px_24px_rgba(18,22,31,0.08)] transition-opacity",
+        "z-50 min-w-56 overflow-hidden rounded-xl border border-line bg-card p-1.5 text-ink shadow-[0_8px_24px_rgba(28,25,23,0.08)] transition-opacity",
         className
       )}
       {...props}

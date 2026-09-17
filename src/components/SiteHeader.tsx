@@ -10,8 +10,24 @@ import { hasRole } from "@/lib/auth/authorize";
 import { cn } from "@/lib/utils";
 import { listNotifications } from "@/lib/notifications/notification";
 
+/**
+ * Header/Background Adjustment: the header's own background is now the
+ * brand red (`bg-accent`), so every text/ring color here is the header's
+ * OWN override, not the app-wide default. `text-canvas` (pure white,
+ * #FFFFFF — the token this pass added for the page background) measures a
+ * hair better than the warm-white `paper` token as text directly on
+ * #F62440, so it's reused here for "foreground sitting straight on red";
+ * `paper` stays reserved for light CHIP backgrounds (the Register button
+ * below, and the pre-existing bg-card triggers in NotificationBell/
+ * LanguageSwitcher/MobileMenu), matching how the rest of the app already
+ * uses `paper`. Hovering still lands on the established `bg-surface` +
+ * `text-ink` pairing (a light chip with dark text), which needed no change
+ * since it was never red-on-red to begin with. `ring-canvas` replaces
+ * `ring-accent` for the same reason a red ring would vanish against a red
+ * header.
+ */
 const navLinkClassName =
-  "rounded-lg px-3 py-2 text-sm font-medium text-muted transition-colors hover:bg-surface hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent";
+  "rounded-lg px-3 py-2 text-sm font-medium text-canvas transition-colors hover:bg-surface hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-canvas";
 
 /**
  * Server Component end to end — the only client boundaries in the header
@@ -46,11 +62,11 @@ export default async function SiteHeader() {
   };
 
   return (
-    <header className="sticky top-0 z-40 border-b border-line bg-paper">
+    <header className="sticky top-0 z-40 border-b border-line bg-accent text-canvas">
       <div className="mx-auto flex max-w-5xl items-center gap-4 px-5 py-3.5">
         <Link
           href="/"
-          className="flex items-center gap-3 rounded-lg outline-none focus-visible:ring-2 focus-visible:ring-accent"
+          className="flex items-center gap-3 rounded-lg outline-none focus-visible:ring-2 focus-visible:ring-canvas"
         >
           <span aria-hidden className="flex h-8 w-8 items-end gap-[3px] rounded-md bg-surface p-[6px]">
             <span className="h-full w-[3px] rounded-full bg-accent" />
@@ -59,22 +75,11 @@ export default async function SiteHeader() {
           </span>
           <span className="flex flex-col leading-tight">
             <span className="font-display text-base font-semibold tracking-tight">Stacks</span>
-            <span className="text-[10px] font-medium uppercase tracking-[0.18em] text-muted">
+            <span className="text-[10px] font-medium uppercase tracking-[0.18em] text-canvas">
               {tNav("tagline")}
             </span>
           </span>
         </Link>
-
-        <nav aria-label={tNav("primary")} className="hidden items-center gap-1 md:flex">
-          <Link href="/search" className={navLinkClassName}>
-            {tNav("documents")}
-          </Link>
-          {canUpload ? (
-            <Link href="/upload" className={navLinkClassName}>
-              {tNav("upload")}
-            </Link>
-          ) : null}
-        </nav>
 
         <div className="ml-auto flex items-center gap-2">
           <LanguageSwitcher currentLocale={locale} label={tLanguage("label")} />
@@ -102,7 +107,17 @@ export default async function SiteHeader() {
               <Link href="/login" className={navLinkClassName}>
                 {tAuth("login")}
               </Link>
-              <Link href="/register" className={cn(buttonVariants({ size: "sm" }))}>
+              <Link
+                href="/register"
+                className={cn(
+                  buttonVariants({ size: "sm" }),
+                  // Inverted on purpose: the shared default variant is a
+                  // solid `bg-accent` button, which would vanish against
+                  // this now-red header — swapped to a light chip so the
+                  // CTA still reads as the header's one "important" action.
+                  "bg-paper text-accent hover:bg-surface hover:text-accent-strong active:bg-surface active:text-accent-strong focus-visible:ring-canvas focus-visible:ring-offset-accent"
+                )}
+              >
                 {tAuth("register")}
               </Link>
             </div>

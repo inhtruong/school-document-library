@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useTranslations } from "next-intl";
+import { Upload, Video } from "lucide-react";
 import { FileDropzone } from "@/components/upload/FileDropzone";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
@@ -33,14 +34,14 @@ export function SourceTypeSelector({ fileAccept, fileFormatsLabel, maxSizeMB }: 
       <input type="hidden" name="sourceType" value={sourceType} />
 
       <div
-        className="inline-flex w-fit rounded-lg border border-line bg-surface p-1"
+        className="inline-flex w-fit gap-1 rounded-xl border border-line bg-surface p-1"
         role="radiogroup"
         aria-label={tUpload("contentSource")}
       >
         {(
           [
-            { value: "FILE" as const, label: tUpload("uploadFile") },
-            { value: "YOUTUBE" as const, label: tUpload("youtubeVideo") },
+            { value: "FILE" as const, label: tUpload("uploadFile"), Icon: Upload },
+            { value: "YOUTUBE" as const, label: tUpload("youtubeVideo"), Icon: Video },
           ]
         ).map((option) => (
           <button
@@ -50,10 +51,11 @@ export function SourceTypeSelector({ fileAccept, fileFormatsLabel, maxSizeMB }: 
             aria-checked={sourceType === option.value}
             onClick={() => setSourceType(option.value)}
             className={cn(
-              "rounded-md px-3.5 py-1.5 text-sm font-medium transition-colors",
-              sourceType === option.value ? "bg-paper text-ink shadow-sm" : "text-muted hover:text-ink"
+              "flex items-center gap-1.5 rounded-lg px-3.5 py-1.5 text-sm font-medium transition-colors",
+              sourceType === option.value ? "bg-card text-ink shadow-sm" : "text-muted hover:text-ink"
             )}
           >
+            <option.Icon className="h-4 w-4" aria-hidden />
             {option.label}
           </button>
         ))}
@@ -71,13 +73,17 @@ export function SourceTypeSelector({ fileAccept, fileFormatsLabel, maxSizeMB }: 
       ) : (
         <label className="flex flex-col gap-1.5 text-sm" htmlFor="upload-youtubeUrl">
           {tUpload("youtubeUrlLabel")}
-          <Input
-            id="upload-youtubeUrl"
-            name="youtubeUrl"
-            type="url"
-            placeholder="https://www.youtube.com/watch?v=..."
-            required
-          />
+          <div className="relative">
+            <Video className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted" aria-hidden />
+            <Input
+              id="upload-youtubeUrl"
+              name="youtubeUrl"
+              type="url"
+              placeholder="https://www.youtube.com/watch?v=..."
+              required
+              className="pl-9"
+            />
+          </div>
           <span className="text-xs font-normal text-muted">{tUpload("youtubeUrlHelp")}</span>
         </label>
       )}

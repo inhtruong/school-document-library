@@ -1,5 +1,5 @@
 import "server-only";
-import type { DocumentModerationStatus, FileCategory } from "@prisma/client";
+import type { DocumentModerationStatus, DocumentSourceType, FileCategory } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import type { AuditActor } from "@/lib/audit/audit";
 import { writeAuditLog } from "@/lib/audit/audit";
@@ -17,6 +17,7 @@ const TEACHER_UPLOAD_SELECT = {
   fileName: true,
   fileSize: true,
   fileCategory: true,
+  sourceType: true,
   createdAt: true,
   reviewedAt: true,
   // Own-document rejection reason — safe here ONLY because every row this
@@ -39,6 +40,7 @@ export type TeacherUploadListItem = {
   fileName: string | null;
   fileSize: number | null;
   fileCategory: FileCategory | null;
+  sourceType: DocumentSourceType;
   createdAt: string;
   reviewedAt: string | null;
   rejectionReason: string | null;
@@ -63,6 +65,7 @@ function toListItem(row: {
   fileName: string | null;
   fileSize: number | null;
   fileCategory: FileCategory | null;
+  sourceType: DocumentSourceType;
   createdAt: Date;
   reviewedAt: Date | null;
   rejectionReason: string | null;
@@ -112,6 +115,36 @@ export async function listTeacherUploads(
     page,
     totalPages: Math.max(1, Math.ceil(total / TEACHER_UPLOADS_PAGE_SIZE)),
   };
+}
+
+export type TeacherUploadStatusCounts = {
+  total: number;
+  pending: number;
+  approved: number;
+  rejected: number;
+};
+
+/**
+ * UI-7D quick-stats row: one grouped aggregate query (never all rows) —
+ * always scoped by `uploadedById`, same as `listTeacherUploads` above.
+ * Independent of the currently-selected status filter/page, since the
+ * quick stats always describe the Teacher's whole upload history.
+ */
+export async function getTeacherUploadStatusCounts(uploaderId: string): Promise<TeacherUploadStatusCounts> {
+  const groups = await prisma.document.groupBy({
+    by: ["moderationStatus"],
+    where: { uploadedById: uploaderId },
+    _count: { _all: true },
+  });
+
+  const counts: TeacherUploadStatusCounts = { total: 0, pending: 0, approved: 0, rejected: 0 };
+  for (const group of groups) {
+    counts.total += group._count._all;
+    if (group.moderationStatus === "PENDING") counts.pending = group._count._all;
+    else if (group.moderationStatus === "APPROVED") counts.approved = group._count._all;
+    else if (group.moderationStatus === "REJECTED") counts.rejected = group._count._all;
+  }
+  return counts;
 }
 
 /**

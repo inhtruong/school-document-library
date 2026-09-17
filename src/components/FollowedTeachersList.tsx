@@ -53,7 +53,7 @@ export function FollowedTeachersList({ initialTeachers }: FollowedTeachersListPr
         <UserX className="h-5 w-5 text-muted" aria-hidden />
         <p className="text-sm text-muted">
           {tFollowing("noTeachersYet")}{" "}
-          <Link href="/search" className="font-medium text-ink underline underline-offset-2 hover:text-accent">
+          <Link href="/search" className="font-medium text-ink underline underline-offset-2 hover:text-accent-strong">
             {tSaved("browseDocuments")}
           </Link>
         </p>
@@ -68,7 +68,7 @@ export function FollowedTeachersList({ initialTeachers }: FollowedTeachersListPr
           <li key={teacher.id} className="flex items-center gap-3 px-4 py-3">
             <span
               aria-hidden
-              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-accent-soft text-sm font-semibold text-accent"
+              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-accent-soft text-sm font-semibold text-accent-strong"
             >
               {teacher.name.slice(0, 1).toUpperCase()}
             </span>

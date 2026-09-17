@@ -241,11 +241,15 @@
     "dragDropText": "Kéo file vào đây, hoặc bấm để chọn",
     "clickToChange": "Bấm để đổi file",
     "acceptedFormats": "PDF, Word, Excel, PowerPoint, hình ảnh, hoặc video",
-    "upToSize": "tối đa {size} MB"
+    "upToSize": "tối đa {size} MB",
+    "tip": "Mẹo",
+    "tipText": "Đặt tên tài liệu rõ ràng, dễ hiểu và chọn đúng khối lớp, môn học, bài học để học sinh dễ tìm thấy. Hãy kiểm tra lại file hoặc đường dẫn video trước khi tải lên."
   },
   "search": {
     "heading": "Tìm kiếm tài liệu",
     "filters": "Bộ lọc",
+    "resultsLabel": "Kết quả",
+    "viewDocument": "Xem",
     "removeFilter": "Xoá bộ lọc",
     "clearAll": "Xoá tất cả",
     "resultsFor": "cho “{query}”",
@@ -271,7 +275,35 @@
     "latestDocuments": "Tài liệu mới nhất",
     "viewAllDocuments": "Xem tất cả tài liệu",
     "noSubjectsYet": "Chưa có môn học nào.",
-    "noDocumentsYet": "Chưa có tài liệu nào."
+    "noDocumentsYet": "Chưa có tài liệu nào.",
+    "hero": {
+      "findDocuments": "Tìm tài liệu"
+    },
+    "stats": {
+      "documents": "Tài liệu",
+      "subjects": "Môn học",
+      "grades": "Khối lớp"
+    },
+    "audience": {
+      "heading": "Dành cho ai?",
+      "student": {
+        "title": "Học sinh",
+        "bullet1": "Tìm kiếm và lọc theo khối lớp, môn học, bài học",
+        "bullet2": "Xem trước các định dạng file được hỗ trợ",
+        "bullet3": "Tải xuống sau khi đăng nhập",
+        "bullet4": "Lưu tài liệu để xem lại sau",
+        "bullet5": "Đánh giá và bình luận tài liệu",
+        "cta": "Khám phá tài liệu"
+      },
+      "teacher": {
+        "title": "Giáo viên",
+        "bullet1": "Tải lên file hoặc video YouTube",
+        "bullet2": "Quản lý tài liệu đã tải lên tại Tài liệu của tôi",
+        "bullet3": "Theo dõi trạng thái kiểm duyệt — chờ duyệt, đã duyệt hoặc bị từ chối",
+        "bullet4": "Gửi lại tài liệu sau khi khắc phục lý do bị từ chối",
+        "cta": "Bắt đầu tải lên"
+      }
+    }
   },
   "saved": {
     "heading": "Tài liệu đã lưu",
@@ -312,7 +344,9 @@
     "emptyAll": "Bạn chưa tải lên tài liệu nào.",
     "emptyApproved": "Chưa có tài liệu nào được duyệt.",
     "emptyRejected": "Không có tài liệu bị từ chối.",
-    "view": "Xem"
+    "view": "Xem",
+    "greeting": "Xin chào, {name}",
+    "totalDocuments": "Tổng số tài liệu"
   },
   "documents": {
     "backToSearch": "Quay lại tìm kiếm",
@@ -323,7 +357,9 @@
     "notPublicYet": "Tài liệu này chưa công khai.",
     "publiclyAvailable": "Tài liệu này đang được công khai.",
     "uploadedBy": "Người tải lên",
-    "rating": "Đánh giá"
+    "rating": "Đánh giá",
+    "information": "Thông tin tài liệu",
+    "fileType": "Loại file"
   },
   "comments": {
     "heading": "Bình luận",

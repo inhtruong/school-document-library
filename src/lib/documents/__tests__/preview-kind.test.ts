@@ -49,6 +49,10 @@ describe("resolvePreviewKind", () => {
   test("FEAT-12B: sourceType YOUTUBE is classified as youtube, regardless of (always-null) fileCategory/mimeType", () => {
     expect(resolvePreviewKind("YOUTUBE", null, null)).toBe("youtube");
   });
+
+  test("sourceType GOOGLE_FORM is classified as google-form, regardless of (always-null) fileCategory/mimeType", () => {
+    expect(resolvePreviewKind("GOOGLE_FORM", null, null)).toBe("google-form");
+  });
 });
 
 describe("STREAMABLE_PREVIEW_KINDS", () => {
@@ -59,10 +63,11 @@ describe("STREAMABLE_PREVIEW_KINDS", () => {
     expect(STREAMABLE_PREVIEW_KINDS.has("video")).toBe(true);
   });
 
-  test("excludes word-legacy, excel, youtube, and none", () => {
+  test("excludes word-legacy, excel, youtube, google-form, and none", () => {
     expect(STREAMABLE_PREVIEW_KINDS.has("word-legacy")).toBe(false);
     expect(STREAMABLE_PREVIEW_KINDS.has("excel")).toBe(false);
     expect(STREAMABLE_PREVIEW_KINDS.has("youtube")).toBe(false);
+    expect(STREAMABLE_PREVIEW_KINDS.has("google-form")).toBe(false);
     expect(STREAMABLE_PREVIEW_KINDS.has("none")).toBe(false);
   });
 });

@@ -14,6 +14,7 @@ import { writeAuditLog } from "@/lib/audit/audit";
 import { MAX_UPLOAD_SIZE_BYTES, MAX_UPLOAD_SIZE_MB } from "@/lib/documents/upload-config";
 import { convertPowerPointToPdf } from "@/lib/documents/powerpoint-conversion";
 import { validateTaxonomySelection } from "@/lib/documents/taxonomy";
+import { extractGoogleFormUrl } from "@/lib/documents/google-form";
 import { extractYouTubeVideoId } from "@/lib/documents/youtube";
 import { createDocumentPendingReviewNotifications, createNewDocumentNotifications } from "@/lib/notifications/notification";
 import {
@@ -41,6 +42,7 @@ type FileFields = {
   mimeType: string | null;
   fileCategory: FileCategory | null;
   externalVideoId: string | null;
+  sourceUrl: string | null;
 };
 
 export type UploadedDocument = Document & {
@@ -117,9 +119,11 @@ export async function uploadDocument(input: {
   // FEAT-12B: a new orthogonal axis — WHERE the content lives — read directly
   // out of `formData` the same way `file` always has been (it's not part of
   // `uploadDocumentSchema`, which only covers shared metadata). Anything
-  // other than the literal string "YOUTUBE" is treated as the pre-existing
+  // other than the recognized literal strings is treated as the pre-existing
   // FILE flow, so this never breaks a form that doesn't send the field at all.
-  const sourceType: DocumentSourceType = getFormString(input.formData, "sourceType") === "YOUTUBE" ? "YOUTUBE" : "FILE";
+  const rawSourceType = getFormString(input.formData, "sourceType");
+  const sourceType: DocumentSourceType =
+    rawSourceType === "YOUTUBE" ? "YOUTUBE" : rawSourceType === "GOOGLE_FORM" ? "GOOGLE_FORM" : "FILE";
 
   let fileFields: FileFields;
   let cleanupOnDbFailure: () => Promise<void>;
@@ -139,9 +143,32 @@ export async function uploadDocument(input: {
       mimeType: null,
       fileCategory: null,
       externalVideoId: videoId,
+      sourceUrl: null,
     };
     // No file was ever written to storage for a YOUTUBE document, so there is
     // nothing to clean up if the DB transaction below fails.
+    cleanupOnDbFailure = async () => {};
+  } else if (sourceType === "GOOGLE_FORM") {
+    const rawUrl = getFormString(input.formData, "googleFormUrl");
+    const formUrl = extractGoogleFormUrl(rawUrl);
+    if (!formUrl) {
+      return { success: false, error: "UPLOAD_GOOGLE_FORM_URL_INVALID", status: 400 };
+    }
+
+    fileFields = {
+      fileKey: null,
+      previewFileKey: null,
+      fileName: null,
+      fileSize: null,
+      mimeType: null,
+      fileCategory: null,
+      externalVideoId: null,
+      sourceUrl: formUrl,
+    };
+    // No file was ever written to storage for a GOOGLE_FORM document (even
+    // if a client also attached one — it's simply never read here, same
+    // precedent as the YOUTUBE branch above), so there is nothing to clean
+    // up if the DB transaction below fails.
     cleanupOnDbFailure = async () => {};
   } else {
     const file = input.formData.get("file");
@@ -208,6 +235,7 @@ export async function uploadDocument(input: {
       mimeType: file.type,
       fileCategory: format.category,
       externalVideoId: null,
+      sourceUrl: null,
     };
     cleanupOnDbFailure = async () => {
       await deleteLocalFile(fileKey);

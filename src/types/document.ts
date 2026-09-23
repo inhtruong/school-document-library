@@ -23,10 +23,12 @@ export type DocumentRecord = {
   fileSize: number | null;
   mimeType: string | null;
   fileCategory: "PDF" | "WORD" | "EXCEL" | "IMAGE" | "VIDEO" | "POWERPOINT" | null;
-  /** FEAT-12B: whether this document is a locally-stored FILE (the only kind before this feature) or an external YOUTUBE video. */
-  sourceType: "FILE" | "YOUTUBE";
-  /** FEAT-12B: the validated 11-character YouTube video id — null for every FILE document. See src/lib/documents/youtube.ts. */
+  /** FEAT-12B: whether this document is a locally-stored FILE, an external YOUTUBE video, or an external GOOGLE_FORM. */
+  sourceType: "FILE" | "YOUTUBE" | "GOOGLE_FORM";
+  /** FEAT-12B: the validated 11-character YouTube video id — null for every non-YOUTUBE document. See src/lib/documents/youtube.ts. */
   externalVideoId: string | null;
+  /** The validated, normalized Google Form URL — null for every non-GOOGLE_FORM document. See src/lib/documents/google-form.ts. */
+  sourceUrl: string | null;
   uploadedById: string | null;
   /** FEAT-10A. `reviewedById`/`rejectionReason` are deliberately NOT part of this public-facing type — see get-document.ts/search.ts's `omit`. */
   moderationStatus: "PENDING" | "APPROVED" | "REJECTED";

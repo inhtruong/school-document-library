@@ -2,6 +2,7 @@ import Link from "next/link";
 import { getFormatter, getTranslations } from "next-intl/server";
 import {
   CalendarDays,
+  ClipboardList,
   FileSpreadsheet,
   FileText,
   Image as ImageIcon,
@@ -28,6 +29,7 @@ type SearchResultCardProps = {
 /** Real source/file type only — a YOUTUBE-sourced document has `fileCategory: null` (see Document's schema comment on `sourceType`), so that case is checked first. */
 function fileTypeIcon(doc: DocumentRecord) {
   if (doc.sourceType === "YOUTUBE") return PlayCircle;
+  if (doc.sourceType === "GOOGLE_FORM") return ClipboardList;
   switch (doc.fileCategory) {
     case "EXCEL":
       return FileSpreadsheet;

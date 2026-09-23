@@ -155,6 +155,7 @@ export default async function ModerationDetailPage({ params }: ModerationDetailP
             fileName={doc.fileName}
             sourceType={doc.sourceType}
             externalVideoId={doc.externalVideoId}
+            sourceUrl={doc.sourceUrl}
           />
         </div>
       </div>

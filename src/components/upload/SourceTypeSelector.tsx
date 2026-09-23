@@ -2,12 +2,12 @@
 
 import { useState } from "react";
 import { useTranslations } from "next-intl";
-import { Upload, Video } from "lucide-react";
+import { ClipboardList, Upload, Video } from "lucide-react";
 import { FileDropzone } from "@/components/upload/FileDropzone";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 
-type SourceType = "FILE" | "YOUTUBE";
+type SourceType = "FILE" | "YOUTUBE" | "GOOGLE_FORM";
 
 type SourceTypeSelectorProps = {
   fileAccept: string;
@@ -42,6 +42,7 @@ export function SourceTypeSelector({ fileAccept, fileFormatsLabel, maxSizeMB }: 
           [
             { value: "FILE" as const, label: tUpload("uploadFile"), Icon: Upload },
             { value: "YOUTUBE" as const, label: tUpload("youtubeVideo"), Icon: Video },
+            { value: "GOOGLE_FORM" as const, label: tUpload("googleForm"), Icon: ClipboardList },
           ]
         ).map((option) => (
           <button
@@ -70,7 +71,7 @@ export function SourceTypeSelector({ fileAccept, fileFormatsLabel, maxSizeMB }: 
           acceptedFormatsLabel={fileFormatsLabel}
           maxSizeMB={maxSizeMB}
         />
-      ) : (
+      ) : sourceType === "YOUTUBE" ? (
         <label className="flex flex-col gap-1.5 text-sm" htmlFor="upload-youtubeUrl">
           {tUpload("youtubeUrlLabel")}
           <div className="relative">
@@ -85,6 +86,25 @@ export function SourceTypeSelector({ fileAccept, fileFormatsLabel, maxSizeMB }: 
             />
           </div>
           <span className="text-xs font-normal text-muted">{tUpload("youtubeUrlHelp")}</span>
+        </label>
+      ) : (
+        <label className="flex flex-col gap-1.5 text-sm" htmlFor="upload-googleFormUrl">
+          {tUpload("googleFormUrlLabel")}
+          <div className="relative">
+            <ClipboardList
+              className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted"
+              aria-hidden
+            />
+            <Input
+              id="upload-googleFormUrl"
+              name="googleFormUrl"
+              type="url"
+              placeholder="https://docs.google.com/forms/d/e/.../viewform"
+              required
+              className="pl-9"
+            />
+          </div>
+          <span className="text-xs font-normal text-muted">{tUpload("googleFormUrlHelp")}</span>
         </label>
       )}
     </div>

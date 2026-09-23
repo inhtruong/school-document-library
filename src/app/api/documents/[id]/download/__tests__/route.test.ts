@@ -220,6 +220,26 @@ describe("GET /api/documents/:id/download — missing cases", () => {
     expect(createLocalFileReadStream).not.toHaveBeenCalled();
   });
 
+  test("a Google Form document (no file at all) returns 404 without leaking internals, never a 200", async () => {
+    vi.mocked(prisma.document.findUnique).mockResolvedValue({
+      fileKey: null,
+      fileName: null,
+      mimeType: null,
+      moderationStatus: "APPROVED",
+      uploadedById: null,
+      sourceType: "GOOGLE_FORM",
+      sourceUrl: "https://forms.gle/AbCd1234",
+    } as never);
+
+    const response = await GET(requestWith(), context);
+    const body = await response.json();
+
+    expect(response.status).toBe(404);
+    expect(body.success).toBe(false);
+    expect(statLocalFile).not.toHaveBeenCalled();
+    expect(createLocalFileReadStream).not.toHaveBeenCalled();
+  });
+
   test("a fileKey pointing at a missing physical file returns 404 instead of crashing", async () => {
     vi.mocked(prisma.document.findUnique).mockResolvedValue(mockDocument as never);
     vi.mocked(statLocalFile).mockResolvedValue({ exists: false });

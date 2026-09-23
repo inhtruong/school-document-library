@@ -69,6 +69,7 @@ const mockDocument = {
   fileCategory: null,
   sourceType: "FILE" as const,
   externalVideoId: null,
+  sourceUrl: null,
   uploadedById: "teacher_1",
   moderationStatus: "APPROVED" as const,
   reviewedAt: null,
@@ -637,6 +638,23 @@ describe("DELETE /api/documents/:id — FEAT-12A physical file cleanup", () => {
       previewFileKey: null,
       sourceType: "YOUTUBE",
       externalVideoId: "dQw4w9WgXcQ",
+    };
+    vi.mocked(prisma.document.findUnique).mockResolvedValue(doc as never);
+    vi.mocked(prisma.document.delete).mockResolvedValue(doc as never);
+
+    const response = await DELETE(new NextRequest("http://localhost/api/documents/doc_1"), context);
+
+    expect(response.status).toBe(200);
+    expect(deleteLocalFile).not.toHaveBeenCalled();
+  });
+
+  test("deleting a Google Form document never calls deleteLocalFile — there was never a physical file to begin with", async () => {
+    const doc = {
+      ...mockDocument,
+      fileKey: null,
+      previewFileKey: null,
+      sourceType: "GOOGLE_FORM",
+      sourceUrl: "https://forms.gle/AbCd1234",
     };
     vi.mocked(prisma.document.findUnique).mockResolvedValue(doc as never);
     vi.mocked(prisma.document.delete).mockResolvedValue(doc as never);

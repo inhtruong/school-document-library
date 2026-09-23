@@ -1,7 +1,7 @@
 import { DOCX_MIME_TYPE } from "@/lib/storage/local-storage";
 import type { DocumentRecord } from "@/types/document";
 
-export type PreviewKind = "pdf" | "image" | "video" | "docx" | "word-legacy" | "excel" | "youtube" | "none";
+export type PreviewKind = "pdf" | "image" | "video" | "docx" | "word-legacy" | "excel" | "youtube" | "google-form" | "none";
 
 /**
  * Preview kinds the backend actually streams bytes for; everything else gets
@@ -33,6 +33,7 @@ export function resolvePreviewKind(
   mimeType: string | null
 ): PreviewKind {
   if (sourceType === "YOUTUBE") return "youtube";
+  if (sourceType === "GOOGLE_FORM") return "google-form";
 
   switch (fileCategory) {
     case "PDF":

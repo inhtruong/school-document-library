@@ -18,3 +18,23 @@ import { getMaxUploadSizeMB } from "../env-core";
  */
 export const MAX_UPLOAD_SIZE_MB = getMaxUploadSizeMB();
 export const MAX_UPLOAD_SIZE_BYTES = MAX_UPLOAD_SIZE_MB * 1024 * 1024;
+
+/**
+ * SEC-B-03-FIX-02: the shared "+2 MB multipart/form-data headroom" used by
+ * BOTH Next.js transport-layer body limits that must stay above the app's
+ * own `MAX_UPLOAD_SIZE_MB` (see next.config.ts) — `experimental.
+ * serverActions.bodySizeLimit` and `experimental.middlewareClientMaxBodySize`
+ * (a SEPARATE limit Next.js applies whenever a matched middleware exists on
+ * the request path, independent of the Server Action limit — src/
+ * middleware.ts matches nearly every route). Kept as one pure, exported
+ * function (not inlined twice) so the two limits can never drift from each
+ * other or from MAX_UPLOAD_SIZE_MB, and so this arithmetic is unit-testable
+ * without importing next.config.ts itself (which has build-time side
+ * effects — validateProductionEnv() and the next-intl plugin wrapper — not
+ * meant for a plain unit-test import).
+ */
+export function computeUploadBodySizeLimit(maxUploadSizeMB: number): `${number}mb` {
+  return `${maxUploadSizeMB + 2}mb`;
+}
+
+export const UPLOAD_BODY_SIZE_LIMIT = computeUploadBodySizeLimit(MAX_UPLOAD_SIZE_MB);

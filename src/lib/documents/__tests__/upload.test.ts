@@ -42,7 +42,7 @@ vi.mock("@/lib/documents/powerpoint-conversion", () => ({
 import { prisma } from "@/lib/prisma";
 import { convertPowerPointToPdf } from "@/lib/documents/powerpoint-conversion";
 import { deleteLocalFile, writeLocalFile } from "@/lib/storage/local-storage";
-import { MAX_UPLOAD_SIZE_BYTES } from "@/lib/documents/upload-config";
+import { MAX_UPLOAD_SIZE_BYTES, MAX_UPLOAD_SIZE_MB } from "@/lib/documents/upload-config";
 import { uploadDocument } from "@/lib/documents/upload";
 
 function makeFile(name: string, type: string, body: string | number[]) {
@@ -585,7 +585,26 @@ describe("uploadDocument — rejections", () => {
     expect(result.success).toBe(false);
     if (result.success) return;
     expect(result.status).toBe(400);
+    // SEC-B-03-FIX-04: the exact stable code — not just the HTTP status —
+    // is what the client's translated error message and the
+    // FileDropzone's own reused `errors.codes.uploadFileTooLarge` key
+    // both key off of; asserting it here catches a regression that
+    // status-only checks would miss (e.g. accidentally returning
+    // UPLOAD_FILE_SIGNATURE_MISMATCH or another 400 instead).
+    expect(result.error).toBe(`UPLOAD_FILE_TOO_LARGE|${MAX_UPLOAD_SIZE_MB}`);
     expect(writeLocalFile).not.toHaveBeenCalled();
+  });
+
+  test("accepts a file whose size is exactly at the configured max upload size (strict >, not >=)", async () => {
+    const exact = makeFile("report.pdf", "application/pdf", [
+      ...Buffer.from("%PDF-1.4\n"),
+      ...new Array(MAX_UPLOAD_SIZE_BYTES - 9).fill(0),
+    ]);
+    expect(exact.size).toBe(MAX_UPLOAD_SIZE_BYTES);
+
+    const result = await uploadDocument({ uploaderId: "user_1", formData: buildFormData({ file: exact }) });
+
+    expect(result.success).toBe(true);
   });
 
   test("rejects invalid metadata (missing title) without touching storage", async () => {

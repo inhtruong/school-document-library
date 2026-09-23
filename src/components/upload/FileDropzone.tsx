@@ -1,8 +1,9 @@
 "use client";
 
-import { useState, type DragEvent } from "react";
+import { useState, type ChangeEvent, type DragEvent } from "react";
 import { FileText, Upload } from "lucide-react";
 import { useTranslations } from "next-intl";
+import { validateSelectedFile } from "@/components/upload/file-size-validation";
 import { cn } from "@/lib/utils";
 
 type FileDropzoneProps = {
@@ -33,11 +34,39 @@ function formatFileSize(bytes: number): string {
 export function FileDropzone({ id, name, accept, required, acceptedFormatsLabel, maxSizeMB }: FileDropzoneProps) {
   const [file, setFile] = useState<{ name: string; size: number } | null>(null);
   const [isDragOver, setIsDragOver] = useState(false);
+  // SEC-B-03-FIX-04: defense-in-depth UX only — the backend's own
+  // `file.size > MAX_UPLOAD_SIZE_BYTES` check (uploadDocument()) remains
+  // the real security boundary and is unchanged by this.
+  const [isOversized, setIsOversized] = useState(false);
   const tUpload = useTranslations("upload");
+  const tErrors = useTranslations("errors.codes");
 
   function handleDrag(event: DragEvent<HTMLDivElement>, over: boolean) {
     event.preventDefault();
     setIsDragOver(over);
+  }
+
+  /**
+   * The ONE onChange handler for both the file picker and drag/drop (a
+   * dropped file lands in this same native input's `.files`, per the
+   * component doc comment above) — routes through the shared
+   * `validateSelectedFile()` so both entry points reject oversized files
+   * identically. An oversized selection is never stored in `file` state
+   * AND the native input itself is cleared, so it can never end up in the
+   * form's FormData on submit even if the user tries anyway.
+   */
+  function handleChange(event: ChangeEvent<HTMLInputElement>) {
+    const result = validateSelectedFile(event.target.files?.[0], maxSizeMB * 1024 * 1024);
+
+    if (result.status === "oversized") {
+      event.currentTarget.value = "";
+      setFile(null);
+      setIsOversized(true);
+      return;
+    }
+
+    setIsOversized(false);
+    setFile(result.status === "accepted" ? result.file : null);
   }
 
   return (
@@ -60,10 +89,8 @@ export function FileDropzone({ id, name, accept, required, acceptedFormatsLabel,
           accept={accept}
           required={required}
           aria-label={tUpload("documentFile")}
-          onChange={(event) => {
-            const selected = event.target.files?.[0];
-            setFile(selected ? { name: selected.name, size: selected.size } : null);
-          }}
+          aria-invalid={isOversized || undefined}
+          onChange={handleChange}
           className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
         />
 
@@ -91,6 +118,12 @@ export function FileDropzone({ id, name, accept, required, acceptedFormatsLabel,
           </>
         )}
       </div>
+
+      {isOversized ? (
+        <span role="alert" className="text-xs text-destructive">
+          {tErrors("uploadFileTooLarge", { size: maxSizeMB })}
+        </span>
+      ) : null}
     </div>
   );
 }

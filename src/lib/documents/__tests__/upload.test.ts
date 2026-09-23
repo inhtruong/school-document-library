@@ -473,6 +473,137 @@ describe("uploadDocument — YouTube (FEAT-12B)", () => {
   });
 });
 
+describe("uploadDocument — Google Form", () => {
+  function buildGoogleFormFormData(googleFormUrl: string, extra: Record<string, string> = {}) {
+    return buildFormData({ file: null, extra: { sourceType: "GOOGLE_FORM", googleFormUrl, ...extra } });
+  }
+
+  test("accepts a valid docs.google.com Forms URL and stores it as sourceUrl — no file I/O at all", async () => {
+    const result = await uploadDocument({
+      uploaderId: "user_1",
+      formData: buildGoogleFormFormData("https://docs.google.com/forms/d/e/1FAIpQLSc123/viewform"),
+    });
+
+    expect(result.success).toBe(true);
+    expect(writeLocalFile).not.toHaveBeenCalled();
+
+    const createCall = vi.mocked(prisma.document.create).mock.calls[0][0] as { data: Record<string, unknown> };
+    expect(createCall.data.sourceType).toBe("GOOGLE_FORM");
+    expect(createCall.data.sourceUrl).toBe("https://docs.google.com/forms/d/e/1FAIpQLSc123/viewform");
+    expect(createCall.data.fileKey).toBeNull();
+    expect(createCall.data.previewFileKey).toBeNull();
+    expect(createCall.data.fileName).toBeNull();
+    expect(createCall.data.fileSize).toBeNull();
+    expect(createCall.data.mimeType).toBeNull();
+    expect(createCall.data.fileCategory).toBeNull();
+    expect(createCall.data.externalVideoId).toBeNull();
+  });
+
+  test("accepts a valid forms.gle short URL", async () => {
+    const result = await uploadDocument({
+      uploaderId: "user_1",
+      formData: buildGoogleFormFormData("https://forms.gle/AbCd1234"),
+    });
+
+    expect(result.success).toBe(true);
+    const createCall = vi.mocked(prisma.document.create).mock.calls[0][0] as { data: Record<string, unknown> };
+    expect(createCall.data.sourceUrl).toBe("https://forms.gle/AbCd1234");
+  });
+
+  test("rejects an arbitrary/non-Google-Form URL without ever touching storage or the database", async () => {
+    const result = await uploadDocument({
+      uploaderId: "user_1",
+      formData: buildGoogleFormFormData("https://evil.example.com/forms/d/e/123/viewform"),
+    });
+
+    expect(result.success).toBe(false);
+    if (result.success) return;
+    expect(result.status).toBe(400);
+    expect(writeLocalFile).not.toHaveBeenCalled();
+    expect(prisma.document.create).not.toHaveBeenCalled();
+  });
+
+  test("rejects a missing/empty Google Form URL", async () => {
+    const result = await uploadDocument({
+      uploaderId: "user_1",
+      formData: buildGoogleFormFormData(""),
+    });
+
+    expect(result.success).toBe(false);
+    if (result.success) return;
+    expect(result.status).toBe(400);
+    expect(prisma.document.create).not.toHaveBeenCalled();
+  });
+
+  test("an attached file alongside GOOGLE_FORM is ignored — never written, never validated for size", async () => {
+    // Deliberately larger than MAX_UPLOAD_SIZE_BYTES: if the GOOGLE_FORM
+    // branch ever accidentally ran FILE's size check against this, the
+    // upload would fail with UPLOAD_FILE_TOO_LARGE instead of succeeding.
+    const oversized = new File([new Uint8Array(MAX_UPLOAD_SIZE_BYTES + 1)], "huge.pdf", {
+      type: "application/pdf",
+    });
+    const formData = buildGoogleFormFormData("https://forms.gle/AbCd1234");
+    formData.set("file", oversized);
+
+    const result = await uploadDocument({ uploaderId: "user_1", formData });
+
+    expect(result.success).toBe(true);
+    expect(writeLocalFile).not.toHaveBeenCalled();
+    const createCall = vi.mocked(prisma.document.create).mock.calls[0][0] as { data: Record<string, unknown> };
+    expect(createCall.data.sourceType).toBe("GOOGLE_FORM");
+    expect(createCall.data.fileKey).toBeNull();
+  });
+
+  test("a Teacher's Google Form submission lands PENDING, same moderation rule as every other source", async () => {
+    await uploadDocument({
+      uploaderId: "user_1",
+      uploaderRole: "TEACHER",
+      formData: buildGoogleFormFormData("https://forms.gle/AbCd1234"),
+    });
+
+    const createCall = vi.mocked(prisma.document.create).mock.calls[0][0] as { data: Record<string, unknown> };
+    expect(createCall.data.moderationStatus).toBe("PENDING");
+  });
+
+  test("an Admin's Google Form submission lands APPROVED, same moderation rule as every other source", async () => {
+    await uploadDocument({
+      uploaderId: "user_1",
+      uploaderRole: "ADMIN",
+      formData: buildGoogleFormFormData("https://forms.gle/AbCd1234"),
+    });
+
+    const createCall = vi.mocked(prisma.document.create).mock.calls[0][0] as { data: Record<string, unknown> };
+    expect(createCall.data.moderationStatus).toBe("APPROVED");
+  });
+
+  test("writes a DOCUMENT_UPLOADED audit row for a Google Form submission, same action as every other source", async () => {
+    await uploadDocument({
+      uploaderId: "user_1",
+      uploaderRole: "TEACHER",
+      uploaderEmail: "teacher@example.com",
+      formData: buildGoogleFormFormData("https://forms.gle/AbCd1234"),
+    });
+
+    expect(prisma.auditLog.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ action: "DOCUMENT_UPLOADED", entityType: "DOCUMENT" }),
+      })
+    );
+  });
+
+  test("a DB creation failure for a Google Form submission never attempts any filesystem cleanup (there was never a file)", async () => {
+    vi.mocked(prisma.document.create).mockRejectedValue(new Error("db unavailable"));
+
+    const result = await uploadDocument({
+      uploaderId: "user_1",
+      formData: buildGoogleFormFormData("https://forms.gle/AbCd1234"),
+    });
+
+    expect(result.success).toBe(false);
+    expect(deleteLocalFile).not.toHaveBeenCalled();
+  });
+});
+
 describe("uploadDocument — taxonomy", () => {
   test("accepts a valid, correctly-nested Grade/Subject/Lesson combination", async () => {
     const result = await uploadDocument({ uploaderId: "user_1", formData: buildFormData() });

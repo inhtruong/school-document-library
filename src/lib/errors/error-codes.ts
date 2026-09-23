@@ -45,6 +45,7 @@ export const ERROR_CODE_MESSAGE_KEYS = {
   AUTH_SIGNIN_AFTER_REGISTER_FAILED: "authSigninAfterRegisterFailed",
   UNEXPECTED_ERROR: "unexpectedError",
   UPLOAD_YOUTUBE_URL_INVALID: "uploadYoutubeUrlInvalid",
+  UPLOAD_GOOGLE_FORM_URL_INVALID: "uploadGoogleFormUrlInvalid",
   UPLOAD_FILE_REQUIRED: "uploadFileRequired",
   UPLOAD_FILE_TOO_LARGE: "uploadFileTooLarge",
   UPLOAD_UNSUPPORTED_FILE_TYPE: "uploadUnsupportedFileType",

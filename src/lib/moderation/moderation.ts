@@ -22,6 +22,7 @@ const MODERATION_SELECT = {
   fileCategory: true,
   sourceType: true,
   externalVideoId: true,
+  sourceUrl: true,
   createdAt: true,
   reviewedAt: true,
   uploadedBy: { select: { id: true, name: true, role: true } },
@@ -42,6 +43,7 @@ export type ModerationListItem = {
   fileCategory: FileCategory | null;
   sourceType: DocumentSourceType;
   externalVideoId: string | null;
+  sourceUrl: string | null;
   createdAt: string;
   reviewedAt: string | null;
   uploadedBy: { id: string; name: string; role: string } | null;
@@ -70,6 +72,7 @@ function toListItem(row: {
   fileCategory: FileCategory | null;
   sourceType: DocumentSourceType;
   externalVideoId: string | null;
+  sourceUrl: string | null;
   createdAt: Date;
   reviewedAt: Date | null;
   uploadedBy: { id: string; name: string; role: string } | null;

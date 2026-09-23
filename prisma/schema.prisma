@@ -48,6 +48,15 @@ model Document {
   // one value (see src/lib/documents/youtube.ts), so no arbitrary/attacker-
   // influenced URL or HTML is ever stored or rendered.
   externalVideoId String?
+  // GOOGLE_FORM support: the validated, server-normalized Google Form URL —
+  // null for every FILE/YOUTUBE document. Unlike `externalVideoId`, a
+  // Google Form has no short canonical id to derive a URL from (the
+  // `docs.google.com/forms/...` path itself, or a `forms.gle` short link,
+  // IS the identifier), so the validated URL is stored directly. Still
+  // only ever a value that has passed `extractGoogleFormUrl()`'s host/
+  // protocol/path allowlist (see src/lib/documents/google-form.ts) — never
+  // an arbitrary attacker-supplied string.
+  sourceUrl       String?
 
   // File metadata — nullable so existing (fileless) documents keep working,
   // and so a YOUTUBE document (which has no file at all) is represented
@@ -270,6 +279,7 @@ enum FileCategory {
 enum DocumentSourceType {
   FILE
   YOUTUBE
+  GOOGLE_FORM
 }
 
 /**

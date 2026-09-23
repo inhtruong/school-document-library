@@ -1,3 +1,4 @@
+import { ClipboardList, ExternalLink } from "lucide-react";
 import { getTranslations } from "next-intl/server";
 import { DocxPreview } from "@/components/DocxPreview";
 import { Card } from "@/components/ui/card";
@@ -14,6 +15,8 @@ type FilePreviewProps = {
   sourceType: DocumentRecord["sourceType"];
   /** FEAT-12B: the validated video id — only ever read when sourceType is YOUTUBE. */
   externalVideoId: string | null;
+  /** The validated Google Form URL — only ever read when sourceType is GOOGLE_FORM. */
+  sourceUrl: string | null;
 };
 
 function PlaceholderCard({ message }: { message: string }) {
@@ -32,6 +35,7 @@ export async function FilePreview({
   fileName,
   sourceType,
   externalVideoId,
+  sourceUrl,
 }: FilePreviewProps) {
   const kind = resolvePreviewKind(sourceType, fileCategory, mimeType);
   const previewUrl = `/api/documents/${documentId}/preview`;
@@ -70,6 +74,32 @@ export async function FilePreview({
             {tPreview("openOnYouTube")}
           </a>
         </div>
+      );
+    }
+
+    case "google-form": {
+      // Defensive only — every GOOGLE_FORM document is created with a
+      // validated URL (see uploadDocument), so this null case should be
+      // unreachable in practice.
+      if (!sourceUrl) {
+        return <PlaceholderCard message={tPreview("notAvailable")} />;
+      }
+      return (
+        <Card className="flex flex-col items-center gap-3 bg-surface px-6 py-12 text-center">
+          <span aria-hidden className="flex h-12 w-12 items-center justify-center rounded-full bg-accent-soft">
+            <ClipboardList className="h-6 w-6 text-accent" aria-hidden />
+          </span>
+          <p className="max-w-sm text-sm text-muted">{tPreview("googleFormDescription")}</p>
+          <a
+            href={sourceUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-2 rounded-xl bg-accent px-5 py-2.5 text-sm font-medium text-paper transition-colors hover:bg-accent-strong"
+          >
+            <ExternalLink className="h-4 w-4" aria-hidden />
+            {tPreview("openGoogleForm")}
+          </a>
+        </Card>
       );
     }
 

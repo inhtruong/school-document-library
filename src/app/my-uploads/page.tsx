@@ -1,6 +1,7 @@
 import Link from "next/link";
 import {
   CalendarDays,
+  ClipboardList,
   FileSpreadsheet,
   FileText,
   Image as ImageIcon,
@@ -68,6 +69,7 @@ function formatDate(iso: string, format: DateTimeFormatter): string {
 /** Real source/file type only — same convention as documents/[id] and SearchResultCard's local helper (duplicated on purpose, no shared export exists — see their own comments). */
 function fileTypeIcon(doc: Pick<TeacherUploadListItem, "sourceType" | "fileCategory">) {
   if (doc.sourceType === "YOUTUBE") return PlayCircle;
+  if (doc.sourceType === "GOOGLE_FORM") return ClipboardList;
   switch (doc.fileCategory) {
     case "EXCEL":
       return FileSpreadsheet;

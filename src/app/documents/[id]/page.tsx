@@ -5,6 +5,7 @@ import {
   ArrowLeft,
   CalendarDays,
   ChevronRight,
+  ClipboardList,
   FileSpreadsheet,
   FileText,
   Image as ImageIcon,
@@ -76,6 +77,7 @@ function formatFileSize(bytes: number | null): string | null {
 /** UI-7B: real source/file type only, same mapping as SearchResultCard's local helper (duplicated rather than shared — a page-local presentational helper, same precedent as formatFileSize above). */
 function fileTypeIcon(doc: Pick<DocumentRecord, "sourceType" | "fileCategory">) {
   if (doc.sourceType === "YOUTUBE") return PlayCircle;
+  if (doc.sourceType === "GOOGLE_FORM") return ClipboardList;
   switch (doc.fileCategory) {
     case "EXCEL":
       return FileSpreadsheet;
@@ -192,6 +194,8 @@ export default async function DocumentDetailPage({ params, searchParams }: Docum
   });
   if (doc.sourceType === "YOUTUBE") {
     infoItems.push({ label: tDocuments("fileType"), value: "YouTube" });
+  } else if (doc.sourceType === "GOOGLE_FORM") {
+    infoItems.push({ label: tDocuments("fileType"), value: tUpload("googleForm") });
   } else if (doc.fileCategory) {
     infoItems.push({ label: tDocuments("fileType"), value: doc.fileCategory });
   }
@@ -354,6 +358,7 @@ export default async function DocumentDetailPage({ params, searchParams }: Docum
             fileName={doc.fileName}
             sourceType={doc.sourceType}
             externalVideoId={doc.externalVideoId}
+            sourceUrl={doc.sourceUrl}
           />
         </div>
       </div>

@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { getTranslations } from "next-intl/server";
-import { FileSpreadsheet, FileText, Image as ImageIcon, PlayCircle, Presentation } from "lucide-react";
+import { ClipboardList, FileSpreadsheet, FileText, Image as ImageIcon, PlayCircle, Presentation } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { documentTypeMessageKey } from "@/lib/documents/document-type";
 import type { DocumentRecord } from "@/types/document";
@@ -12,6 +12,7 @@ type LatestDocumentCardProps = {
 /** Real source/file type only — same convention duplicated across documents/[id], SearchResultCard, and my-uploads (no shared export exists — see their own comments). */
 function fileTypeIcon(doc: Pick<DocumentRecord, "sourceType" | "fileCategory">) {
   if (doc.sourceType === "YOUTUBE") return PlayCircle;
+  if (doc.sourceType === "GOOGLE_FORM") return ClipboardList;
   switch (doc.fileCategory) {
     case "EXCEL":
       return FileSpreadsheet;
